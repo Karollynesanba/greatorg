@@ -155,7 +155,7 @@ export const teamMembers: TeamMember[] = [
     role: "Vídeo Maker",
     avatar: "B",
     specialty: "Gravação, edição e reels",
-    color: "#D10000",
+      color: "#833AB4",
     stats: {
       postsCreated: 42,
       avgEngagement: 7.8,
@@ -183,7 +183,7 @@ export const teamMembers: TeamMember[] = [
     role: "Designer de Social",
     avatar: "H",
     specialty: "Artes estáticas e stories",
-    color: "#34C759",
+      color: "#E1306C",
     stats: {
       postsCreated: 38,
       avgEngagement: 6.9,
@@ -211,7 +211,7 @@ export const teamMembers: TeamMember[] = [
     role: "Designer Editorial",
     avatar: "T",
     specialty: "Carrosséis e capas",
-    color: "#007AFF",
+      color: "#FCAF45",
     stats: {
       postsCreated: 35,
       avgEngagement: 7.2,

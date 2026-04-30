@@ -1,6 +1,13 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useDrag, useDrop } from "react-dnd";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  CirclePlus,
+  ChevronDown,
+  Menu,
+  Plus,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   calendarEvents,
@@ -10,21 +17,21 @@ import {
   weekLabel,
   type CalendarEvent,
 } from "../data/mockData";
+import { useSharedState, createStorageKey } from "../data/sharedState";
 import {
   ActionButton,
-  Avatar,
-  FilterPill,
+  ConfirmDialog,
+  DeleteIconButton,
   GlassPanel,
   PageHeader,
   PageTransition,
-  StatusBadge,
-  TypeBadge,
   cn,
 } from "../components/ui";
 
 const viewModes = ["Dia", "Semana", "Mês"] as const;
 const dragType = "calendar-event";
 const referenceDate = new Date("2026-04-30T12:00:00");
+const weekHeaderLabels = ["DOM.", "SEG.", "TER.", "QUA.", "QUI.", "SEX.", "SÁB."];
 
 function addDays(date: Date, value: number) {
   const nextDate = new Date(date);
@@ -59,7 +66,7 @@ function formatMonthLabel(date: Date) {
 }
 
 function formatDayLabel(date: Date) {
-  return new Intl.DateTimeFormat("pt-BR", { weekday: "short", day: "2-digit" }).format(date);
+  return new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "short" }).format(date);
 }
 
 function buildMonthCells(date: Date) {
@@ -69,12 +76,16 @@ function buildMonthCells(date: Date) {
   return Array.from({ length: 35 }, (_, index) => addDays(gridStart, index));
 }
 
-function EventCard({
+function EventChip({
   event,
   compact = false,
+  onClick,
+  onDelete,
 }: {
   event: CalendarEvent;
   compact?: boolean;
+  onClick?: () => void;
+  onDelete?: () => void;
 }) {
   const member = teamMembers.find((item) => item.id === event.responsibleId)!;
   const [, drag] = useDrag(() => ({
@@ -86,47 +97,69 @@ function EventCard({
   };
 
   return (
-    <button
-      ref={attachDragRef}
-      type="button"
-      className={cn(
-        "w-full rounded-2xl p-3 text-left shadow-sm transition hover:-translate-y-0.5",
-        compact ? "bg-card/80" : "bg-card shadow-[var(--shadow-card)]",
-      )}
-      style={{
-        borderLeft: `4px solid ${member.color}`,
-      }}
-    >
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-sm font-semibold text-foreground">{event.title}</p>
-          <TypeBadge value={event.type} />
-        </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span>{event.time}</span>
-          <StatusBadge value={event.status} />
-        </div>
-        {!compact ? (
-          <div className="mt-2 flex items-center gap-3">
-            <Avatar name={member.name} color={member.color} size="sm" />
-            <span className="text-xs text-muted-foreground">{member.name}</span>
+    <div className="group relative w-full">
+      <button
+        ref={attachDragRef}
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onClick?.();
+        }}
+        className={cn(
+          "relative w-full rounded-[1rem] border text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-sm",
+          compact ? "px-2.5 py-1.5 shadow-none" : "px-3 py-2 shadow-sm",
+        )}
+        style={{
+          backgroundColor: `${member.color}08`,
+          borderColor: `${member.color}22`,
+          borderLeft: `4px solid ${member.color}`,
+        }}
+      >
+        <div className="space-y-1">
+          <p className="text-[11px] font-semibold leading-4" style={{ color: member.color }}>
+            {event.title}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ backgroundColor: `${member.color}14`, color: member.color }}>
+              {event.type}
+            </span>
+            <span className="text-[10px] text-muted-foreground">{event.time}</span>
+            {!compact ? (
+              <span
+                className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                style={{ backgroundColor: `${member.color}12`, color: member.color }}
+              >
+                {event.status}
+              </span>
+            ) : null}
           </div>
-        ) : null}
-      </div>
-    </button>
+        </div>
+      </button>
+      {onDelete ? (
+        <div className="absolute right-1 top-1 z-20 opacity-0 transition group-hover:opacity-100">
+          <DeleteIconButton onClick={onDelete} />
+        </div>
+      ) : null}
+    </div>
   );
 }
 
-function DropSlot({
+function CalendarSlot({
   date,
   time,
   events,
   onDropEvent,
+  onSelectEvent,
+  onAddAtSlot,
+  onDeleteEvent,
 }: {
   date: string;
   time: string;
   events: CalendarEvent[];
   onDropEvent: (eventId: number, nextDate: string, nextTime: string) => void;
+  onSelectEvent: (event: CalendarEvent) => void;
+  onAddAtSlot: (date: string, time: string) => void;
+  onDeleteEvent: (event: CalendarEvent) => void;
 }) {
   const [{ isOver }, drop] = useDrop(() => ({
     accept: dragType,
@@ -142,16 +175,208 @@ function DropSlot({
   return (
     <div
       ref={attachDropRef}
+      onClick={() => {
+        if (events.length === 0) {
+          onAddAtSlot(date, time);
+        }
+      }}
       className={cn(
-        "min-h-20 rounded-2xl border border-border/55 bg-muted/25 p-2 transition",
-        isOver && "border-primary bg-primary/8",
+        "relative min-h-[92px] border-l border-t border-border/45 bg-white/85 p-2 transition",
+        events.length === 0 && "cursor-pointer hover:bg-primary/5",
+        isOver && "bg-primary/5",
       )}
     >
-      <div className="space-y-2">
+      <div className={cn("space-y-2", events.length > 0 && "pb-7")}>
         {events.map((event) => (
-          <EventCard key={event.id} event={event} compact />
+          <EventChip
+            key={event.id}
+            event={event}
+            compact
+            onClick={() => onSelectEvent(event)}
+            onDelete={() => onDeleteEvent(event)}
+          />
         ))}
       </div>
+      {events.length > 0 ? (
+        <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onAddAtSlot(date, time);
+            }}
+            className="absolute bottom-2 left-1/2 z-20 inline-flex h-5 w-5 -translate-x-1/2 items-center justify-center rounded-full border border-rose-200 bg-white text-[11px] font-bold leading-none text-rose-600 shadow-sm transition hover:bg-rose-50"
+            aria-label="Adicionar tarefa neste horário"
+          >
+            +
+          </button>
+      ) : null}
+    </div>
+  );
+}
+
+function MiniMonth({ date }: { date: Date }) {
+  const monthCells = buildMonthCells(date);
+  const currentMonth = date.getMonth();
+  const currentDay = formatDateKey(referenceDate);
+
+  return (
+    <div className="rounded-[1.75rem] border border-border/60 bg-white p-4 shadow-sm">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-foreground">{formatMonthLabel(date)}</h3>
+        <span className="text-xs font-medium text-muted-foreground">Abr 2026</span>
+      </div>
+      <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        {daysOfWeek.map((day) => (
+          <span key={day}>{day.slice(0, 1)}</span>
+        ))}
+      </div>
+      <div className="mt-2 grid grid-cols-7 gap-1">
+        {monthCells.map((day) => {
+          const isCurrentMonth = day.getMonth() === currentMonth;
+          const isToday = formatDateKey(day) === currentDay;
+
+          return (
+            <button
+              key={formatDateKey(day)}
+              type="button"
+              className={cn(
+                "flex h-9 items-center justify-center rounded-full text-xs transition",
+                isToday && "bg-primary text-primary-foreground shadow-lg shadow-primary/20",
+                !isToday && isCurrentMonth && "text-foreground hover:bg-muted",
+                !isCurrentMonth && "text-muted-foreground/40",
+              )}
+            >
+              {day.getDate()}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function SideAgenda({
+  events,
+  onDelete,
+}: {
+  events: CalendarEvent[];
+  onDelete: (event: CalendarEvent) => void;
+}) {
+  const orderedEvents = [...events].sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+
+  return (
+    <div className="rounded-[1.75rem] border border-border/60 bg-white p-4 shadow-sm">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-foreground">Agenda rápida</h3>
+        <CirclePlus className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <div className="mt-4 space-y-3">
+        {orderedEvents.slice(0, 4).map((event) => {
+          const member = teamMembers.find((item) => item.id === event.responsibleId)!;
+
+          return (
+            <div
+              key={event.id}
+              className="group relative rounded-2xl border border-border/60 p-3"
+              style={{ backgroundColor: `${member.color}06` }}
+            >
+              <div className="absolute right-2 top-2 z-10 opacity-0 transition group-hover:opacity-100">
+                <DeleteIconButton onClick={() => onDelete(event)} />
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-foreground">{event.title}</p>
+                  <p className="text-xs text-muted-foreground">{event.date}</p>
+                </div>
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: member.color }} />
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+                <span className="text-muted-foreground">{event.time}</span>
+                <span className="font-medium" style={{ color: member.color }}>
+                  {member.name}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function MemberDropdown({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const selectedMember = teamMembers.find((member) => member.id === value) ?? teamMembers[0];
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, []);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="flex w-full items-center justify-between gap-3 rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm transition hover:border-primary/25 hover:shadow-sm"
+      >
+        <span className="flex items-center gap-3 text-left">
+          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: selectedMember.color }} />
+          <span className="font-medium" style={{ color: selectedMember.color }}>
+            {selectedMember.name}
+          </span>
+        </span>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open ? (
+        <div className="absolute left-0 top-full z-50 mt-2 w-full rounded-[1.5rem] border border-border/70 bg-white p-2 shadow-[0_24px_60px_rgba(15,23,42,0.14)]">
+          <p className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            Responsável
+          </p>
+          <div className="space-y-1">
+            {teamMembers.map((member) => {
+              const selected = member.id === selectedMember.id;
+
+              return (
+                <button
+                  key={member.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(member.id);
+                    setOpen(false);
+                  }}
+                  className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm transition hover:bg-muted/70"
+                  style={{
+                    backgroundColor: selected ? `${member.color}12` : undefined,
+                  }}
+                >
+                  <span className="flex items-center gap-3">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: member.color }} />
+                    <span className="font-medium" style={{ color: member.color }}>
+                      {member.name}
+                    </span>
+                  </span>
+                  {selected ? <span className="text-xs font-semibold text-muted-foreground">Ativo</span> : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -159,11 +384,26 @@ function DropSlot({
 export function CalendarPage() {
   const [view, setView] = useState<(typeof viewModes)[number]>("Semana");
   const [currentDate, setCurrentDate] = useState(referenceDate);
-  const [events, setEvents] = useState(calendarEvents);
+  const [events, setEvents] = useSharedState(createStorageKey("calendar-events"), calendarEvents);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<CalendarEvent | null>(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    title: "",
+    description: "",
+    type: "Reels" as CalendarEvent["type"],
+    status: "Agendado" as CalendarEvent["status"],
+    date: formatDateKey(referenceDate),
+    time: "09:00",
+    responsibleId: teamMembers[0].id,
+  });
 
-  const weekDates = Array.from({ length: 7 }, (_, index) => addDays(startOfWeek(currentDate), index));
-  const monthCells = buildMonthCells(currentDate);
-
+  const weekDates = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(startOfWeek(currentDate), index)), [currentDate]);
+  const monthCells = useMemo(() => buildMonthCells(currentDate), [currentDate]);
+  const currentMonthEvents = useMemo(
+    () => events.filter((event) => event.date.startsWith(`${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}`)),
+    [currentDate, events],
+  );
   const handleNavigate = (direction: -1 | 1) => {
     if (view === "Dia") {
       setCurrentDate((previous) => addDays(previous, direction));
@@ -180,195 +420,532 @@ export function CalendarPage() {
 
   const handleDropEvent = (eventId: number, nextDate: string, nextTime: string) => {
     setEvents((previous) =>
-      previous.map((event) =>
-        event.id === eventId ? { ...event, date: nextDate, time: nextTime } : event,
-      ),
+      previous.map((event) => (event.id === eventId ? { ...event, date: nextDate, time: nextTime } : event)),
     );
     toast.success("Post reagendado com sucesso.");
   };
+
+  const handleDuplicateEvent = () => {
+    if (!selectedEvent) {
+      return;
+    }
+
+    const nextId = Math.max(...events.map((event) => event.id), 0) + 1;
+    const duplicatedEvent: CalendarEvent = {
+      ...selectedEvent,
+      id: nextId,
+    };
+
+    setEvents((previous) => [...previous, duplicatedEvent]);
+    toast.success("Nova atividade criada neste horário.");
+  };
+
+  const handleDeleteEvent = (eventId: number) => {
+    const removedEvent = events.find((event) => event.id === eventId);
+
+    if (!removedEvent) {
+      return;
+    }
+
+    setEvents((previous) => previous.filter((event) => event.id !== eventId));
+    setSelectedEvent((current) => (current?.id === eventId ? null : current));
+    setPendingDelete(null);
+    toast.success("Evento apagado com sucesso.", {
+      action: {
+        label: "Desfazer",
+        onClick: () => {
+          setEvents((previous) => {
+            if (previous.some((event) => event.id === removedEvent.id)) {
+              return previous;
+            }
+
+            return [removedEvent, ...previous];
+          });
+        },
+      },
+    });
+  };
+
+  const handleOpenQuickCreate = (date: string, time: string) => {
+    setCreateForm((previous) => ({
+      ...previous,
+      date,
+      time,
+      title: "",
+      description: "",
+    }));
+    setIsCreateOpen(true);
+  };
+
+  const handleCreateEvent = () => {
+    if (!createForm.title.trim() || !createForm.description.trim()) {
+      toast.error("Preencha título e descrição.");
+      return;
+    }
+
+    const nextId = Math.max(...events.map((event) => event.id), 0) + 1;
+    setEvents((previous) => [
+      ...previous,
+      {
+        id: nextId,
+        title: createForm.title.trim(),
+        description: createForm.description.trim(),
+        type: createForm.type,
+        responsibleId: createForm.responsibleId,
+        status: createForm.status,
+        date: createForm.date,
+        time: createForm.time,
+      },
+    ]);
+    setIsCreateOpen(false);
+    toast.success("Novo post criado com sucesso.");
+  };
+
+  useEffect(() => {
+    if (!selectedEvent) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSelectedEvent(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedEvent]);
+
+  useEffect(() => {
+    if (!isCreateOpen) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsCreateOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isCreateOpen]);
+
+  const dayHeader = view === "Dia" ? formatDayLabel(currentDate) : formatWeekRange(currentDate);
 
   return (
     <PageTransition>
       <PageHeader
         eyebrow="Planner"
         title="Calendário editorial com visão operacional"
-        description="A semana vira um painel vivo para redistribuir a produção, enxergar carga de trabalho e reagendar conteúdos com fluidez."
+        description="Uma experiência mais próxima do Google Calendar, com visão semanal dominante, agenda lateral e slots rápidos de reagendamento."
         actions={
-          <ActionButton onClick={() => toast.message("Fluxo de criação de post pronto para integrar.")}>
+          <ActionButton onClick={() => setIsCreateOpen(true)}>
             <Plus className="h-4 w-4" />
             Novo Post
           </ActionButton>
         }
       />
 
-      <GlassPanel index={1}>
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            {viewModes.map((mode) => (
-              <FilterPill key={mode} label={mode} active={view === mode} onClick={() => setView(mode)} />
-            ))}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="inline-flex items-center gap-2 rounded-2xl bg-muted px-2 py-2">
+      <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
+        <aside className="flex flex-col gap-4">
+          <GlassPanel className="overflow-hidden p-4">
+            <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => handleNavigate(-1)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-foreground transition hover:bg-background"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/70 bg-white text-foreground shadow-sm transition hover:bg-muted"
+                onClick={() => setCurrentDate(referenceDate)}
               >
-                <ChevronLeft className="h-4 w-4" />
+                <Menu className="h-4 w-4" />
               </button>
-              <button
-                type="button"
-                onClick={() => handleNavigate(1)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-foreground transition hover:bg-background"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-            <div>
-              <p className="text-lg font-semibold text-foreground">
-                {view === "Semana"
-                  ? formatWeekRange(currentDate)
-                  : view === "Dia"
-                    ? new Intl.DateTimeFormat("pt-BR", {
-                        weekday: "long",
-                        day: "2-digit",
-                        month: "long",
-                      }).format(currentDate)
-                    : formatMonthLabel(currentDate)}
-              </p>
-              <p className="text-sm text-muted-foreground">{weekLabel}</p>
-            </div>
-          </div>
-        </div>
-      </GlassPanel>
-
-      {view === "Semana" ? (
-        <GlassPanel index={2} className="overflow-hidden">
-          <div className="grid grid-cols-[72px_repeat(7,minmax(0,1fr))] gap-3">
-            <div />
-            {weekDates.map((date, index) => (
-              <div key={formatDateKey(date)} className="px-1 pb-2 text-center">
-                <p className="text-sm font-semibold text-foreground">{daysOfWeek[index]}</p>
-                <p className="text-xs text-muted-foreground">
-                  {new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" }).format(date)}
-                </p>
+              <div>
+                <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Calendário</p>
+                <h2 className="text-lg font-semibold text-foreground">Great Orgânico</h2>
               </div>
-            ))}
+            </div>
+          </GlassPanel>
 
-            {calendarHours.map((hour) => (
-              <FragmentRow
-                key={hour}
-                hour={hour}
-                dates={weekDates}
-                events={events}
-                onDropEvent={handleDropEvent}
-              />
-            ))}
-          </div>
-        </GlassPanel>
-      ) : null}
+          <MiniMonth date={currentDate} />
+          <SideAgenda events={currentMonthEvents} onDelete={(event) => setPendingDelete(event)} />
+        </aside>
 
-      {view === "Dia" ? (
-        <div className="grid gap-4">
-          {calendarHours.map((hour, index) => {
-            const currentKey = formatDateKey(currentDate);
-            const currentEvents = events.filter((event) => event.date === currentKey && event.time === hour);
-
-            return (
-              <GlassPanel key={hour} index={index + 2}>
-                <div className="grid gap-4 lg:grid-cols-[120px_minmax(0,1fr)] lg:items-start">
-                  <div>
-                    <p className="text-lg font-semibold text-foreground">{hour}</p>
-                    <p className="text-sm text-muted-foreground">{formatDayLabel(currentDate)}</p>
-                  </div>
-                  <DropSlot
-                    date={currentKey}
-                    time={hour}
-                    events={currentEvents}
-                    onDropEvent={handleDropEvent}
-                  />
-                </div>
-              </GlassPanel>
-            );
-          })}
-        </div>
-      ) : null}
-
-      {view === "Mês" ? (
-        <GlassPanel index={2}>
-          <div className="grid grid-cols-7 gap-3">
-            {daysOfWeek.map((day) => (
-              <div key={day} className="px-2 pb-1 text-sm font-semibold text-muted-foreground">
-                {day}
-              </div>
-            ))}
-            {monthCells.map((date) => {
-              const dateKey = formatDateKey(date);
-              const monthEvents = events.filter((event) => event.date === dateKey);
-              const isCurrentMonth = date.getMonth() === currentDate.getMonth();
-
-              return (
-                <div
-                  key={dateKey}
-                  className={cn(
-                    "min-h-36 rounded-3xl border border-border/60 bg-muted/35 p-3",
-                    !isCurrentMonth && "opacity-45",
-                  )}
+        <div className="space-y-4">
+          <GlassPanel className="overflow-hidden p-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleNavigate(-1)}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/70 bg-white text-foreground shadow-sm transition hover:bg-muted"
                 >
-                  <p className="text-sm font-semibold text-foreground">{date.getDate()}</p>
-                  <div className="mt-3 space-y-2">
-                    {monthEvents.slice(0, 2).map((event) => (
-                      <div key={event.id} className="rounded-2xl bg-card px-3 py-2 text-xs">
-                        <p className="font-medium text-foreground">{event.title}</p>
-                        <p className="mt-1 text-muted-foreground">
-                          {event.time} • {event.type}
-                        </p>
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleNavigate(1)}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/70 bg-white text-foreground shadow-sm transition hover:bg-muted"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentDate(referenceDate)}
+                  className="rounded-full border border-border/70 bg-white px-4 py-2.5 text-sm font-semibold text-foreground shadow-sm transition hover:bg-muted"
+                >
+                  Hoje
+                </button>
+              </div>
+
+              <div className="text-left lg:text-center">
+                <p className="text-xl font-semibold tracking-tight text-foreground">{dayHeader}</p>
+                <p className="text-sm text-muted-foreground">{weekLabel}</p>
+              </div>
+
+              <div className="inline-flex rounded-full border border-border/60 bg-muted/50 p-1">
+                {viewModes.map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setView(mode)}
+                    className={cn(
+                      "rounded-full px-4 py-2 text-sm font-medium transition",
+                      view === mode
+                        ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </GlassPanel>
+
+          <GlassPanel className="overflow-hidden p-0">
+            {view === "Semana" ? (
+              <div className="overflow-x-auto">
+                <div className="min-w-[980px] rounded-[2rem] bg-white">
+                  <div className="sticky top-0 z-10 grid grid-cols-[72px_repeat(7,minmax(0,1fr))] border-b border-border/50 bg-white/95 backdrop-blur">
+                    <div className="px-3 py-4" />
+                    {weekDates.map((date, index) => {
+                      const isToday = formatDateKey(date) === formatDateKey(referenceDate);
+
+                      return (
+                        <div key={formatDateKey(date)} className="px-2 py-4 text-center">
+                          <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{weekHeaderLabels[index]}</p>
+                          <p
+                            className={cn(
+                              "mt-1 inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold",
+                              isToday ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "text-foreground",
+                            )}
+                          >
+                            {date.getDate()}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="grid grid-cols-[72px_repeat(7,minmax(0,1fr))]">
+                    {calendarHours.map((hour) => (
+                      <div key={hour} className="contents">
+                        <div className="border-r border-border/45 px-3 pt-2 text-[11px] text-muted-foreground">
+                          {hour}
+                        </div>
+                        {weekDates.map((date) => {
+                          const dateKey = formatDateKey(date);
+                          const slotEvents = events.filter((event) => event.date === dateKey && event.time === hour);
+
+                          return (
+                            <CalendarSlot
+                              key={`${dateKey}-${hour}`}
+                              date={dateKey}
+                              time={hour}
+                              events={slotEvents}
+                              onDropEvent={handleDropEvent}
+                              onSelectEvent={setSelectedEvent}
+                              onAddAtSlot={handleOpenQuickCreate}
+                              onDeleteEvent={(event) => setPendingDelete(event)}
+                            />
+                          );
+                        })}
                       </div>
                     ))}
-                    {monthEvents.length > 2 ? (
-                      <p className="text-xs font-medium text-primary">+{monthEvents.length - 2} mais</p>
-                    ) : null}
                   </div>
                 </div>
+              </div>
+            ) : null}
+
+            {view === "Dia" ? (
+              <div className="p-4">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-foreground">{formatDayLabel(currentDate)}</h3>
+                    <p className="text-sm text-muted-foreground">Arraste e solte os posts para reagendar.</p>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {calendarHours.map((hour) => {
+                    const currentKey = formatDateKey(currentDate);
+                    const currentEvents = events.filter((event) => event.date === currentKey && event.time === hour);
+
+                    return (
+                      <div key={hour} className="grid gap-3 lg:grid-cols-[120px_minmax(0,1fr)] lg:items-start">
+                        <div className="pt-3 text-sm font-medium text-muted-foreground">{hour}</div>
+                        <CalendarSlot
+                          date={currentKey}
+                          time={hour}
+                          events={currentEvents}
+                          onDropEvent={handleDropEvent}
+                          onSelectEvent={setSelectedEvent}
+                          onAddAtSlot={handleOpenQuickCreate}
+                          onDeleteEvent={(event) => setPendingDelete(event)}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            {view === "Mês" ? (
+              <div className="p-4">
+                <div className="mb-4 grid grid-cols-7 gap-3 px-1 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                  {daysOfWeek.map((day) => (
+                    <div key={day}>{day}</div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-3">
+                  {monthCells.map((date) => {
+                    const dateKey = formatDateKey(date);
+                    const monthEvents = events.filter((event) => event.date === dateKey);
+                    const isCurrentMonth = date.getMonth() === currentDate.getMonth();
+
+                    return (
+                        <div
+                          key={dateKey}
+                          className={cn(
+                          "min-h-44 rounded-[1.6rem] border border-border/60 bg-white p-3",
+                          !isCurrentMonth && "opacity-45",
+                        )}
+                      >
+                        <p className="text-sm font-semibold text-foreground">{date.getDate()}</p>
+                        <div className="mt-3 space-y-2">
+                          {monthEvents.map((event) => (
+                            <EventChip
+                              key={event.id}
+                              event={event}
+                              compact
+                              onClick={() => setSelectedEvent(event)}
+                              onDelete={() => setPendingDelete(event)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </GlassPanel>
+        </div>
+      </div>
+
+      {selectedEvent ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4 backdrop-blur-[2px]"
+          onClick={() => setSelectedEvent(null)}
+        >
+          <div
+            className="w-full max-w-lg rounded-[2rem] border border-border/60 bg-white p-6 shadow-[0_30px_80px_rgba(15,23,42,0.18)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {(() => {
+              const member = teamMembers.find((item) => item.id === selectedEvent.responsibleId)!;
+
+              return (
+                <>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-2">
+                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Atividade</p>
+                      <h3 className="text-2xl font-semibold tracking-tight text-foreground">{selectedEvent.title}</h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedEvent(null)}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl bg-muted/45 p-4">
+                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Data</p>
+                      <p className="mt-2 text-sm font-semibold text-foreground">{selectedEvent.date}</p>
+                    </div>
+                    <div className="rounded-2xl bg-muted/45 p-4">
+                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Horário</p>
+                      <p className="mt-2 text-sm font-semibold text-foreground">{selectedEvent.time}</p>
+                    </div>
+                    <div className="rounded-2xl bg-muted/45 p-4">
+                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Responsável</p>
+                      <p className="mt-2 text-sm font-semibold text-foreground">{member.name}</p>
+                    </div>
+                    <div className="rounded-2xl bg-muted/45 p-4">
+                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Status</p>
+                      <p className="mt-2 text-sm font-semibold text-foreground">{selectedEvent.status}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap items-center gap-2">
+                    <span
+                      className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
+                      style={{ backgroundColor: `${member.color}14`, color: member.color }}
+                    >
+                      {selectedEvent.type}
+                    </span>
+                    <span className="text-sm text-muted-foreground">{selectedEvent.description}</span>
+                  </div>
+
+                  <div className="mt-6 flex flex-wrap gap-3">
+                    <ActionButton
+                      onClick={handleDuplicateEvent}
+                      className="bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Adicionar outra atividade neste horário
+                    </ActionButton>
+                    <ActionButton variant="secondary" onClick={() => setSelectedEvent(null)}>
+                      Fechar
+                    </ActionButton>
+                  </div>
+                </>
               );
-            })}
+            })()}
           </div>
-        </GlassPanel>
+        </div>
+      ) : null}
+
+      {pendingDelete ? (
+        <ConfirmDialog
+          title="Tem certeza que deseja apagar?"
+          description="Essa ação não pode ser desfeita."
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => handleDeleteEvent(pendingDelete.id)}
+        />
+      ) : null}
+
+      {isCreateOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4 backdrop-blur-[2px]"
+          onClick={() => setIsCreateOpen(false)}
+        >
+          <div
+            className="w-full max-w-2xl rounded-[2rem] border border-border/60 bg-white p-6 shadow-[0_30px_80px_rgba(15,23,42,0.18)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Novo Post</p>
+                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Criar atividade rápida</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCreateOpen(false)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
+              >
+                <span className="text-lg leading-none">×</span>
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <label className="grid gap-2 md:col-span-2">
+                <span className="text-sm font-medium text-foreground">Título</span>
+                <input
+                  value={createForm.title}
+                  onChange={(event) => setCreateForm((previous) => ({ ...previous, title: event.target.value }))}
+                  className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                />
+              </label>
+              <label className="grid gap-2 md:col-span-2">
+                <span className="text-sm font-medium text-foreground">Descrição</span>
+                <textarea
+                  value={createForm.description}
+                  onChange={(event) =>
+                    setCreateForm((previous) => ({ ...previous, description: event.target.value }))
+                  }
+                  rows={3}
+                  className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-foreground">Tipo</span>
+                <select
+                  value={createForm.type}
+                  onChange={(event) =>
+                    setCreateForm((previous) => ({ ...previous, type: event.target.value as CalendarEvent["type"] }))
+                  }
+                  className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                >
+                  <option value="Reels">Reels</option>
+                  <option value="Stories">Stories</option>
+                  <option value="Carrossel">Carrossel</option>
+                  <option value="Feed">Feed</option>
+                </select>
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-foreground">Status</span>
+                <select
+                  value={createForm.status}
+                  onChange={(event) =>
+                    setCreateForm((previous) => ({ ...previous, status: event.target.value as CalendarEvent["status"] }))
+                  }
+                  className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                >
+                  <option value="Agendado">Agendado</option>
+                  <option value="Em produção">Em produção</option>
+                  <option value="Aprovado">Aprovado</option>
+                  <option value="Publicado">Publicado</option>
+                </select>
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-foreground">Data</span>
+                <input
+                  value={createForm.date}
+                  onChange={(event) => setCreateForm((previous) => ({ ...previous, date: event.target.value }))}
+                  className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-foreground">Horário</span>
+                <input
+                  value={createForm.time}
+                  onChange={(event) => setCreateForm((previous) => ({ ...previous, time: event.target.value }))}
+                  className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                />
+              </label>
+              <label className="grid gap-2 md:col-span-2">
+                <span className="text-sm font-medium text-foreground">Responsável</span>
+                <MemberDropdown
+                  value={createForm.responsibleId}
+                  onChange={(value) => setCreateForm((previous) => ({ ...previous, responsibleId: value }))}
+                />
+              </label>
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <ActionButton variant="secondary" onClick={() => setIsCreateOpen(false)}>
+                Cancelar
+              </ActionButton>
+              <ActionButton onClick={handleCreateEvent}>
+                <Plus className="h-4 w-4" />
+                Criar post
+              </ActionButton>
+            </div>
+          </div>
+        </div>
       ) : null}
     </PageTransition>
-  );
-}
-
-function FragmentRow({
-  hour,
-  dates,
-  events,
-  onDropEvent,
-}: {
-  hour: string;
-  dates: Date[];
-  events: CalendarEvent[];
-  onDropEvent: (eventId: number, nextDate: string, nextTime: string) => void;
-}) {
-  return (
-    <>
-      <div className="pt-3 text-xs font-medium text-muted-foreground">{hour}</div>
-      {dates.map((date) => {
-        const dateKey = formatDateKey(date);
-        const slotEvents = events.filter((event) => event.date === dateKey && event.time === hour);
-
-        return (
-          <DropSlot
-            key={`${dateKey}-${hour}`}
-            date={dateKey}
-            time={hour}
-            events={slotEvents}
-            onDropEvent={onDropEvent}
-          />
-        );
-      })}
-    </>
   );
 }

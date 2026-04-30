@@ -1,8 +1,8 @@
 import clsx from "clsx";
 import { motion } from "motion/react";
 import type { LucideIcon } from "lucide-react";
-import { Check, File, FileImage, FileText, Film, TrendingDown, TrendingUp } from "lucide-react";
-import type { PropsWithChildren, ReactNode } from "react";
+import { AlertTriangle, Check, File, FileImage, FileText, Film, Trash2, TrendingDown, TrendingUp } from "lucide-react";
+import type { CSSProperties, PropsWithChildren, ReactNode } from "react";
 import type { ContentType, PostFile, PostStatus } from "../data/mockData";
 import { statusColors, typeColors } from "../data/mockData";
 
@@ -50,8 +50,9 @@ export function PageTransition({ children }: PropsWithChildren) {
 export function GlassPanel({
   children,
   className,
+  style,
   index = 0,
-}: PropsWithChildren<{ className?: string; index?: number }>) {
+}: PropsWithChildren<{ className?: string; index?: number; style?: CSSProperties }>) {
   return (
     <motion.section
       custom={index}
@@ -62,6 +63,7 @@ export function GlassPanel({
         "rounded-3xl border border-border/70 bg-card/90 p-5 shadow-[var(--shadow-card)] backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]",
         className,
       )}
+      style={style}
     >
       {children}
     </motion.section>
@@ -154,6 +156,105 @@ export function ActionButton({
     >
       {children}
     </button>
+  );
+}
+
+export function IconActionButton({
+  icon: Icon,
+  label,
+  onClick,
+  className,
+  tone = "neutral",
+  title,
+}: {
+  icon: LucideIcon;
+  label: string;
+  onClick?: () => void;
+  className?: string;
+  tone?: "neutral" | "danger";
+  title?: string;
+}) {
+  const tones = {
+    neutral:
+      "border-border/70 bg-white/95 text-muted-foreground shadow-sm hover:border-primary/25 hover:text-foreground hover:shadow-md",
+    danger:
+      "border-rose-200 bg-white/95 text-rose-500 shadow-sm hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 hover:shadow-md",
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title ?? label}
+      aria-label={label}
+      className={cn(
+        "inline-flex h-9 w-9 items-center justify-center rounded-full border transition duration-200",
+        tones[tone],
+        className,
+      )}
+    >
+      <Icon className="h-4 w-4" />
+    </button>
+  );
+}
+
+export function DeleteIconButton({
+  onClick,
+  className,
+}: {
+  onClick?: () => void;
+  className?: string;
+}) {
+  return <IconActionButton icon={Trash2} label="Apagar" onClick={onClick} tone="danger" className={className} />;
+}
+
+export function ConfirmDialog({
+  title,
+  description,
+  confirmLabel = "Apagar",
+  cancelLabel = "Cancelar",
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  description: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm"
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-md rounded-[2rem] border border-border/60 bg-white p-6 shadow-[0_30px_80px_rgba(15,23,42,0.18)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start gap-4">
+          <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
+            <AlertTriangle className="h-5 w-5" />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-xl font-semibold tracking-tight text-foreground">{title}</h3>
+            <p className="text-sm leading-6 text-muted-foreground">{description}</p>
+          </div>
+        </div>
+
+        <div className="mt-6 flex flex-wrap justify-end gap-3">
+          <ActionButton variant="secondary" onClick={onCancel}>
+            {cancelLabel}
+          </ActionButton>
+          <ActionButton
+            onClick={onConfirm}
+            className="bg-rose-600 text-white shadow-lg shadow-rose-600/20 hover:bg-rose-700"
+          >
+            {confirmLabel}
+          </ActionButton>
+        </div>
+      </div>
+    </div>
   );
 }
 

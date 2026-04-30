@@ -1,14 +1,16 @@
+import type { CSSProperties } from "react";
+import { Link } from "react-router-dom";
 import {
   Area,
   AreaChart,
   CartesianGrid,
+  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import { BarChart3, Eye, Rocket, Sparkles } from "lucide-react";
-import { Link } from "react-router-dom";
+import { BarChart3, Eye, Rocket, Sparkles, type LucideIcon } from "lucide-react";
 import {
   dashboardMetrics,
   dashboardSummary,
@@ -20,210 +22,377 @@ import {
 } from "../data/mockData";
 import {
   GlassPanel,
-  HealthScoreRing,
-  MemberChip,
-  MetricStat,
   PageHeader,
   PageTransition,
-  ProgressBar,
   SectionTitle,
-  StatusBadge,
-  TypeBadge,
   formatCompactNumber,
   formatLongNumber,
 } from "../components/ui";
 
 const metricIcons = [Eye, BarChart3, Sparkles, Rocket];
 
+const instagramTheme = {
+  ["--primary" as never]: "131 58 180",
+  ["--primary-foreground" as never]: "255 255 255",
+  ["--background" as never]: "249 249 251",
+  ["--foreground" as never]: "28 28 32",
+  ["--card" as never]: "255 255 255",
+  ["--card-foreground" as never]: "28 28 32",
+  ["--muted" as never]: "245 246 249",
+  ["--muted-foreground" as never]: "111 114 126",
+  ["--border" as never]: "229 231 238",
+  ["--ring" as never]: "131 58 180",
+  ["--shadow" as never]: "131 58 180",
+} as CSSProperties;
+
+function InstagramHealthScoreRing({ score }: { score: number }) {
+  const radius = 74;
+  const circumference = 2 * Math.PI * radius;
+  const progress = circumference - (score / 100) * circumference;
+
+  return (
+    <div className="relative flex h-56 w-56 items-center justify-center">
+      <svg className="-rotate-90 h-56 w-56" viewBox="0 0 180 180">
+        <defs>
+          <linearGradient id="instagramRingGradient" x1="0%" x2="100%" y1="0%" y2="100%">
+            <stop offset="0%" stopColor="#833AB4" />
+            <stop offset="52%" stopColor="#E1306C" />
+            <stop offset="100%" stopColor="#F56040" />
+          </linearGradient>
+        </defs>
+        <circle cx="90" cy="90" r={radius} fill="none" stroke="rgba(255,255,255,0.26)" strokeWidth="12" />
+        <circle
+          cx="90"
+          cy="90"
+          r={radius}
+          fill="none"
+          stroke="url(#instagramRingGradient)"
+          strokeLinecap="round"
+          strokeWidth="12"
+          style={{
+            strokeDasharray: circumference,
+            strokeDashoffset: progress,
+          }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+        <span className="text-sm text-white/78">Saúde do perfil</span>
+        <strong className="text-5xl font-semibold tracking-tight text-white">{score}</strong>
+        <span className="text-sm font-medium text-white/78">de 100</span>
+      </div>
+    </div>
+  );
+}
+
+function DashboardMetricCard({
+  icon: Icon,
+  label,
+  value,
+  change,
+  detail,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  change: number;
+  detail: string;
+}) {
+  const positive = change >= 0;
+
+  return (
+    <GlassPanel className="overflow-hidden">
+      <div className="flex items-start justify-between gap-4">
+        <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,rgba(131,58,180,0.14),rgba(225,48,108,0.14),rgba(245,96,64,0.12))] text-[#8A2FB1] ring-1 ring-[#833AB4]/10">
+          <Icon className="h-5 w-5" />
+        </div>
+        <span
+          className={[
+            "inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold",
+            positive ? "bg-[#833AB4]/10 text-[#6C2CA1]" : "bg-[#F56040]/10 text-[#B94A2D]",
+          ].join(" ")}
+        >
+          <Sparkles className="h-3.5 w-3.5" />
+          {change > 0 ? "+" : ""}
+          {change}%
+        </span>
+      </div>
+      <div className="mt-6 space-y-2">
+        <p className="text-sm text-muted-foreground">{label}</p>
+        <h3 className="text-3xl font-semibold tracking-tight text-foreground">{value}</h3>
+        <p className="text-sm text-muted-foreground">{detail}</p>
+      </div>
+      <div className="mt-6 h-2 overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full bg-[linear-gradient(90deg,#833AB4_0%,#E1306C_50%,#F56040_100%)] transition-[width] duration-500"
+          style={{ width: `${Math.min(Math.abs(change) * 6, 100)}%` }}
+        />
+      </div>
+    </GlassPanel>
+  );
+}
+
+function DashboardProgressBar({ value, max, label }: { value: number; max: number; label?: string }) {
+  const progress = max === 0 ? 0 : (value / max) * 100;
+
+  return (
+    <div className="space-y-2">
+      {label ? (
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>{label}</span>
+          <span>{progress.toFixed(0)}%</span>
+        </div>
+      ) : null}
+      <div className="h-2.5 overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full bg-[linear-gradient(90deg,#833AB4_0%,#E1306C_50%,#F56040_100%)] transition-[width] duration-700 ease-out"
+          style={{ width: `${Math.min(progress, 100)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ContentTypePill({ type }: { type: string }) {
+  return (
+    <span className="inline-flex items-center rounded-full border border-[#833AB4]/12 bg-[#833AB4]/6 px-3 py-1 text-xs font-semibold text-[#6C2CA1]">
+      {type}
+    </span>
+  );
+}
+
+function SoftMemberChip({ name, role }: { name: string; role?: string }) {
+  return (
+    <div className="inline-flex items-center gap-3 rounded-full border border-[#833AB4]/10 bg-white/70 px-3 py-2">
+      <span className="h-2.5 w-2.5 rounded-full bg-[linear-gradient(135deg,#833AB4,#E1306C)]" />
+      <div className="space-y-0.5">
+        <p className="text-sm font-medium text-foreground">{name}</p>
+        {role ? <p className="text-xs text-muted-foreground">{role}</p> : null}
+      </div>
+    </div>
+  );
+}
+
 export function DashboardPage() {
+  const chartLegend = [
+    { label: "Alcance", color: "#833AB4" },
+    { label: "Engajamento", color: "#E1306C" },
+  ];
+
   return (
     <PageTransition>
-      <PageHeader
-        eyebrow="Overview"
-        title="Saúde completa do Instagram da Great"
-        description="Uma leitura executiva da operação criativa, com performance, metas e alertas de conteúdo em um único lugar."
-      />
+      <div style={instagramTheme} className="space-y-6">
+        <PageHeader
+          eyebrow="Overview"
+          title="Saúde completa do Instagram da Great"
+          description="Uma leitura executiva da operação criativa, com performance, metas e alertas de conteúdo em um único lugar."
+        />
 
-      <div className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
-        <GlassPanel className="flex flex-col items-center justify-center p-6" index={1}>
-          <HealthScoreRing score={dashboardSummary.healthScore} />
-          <div className="mt-5 grid w-full gap-3 sm:grid-cols-2 xl:grid-cols-1">
-            <div className="rounded-2xl bg-muted/65 p-4 text-center">
-              <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Metas concluídas</p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">{dashboardSummary.completedGoals}/6</p>
+        <div className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
+          <GlassPanel
+            className="flex flex-col items-center justify-center overflow-hidden !bg-[linear-gradient(145deg,#833AB4_0%,#E1306C_52%,#F56040_100%)] p-6 text-white !border-white/10 shadow-[0_28px_60px_rgba(131,58,180,0.18)]"
+            index={1}
+          >
+            <InstagramHealthScoreRing score={dashboardSummary.healthScore} />
+            <div className="mt-5 grid w-full gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur">
+                <p className="text-xs uppercase tracking-[0.16em] text-white/72">Metas concluídas</p>
+                <p className="mt-2 text-2xl font-semibold text-white">{dashboardSummary.completedGoals}/6</p>
+              </div>
+              <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur">
+                <p className="text-xs uppercase tracking-[0.16em] text-white/72">Engajamento total</p>
+                <p className="mt-2 text-2xl font-semibold text-white">
+                  {formatLongNumber(dashboardSummary.totalEngagement)}
+                </p>
+              </div>
             </div>
-            <div className="rounded-2xl bg-muted/65 p-4 text-center">
-              <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Engajamento total</p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">{formatLongNumber(dashboardSummary.totalEngagement)}</p>
-            </div>
-          </div>
-        </GlassPanel>
+          </GlassPanel>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          {dashboardMetrics.map((metric, index) => {
-            const Icon = metricIcons[index];
-
-            return (
-              <MetricStat
-                key={metric.id}
-                icon={Icon}
-                label={metric.label}
-                value={metric.value}
-                change={metric.change}
-                detail={metric.highlight}
-              />
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="grid gap-6 2xl:grid-cols-[1.1fr_0.9fr]">
-        <GlassPanel index={2}>
-          <SectionTitle
-            title="Top 5 conteúdos"
-            description="Os posts que mais puxaram alcance, saves e conversa nas últimas semanas."
-          />
-          <div className="mt-5 space-y-3">
-            {topPosts.map((post, index) => {
-              const member = teamMembers.find((item) => item.id === post.authorId)!;
+          <div className="grid gap-6 md:grid-cols-2">
+            {dashboardMetrics.map((metric, index) => {
+              const Icon = metricIcons[index];
 
               return (
-                <Link
-                  key={post.id}
-                  to={`/post/${post.id}`}
-                  className="flex flex-col gap-4 rounded-3xl bg-muted/45 p-4 transition duration-200 hover:bg-muted/80 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-sm font-semibold text-primary-foreground">
-                      #{index + 1}
-                    </div>
-                    <img
-                      src={post.thumbnail}
-                      alt={post.title}
-                      className="hidden h-16 w-24 rounded-2xl object-cover sm:block"
-                    />
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-sm font-semibold text-foreground sm:text-base">{post.title}</h3>
-                        <TypeBadge value={post.type} />
-                      </div>
-                      <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground sm:text-sm">
-                        <span>{member.name}</span>
-                        <span>{post.date}</span>
-                        <span>{formatCompactNumber(post.reach)} de alcance</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Engajamento</p>
-                    <p className="mt-1 text-lg font-semibold text-foreground">{formatLongNumber(post.engagement)}</p>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </GlassPanel>
-
-        <GlassPanel index={3}>
-          <SectionTitle
-            title="Conteúdos com baixa performance"
-            description="Peças que pedem ajuste imediato de gancho, CTA ou proposta editorial."
-          />
-          <div className="mt-5 grid gap-4">
-            {worstPosts.map((post) => {
-              const member = teamMembers.find((item) => item.id === post.authorId)!;
-
-              return (
-                <div
-                  key={post.id}
-                  className="rounded-3xl border border-destructive/20 bg-destructive/6 p-5"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <TypeBadge value={post.type} />
-                    <StatusBadge value="Atenção" />
-                  </div>
-                  <h3 className="mt-4 text-lg font-semibold text-foreground">{post.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{post.description}</p>
-                  <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                    <span>{member.name}</span>
-                    <span>{formatLongNumber(post.engagement)} de engajamento</span>
-                    <span>{formatCompactNumber(post.reach)} de alcance</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </GlassPanel>
-      </div>
-
-      <div className="grid gap-6 2xl:grid-cols-[0.95fr_1.05fr]">
-        <GlassPanel index={4}>
-          <SectionTitle
-            title="Comparação meta vs resultado"
-            description="As três metas mais críticas do ciclo atual."
-          />
-          <div className="mt-5 space-y-5">
-            {goals.slice(0, 3).map((goal) => {
-              const member = teamMembers.find((item) => item.id === goal.responsibleId)!;
-              const progress = (goal.current / goal.target) * 100;
-
-              return (
-                <div key={goal.id} className="rounded-3xl bg-muted/45 p-5">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="space-y-2">
-                      <h3 className="text-base font-semibold text-foreground">{goal.name}</h3>
-                      <MemberChip name={member.name} role={member.role} color={member.color} />
-                    </div>
-                    <div className="text-left sm:text-right">
-                      <p className="text-sm text-muted-foreground">
-                        {goal.current} / {goal.target}
-                      </p>
-                      <p className="text-2xl font-semibold text-foreground">{progress.toFixed(0)}%</p>
-                    </div>
-                  </div>
-                  <div className="mt-4">
-                    <ProgressBar value={goal.current} max={goal.target} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </GlassPanel>
-
-        <GlassPanel index={5}>
-          <SectionTitle
-            title="Evolução nos últimos 30 dias"
-            description="A curva conjunta de alcance e engajamento mostra aceleração sustentável."
-          />
-          <div className="mt-6 h-[360px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={evolutionData} margin={{ top: 10, right: 18, left: -12, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="reachGradient" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="#D10000" stopOpacity={0.38} />
-                    <stop offset="100%" stopColor="#D10000" stopOpacity={0.04} />
-                  </linearGradient>
-                  <linearGradient id="engagementGradient" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="#007AFF" stopOpacity={0.34} />
-                    <stop offset="100%" stopColor="#007AFF" stopOpacity={0.04} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="rgb(var(--border) / 0.5)" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fill: "rgb(var(--muted-foreground) / 1)", fontSize: 12 }} />
-                <YAxis tickLine={false} axisLine={false} tick={{ fill: "rgb(var(--muted-foreground) / 1)", fontSize: 12 }} />
-                <Tooltip
-                  contentStyle={{
-                    borderRadius: 18,
-                    border: "1px solid rgb(var(--border) / 0.65)",
-                    backgroundColor: "rgb(var(--card) / 0.96)",
-                  }}
+                <DashboardMetricCard
+                  key={metric.id}
+                  icon={Icon}
+                  label={metric.label}
+                  value={metric.value}
+                  change={metric.change}
+                  detail={metric.highlight}
                 />
-                <Area type="monotone" dataKey="reach" stroke="#D10000" fill="url(#reachGradient)" strokeWidth={3} />
-                <Area type="monotone" dataKey="engagement" stroke="#007AFF" fill="url(#engagementGradient)" strokeWidth={3} />
-              </AreaChart>
-            </ResponsiveContainer>
+              );
+            })}
           </div>
-        </GlassPanel>
+        </div>
+
+        <div className="grid gap-6 2xl:grid-cols-[1.1fr_0.9fr]">
+          <GlassPanel index={2}>
+            <SectionTitle
+              title="Top 5 conteúdos"
+              description="Os posts que mais puxaram alcance, saves e conversa nas últimas semanas."
+            />
+            <div className="mt-5 space-y-3">
+              {topPosts.map((post, index) => {
+                const member = teamMembers.find((item) => item.id === post.authorId)!;
+
+                return (
+                  <Link
+                    key={post.id}
+                    to={`/post/${post.id}`}
+                    className="flex flex-col gap-4 rounded-3xl border border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(249,249,251,0.96))] p-4 transition duration-200 hover:-translate-y-0.5 hover:border-[#833AB4]/18 hover:shadow-[0_18px_36px_rgba(131,58,180,0.07)] sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,rgba(131,58,180,0.12),rgba(225,48,108,0.12),rgba(245,96,64,0.1))] text-sm font-semibold text-[#833AB4] ring-1 ring-[#833AB4]/10">
+                        #{index + 1}
+                      </div>
+                      <div className="flex h-16 w-24 items-center justify-center rounded-2xl border border-[#833AB4]/10 bg-[linear-gradient(135deg,rgba(131,58,180,0.08),rgba(225,48,108,0.08),rgba(245,176,69,0.08))] text-[#833AB4]">
+                        <Sparkles className="h-5 w-5" />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-sm font-semibold text-foreground sm:text-base">{post.title}</h3>
+                          <ContentTypePill type={post.type} />
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground sm:text-sm">
+                          <span>{member.name}</span>
+                          <span>{post.date}</span>
+                          <span>{formatCompactNumber(post.reach)} de alcance</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Engajamento</p>
+                      <p className="mt-1 text-lg font-semibold text-foreground">{formatLongNumber(post.engagement)}</p>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </GlassPanel>
+
+          <GlassPanel index={3}>
+            <SectionTitle
+              title="Conteúdos com baixa performance"
+              description="Peças que pedem ajuste imediato de gancho, CTA ou proposta editorial."
+            />
+            <div className="mt-5 grid gap-4">
+              {worstPosts.map((post) => {
+                const member = teamMembers.find((item) => item.id === post.authorId)!;
+
+                return (
+                  <div
+                    key={post.id}
+                    className="rounded-3xl border border-[#E1306C]/12 bg-[linear-gradient(135deg,rgba(255,248,250,1),rgba(255,245,240,1))] p-5"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center rounded-full border border-[#E1306C]/12 bg-white/70 px-3 py-1 text-xs font-semibold text-[#B34B67]">
+                        {post.type}
+                      </span>
+                      <span className="inline-flex items-center rounded-full border border-[#F56040]/14 bg-[#F56040]/8 px-3 py-1 text-xs font-semibold text-[#B94A2D]">
+                        Atenção suave
+                      </span>
+                    </div>
+                    <h3 className="mt-4 text-lg font-semibold text-foreground">{post.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{post.description}</p>
+                    <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                      <span>{member.name}</span>
+                      <span>{formatLongNumber(post.engagement)} de engajamento</span>
+                      <span>{formatCompactNumber(post.reach)} de alcance</span>
+                    </div>
+                    <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[#E1306C]/8">
+                      <div className="h-full w-1/2 rounded-full bg-[linear-gradient(90deg,#E1306C_0%,#F56040_100%)]" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </GlassPanel>
+        </div>
+
+        <div className="grid gap-6 2xl:grid-cols-[0.95fr_1.05fr]">
+          <GlassPanel index={4}>
+            <SectionTitle
+              title="Comparação meta vs resultado"
+              description="As três metas mais críticas do ciclo atual."
+            />
+            <div className="mt-5 space-y-5">
+              {goals.slice(0, 3).map((goal) => {
+                const member = teamMembers.find((item) => item.id === goal.responsibleId)!;
+                const progress = (goal.current / goal.target) * 100;
+
+                return (
+                  <div key={goal.id} className="rounded-3xl bg-muted/45 p-5">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="space-y-2">
+                        <h3 className="text-base font-semibold text-foreground">{goal.name}</h3>
+                        <SoftMemberChip name={member.name} role={member.role} />
+                      </div>
+                      <div className="text-left sm:text-right">
+                        <p className="text-sm text-muted-foreground">
+                          {goal.current} / {goal.target}
+                        </p>
+                        <p className="text-2xl font-semibold text-foreground">{progress.toFixed(0)}%</p>
+                      </div>
+                    </div>
+                    <div className="mt-4">
+                      <DashboardProgressBar value={goal.current} max={goal.target} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </GlassPanel>
+
+          <GlassPanel index={5}>
+            <SectionTitle
+              title="Evolução nos últimos 30 dias"
+              description="A curva conjunta de alcance e engajamento mostra aceleração sustentável."
+            />
+            <div className="mt-4 flex items-center gap-4 text-xs text-muted-foreground">
+              {chartLegend.map((item) => (
+                <span key={item.label} className="inline-flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                  {item.label}
+                </span>
+              ))}
+            </div>
+            <div className="mt-4 h-[360px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={evolutionData} margin={{ top: 10, right: 18, left: -12, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="reachGradient" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stopColor="#833AB4" stopOpacity={0.32} />
+                      <stop offset="100%" stopColor="#833AB4" stopOpacity={0.03} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="rgb(var(--border) / 0.5)" strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: "rgb(var(--muted-foreground) / 1)", fontSize: 12 }}
+                  />
+                  <YAxis tickLine={false} axisLine={false} tick={{ fill: "rgb(var(--muted-foreground) / 1)", fontSize: 12 }} />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: 18,
+                      border: "1px solid rgb(var(--border) / 0.65)",
+                      backgroundColor: "rgb(var(--card) / 0.98)",
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="reach"
+                    stroke="#833AB4"
+                    fill="url(#reachGradient)"
+                    strokeWidth={3}
+                  />
+                  <Line type="monotone" dataKey="engagement" stroke="#E1306C" strokeWidth={2.5} dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </GlassPanel>
+        </div>
       </div>
     </PageTransition>
   );

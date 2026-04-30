@@ -9,6 +9,7 @@ import {
   History,
   LayoutDashboard,
   Lightbulb,
+  UserCircle2,
   Target,
   TrendingUp,
   Users,
@@ -28,7 +29,7 @@ const navigation = [
   { to: "/reports", label: "Relatórios", icon: FileText },
 ];
 
-export function Sidebar() {
+export function Sidebar({ onLogout }: { onLogout?: () => void }) {
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
   const { theme, setTheme } = useTheme();
@@ -101,7 +102,24 @@ export function Sidebar() {
           ))}
         </nav>
 
-        <div className="mt-6 rounded-3xl border border-border/60 bg-card-strong/90 p-4">
+        <div className="mb-1 rounded-3xl border border-border/60 bg-card-strong/90 p-2">
+          <NavLink
+            to="/profile"
+            className={({ isActive }) =>
+              cn(
+                "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition duration-200",
+                isActive
+                  ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                  : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+              )
+            }
+          >
+            <UserCircle2 className="h-4 w-4" />
+            Meu Perfil
+          </NavLink>
+        </div>
+
+        <div className="mt-1 rounded-3xl border border-border/60 bg-card-strong/90 p-4">
           <button
             type="button"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
@@ -110,6 +128,15 @@ export function Sidebar() {
             <span>{theme === "dark" ? "Modo claro" : "Modo escuro"}</span>
             {theme === "dark" ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
           </button>
+          {onLogout ? (
+            <button
+              type="button"
+              onClick={onLogout}
+              className="mt-3 flex w-full items-center justify-center rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm font-semibold text-primary transition hover:bg-primary/10"
+            >
+              Sair
+            </button>
+          ) : null}
         </div>
       </aside>
     </>
