@@ -6,11 +6,11 @@
   --success: 52 199 89;
   --warning: 255 204 0;
   --destructive: 255 59 48;
-  --background: 255 255 255;
+  --background: 244 245 247;
   --foreground: 26 26 26;
   --card: 255 255 255;
   --card-foreground: 26 26 26;
-  --sidebar: 248 248 250;
+  --sidebar: 247 248 250;
   --muted: 245 245 247;
   --muted-foreground: 110 110 115;
   --border: 232 232 237;
@@ -20,23 +20,23 @@
 }
 
 .dark {
-  --primary: 255 69 58;
+  --primary: 255 99 132;
   --primary-foreground: 255 255 255;
-  --primary-soft: 209 0 0;
-  --accent-soft: 255 149 0;
+  --primary-soft: 225 48 108;
+  --accent-soft: 245 96 64;
   --success: 48 209 88;
   --warning: 255 214 10;
-  --destructive: 255 69 58;
-  --background: 10 10 10;
-  --foreground: 245 245 247;
-  --card: 28 28 30;
-  --card-foreground: 245 245 247;
-  --sidebar: 18 18 20;
-  --muted: 44 44 46;
-  --muted-foreground: 174 174 178;
-  --border: 58 58 60;
-  --ring: 255 69 58;
-  --shadow: 0 0 0;
+  --destructive: 255 99 132;
+  --background: 8 10 14;
+  --foreground: 244 246 250;
+  --card: 18 21 28;
+  --card-foreground: 244 246 250;
+  --sidebar: 10 12 17;
+  --muted: 28 33 42;
+  --muted-foreground: 168 175 190;
+  --border: 40 46 59;
+  --ring: 255 99 132;
+  --shadow: 2 6 23;
 }
 
 @theme inline {
@@ -47,20 +47,20 @@
   --color-destructive: rgb(var(--destructive) / 1);
   --color-background: rgb(var(--background) / 1);
   --color-foreground: rgb(var(--foreground) / 1);
-  --color-card: rgb(var(--card) / 0.82);
-  --color-card-strong: rgb(var(--card) / 0.95);
+  --color-card: rgb(var(--card) / 0.92);
+  --color-card-strong: rgb(var(--card) / 0.98);
   --color-card-foreground: rgb(var(--card-foreground) / 1);
-  --color-sidebar: rgb(var(--sidebar) / 0.84);
+  --color-sidebar: rgb(var(--sidebar) / 0.92);
   --color-muted: rgb(var(--muted) / 1);
   --color-muted-foreground: rgb(var(--muted-foreground) / 1);
-  --color-border: rgb(var(--border) / 0.82);
+  --color-border: rgb(var(--border) / 0.92);
   --color-ring: rgb(var(--ring) / 1);
   --radius-4xl: calc(var(--radius) + 1rem);
   --radius-3xl: calc(var(--radius) + 0.5rem);
   --radius-2xl: var(--radius);
   --radius-xl: calc(var(--radius) - 0.25rem);
-  --shadow-soft: 0 24px 60px rgb(var(--shadow) / 0.08);
-  --shadow-card: 0 16px 36px rgb(var(--shadow) / 0.08);
+  --shadow-soft: 0 24px 60px rgb(var(--shadow) / 0.10);
+  --shadow-card: 0 12px 30px rgb(var(--shadow) / 0.08);
 }
 
 @media print {

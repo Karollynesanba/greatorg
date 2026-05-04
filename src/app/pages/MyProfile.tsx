@@ -1,351 +1,224 @@
-import { useEffect, useState } from "react";
-import { useTheme } from "next-themes";
-import { Bell, CheckCheck, PencilLine, Plus, Save, Settings2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { PencilLine, Save, Upload, Users, X } from "lucide-react";
 import { toast } from "sonner";
-import { teamMembers } from "../data/mockData";
-import { ActionButton, Avatar, GlassPanel, PageHeader, PageTransition, cn } from "../components/ui";
+import { Avatar, ActionButton, GlassPanel, PageHeader, PageTransition, SectionTitle, cn } from "../components/ui";
+import { useCurrentTeamMember, useTeamProfiles, type EditableTeamMember } from "../data/profiles";
 
-type ProfileReminder = {
-  id: number;
-  title: string;
-  dueDate: string;
-  done: boolean;
-};
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
 
-type ProfilePreferences = {
-  notifications: boolean;
-  emailSummary: boolean;
-  syncCalendar: boolean;
-  compactMode: boolean;
-};
-
-const profileColor = "#833AB4";
-
-const initialProfile = {
-  name: "Usuário Administrador",
-  role: "Gerente de Conteúdo • Great Orgânico",
-  email: "admin@great.com",
-  cargo: "Gerente",
-  team: "3 membros",
-  avatar: "U",
-};
-
-const initialReminders: ProfileReminder[] = [
-  { id: 1, title: "Aprovar posts da semana", dueDate: "29/04/2026", done: false },
-  { id: 2, title: "Revisar metas mensais", dueDate: "30/04/2026", done: false },
-  { id: 3, title: "Atualizar calendário de maio", dueDate: "28/04/2026", done: true },
-];
-
-const initialPreferences: ProfilePreferences = {
-  notifications: true,
-  emailSummary: false,
-  syncCalendar: true,
-  compactMode: false,
-};
-
-function ToggleRow({
-  title,
-  description,
-  enabled,
-  onToggle,
+function Field({
+  label,
+  value,
+  onChange,
+  type = "text",
+  placeholder,
 }: {
-  title: string;
-  description: string;
-  enabled: boolean;
-  onToggle: () => void;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  placeholder?: string;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-2xl border border-border/60 px-4 py-3">
-      <div>
-        <p className="text-sm font-medium text-foreground">{title}</p>
-        <p className="text-xs text-muted-foreground">{description}</p>
-      </div>
-      <button
-        type="button"
-        onClick={onToggle}
-        className={cn("relative h-7 w-12 rounded-full transition", enabled ? "bg-primary" : "bg-muted")}
-        aria-pressed={enabled}
-      >
-        <span
-          className={cn(
-            "absolute top-1 h-5 w-5 rounded-full bg-white shadow transition",
-            enabled ? "left-6" : "left-1",
-          )}
-        />
-      </button>
-    </div>
+    <label className="grid gap-2">
+      <span className="text-sm font-medium text-foreground">{label}</span>
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        type={type}
+        placeholder={placeholder}
+        className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:bg-white/5"
+      />
+    </label>
   );
 }
 
 export function MyProfilePage() {
-  const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
-  const [profile, setProfile] = useState(initialProfile);
-  const [reminders, setReminders] = useState(initialReminders);
-  const [newReminder, setNewReminder] = useState("");
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const { member, memberId, updateMember } = useCurrentTeamMember();
+  const [profiles] = useTeamProfiles();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [editForm, setEditForm] = useState(initialProfile);
-  const [preferences, setPreferences] = useState<ProfilePreferences>(initialPreferences);
-  const [settingsForm, setSettingsForm] = useState(initialPreferences);
+  const [editForm, setEditForm] = useState<EditableTeamMember | null>(null);
 
   useEffect(() => {
-    if (isEditOpen) {
-      setEditForm(profile);
+    if (!isEditOpen || !member) {
+      return;
     }
-  }, [isEditOpen, profile]);
+
+    setEditForm(member);
+  }, [isEditOpen, member]);
 
   useEffect(() => {
-    if (isSettingsOpen) {
-      setSettingsForm(preferences);
-    }
-  }, [isSettingsOpen, preferences]);
-
-  useEffect(() => {
-    if (!isSettingsOpen && !isEditOpen) {
+    if (!isEditOpen) {
       return undefined;
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setIsSettingsOpen(false);
         setIsEditOpen(false);
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isSettingsOpen, isEditOpen]);
+  }, [isEditOpen]);
 
-  const pendingCount = reminders.filter((item) => !item.done).length;
-  const compact = preferences.compactMode;
+  const memberCount = profiles.length;
+  const color = member?.color ?? "rgb(var(--primary) / 1)";
+  const initials = useMemo(() => member?.name?.charAt(0)?.toUpperCase() ?? "U", [member?.name]);
 
-  const accentPanelStyle = isDark
-    ? {
-        background: "linear-gradient(180deg, rgba(24,24,26,0.98), rgba(16,16,18,0.96))",
-        borderColor: "rgba(255,255,255,0.08)",
-        boxShadow: "0 18px 36px rgba(0,0,0,0.28)",
-      }
-    : {
-        background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(131,58,180,0.08))",
-        borderColor: "rgba(131,58,180,0.14)",
-        boxShadow: "0 18px 36px rgba(131,58,180,0.10)",
-      };
+  if (!member) {
+    return (
+      <PageTransition>
+        <PageHeader
+          eyebrow="Perfil"
+          title="Meu Perfil"
+          description="Não foi possível carregar o perfil atual."
+        />
+      </PageTransition>
+    );
+  }
 
-  const handleAddReminder = () => {
-    if (!newReminder.trim()) {
-      toast.error("Digite um lembrete.");
+  const saveProfile = () => {
+    if (!editForm) {
       return;
     }
 
-    setReminders((previous) => [
-      {
-        id: Math.max(...previous.map((item) => item.id), 0) + 1,
-        title: newReminder.trim(),
-        dueDate: new Intl.DateTimeFormat("pt-BR").format(new Date()),
-        done: false,
-      },
-      ...previous,
-    ]);
-    setNewReminder("");
-    toast.success("Lembrete adicionado.");
-  };
+    if (!editForm.name.trim() || !editForm.email.trim() || !editForm.password.trim() || !editForm.role.trim()) {
+      toast.error("Preencha nome, login, senha e função.");
+      return;
+    }
 
-  const handleSaveProfile = () => {
-    setProfile(editForm);
+    updateMember(memberId, () => ({
+      ...editForm,
+      avatar: editForm.name.charAt(0).toUpperCase(),
+    }));
+
     setIsEditOpen(false);
-    toast.success("Perfil atualizado.");
+    toast.success("Perfil atualizado em todo o app.");
   };
 
-  const handleSaveSettings = () => {
-    setPreferences({
-      notifications: settingsForm.notifications,
-      emailSummary: settingsForm.emailSummary,
-      syncCalendar: settingsForm.syncCalendar,
-      compactMode: settingsForm.compactMode,
-    });
-    setIsSettingsOpen(false);
-    toast.success("Configurações salvas.");
-  };
+  const detailItems = [
+    { label: "Login", value: member.email },
+    { label: "Senha", value: "••••••••••" },
+    { label: "Função", value: member.role },
+    { label: "Especialidade", value: member.specialty },
+    { label: "Cor", value: member.color },
+    { label: "Equipe", value: `${memberCount} perfis` },
+  ];
 
   return (
     <PageTransition>
       <PageHeader
         eyebrow="Perfil"
         title="Meu Perfil"
-        description="Gerencie suas informações, lembretes e as preferências da sua conta."
+        description="Edite login, senha, foto, cor e função. Tudo o que mudar aqui reaparece nas demais telas do sistema."
       />
 
-      <div className={cn("grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_360px]", compact ? "gap-5" : "gap-6")}>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_0.8fr]">
         <div className="space-y-6">
-          <GlassPanel index={1} style={accentPanelStyle}>
+          <GlassPanel
+            index={1}
+            style={{
+              background: `linear-gradient(180deg, ${color}1A, rgba(16,18,24,0.98))`,
+              borderColor: `${color}26`,
+              boxShadow: `0 18px 36px ${color}10`,
+            }}
+          >
             <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
               <div className="flex items-start gap-5">
-                <Avatar name={profile.avatar} color={profileColor} size="lg" />
+                <Avatar name={member.name} color={member.color} src={member.avatarUrl} size="lg" />
                 <div className="space-y-3">
                   <div>
-                    <h2 className="text-3xl font-semibold tracking-tight text-foreground">{profile.name}</h2>
-                    <p className="mt-1 text-base text-muted-foreground">{profile.role}</p>
+                    <h2 className="text-3xl font-semibold tracking-tight text-foreground">{member.name}</h2>
+                    <p className="mt-1 text-base text-muted-foreground">{member.role}</p>
+                    <p className="mt-2 text-sm text-muted-foreground">{member.specialty}</p>
                   </div>
-                  <p className="text-sm text-muted-foreground">{profile.email}</p>
                   <div className="flex flex-wrap gap-2">
                     <ActionButton onClick={() => setIsEditOpen(true)}>
                       <PencilLine className="h-4 w-4" />
-                      Editar Perfil
+                      Editar perfil
                     </ActionButton>
-                    <ActionButton variant="secondary" onClick={() => setIsSettingsOpen(true)}>
-                      <Settings2 className="h-4 w-4" />
-                      Configurações
+                    <ActionButton variant="secondary" onClick={() => fileInputRef.current?.click()}>
+                      <Upload className="h-4 w-4" />
+                      Trocar foto
                     </ActionButton>
                   </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    onChange={async (event) => {
+                      const file = event.target.files?.[0] ?? null;
+                      if (!file) {
+                        return;
+                      }
+
+                      const avatarUrl = await readFileAsDataUrl(file);
+                      updateMember(memberId, (current) => ({
+                        ...current,
+                        avatarUrl,
+                        avatar: current.name.charAt(0).toUpperCase(),
+                      }));
+                      event.target.value = "";
+                      toast.success("Foto de perfil atualizada.");
+                    }}
+                  />
                 </div>
               </div>
 
-              <div className="rounded-[1.5rem] bg-white/75 px-6 py-5 text-center shadow-sm dark:bg-card/80">
-                <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Usuário</p>
-                <p className="mt-2 text-4xl font-semibold text-foreground">Administrador</p>
-                <p className="mt-2 text-sm text-muted-foreground">Cor e preferências aplicadas</p>
+              <div className="rounded-[1.5rem] bg-white/8 px-6 py-5 text-center text-white backdrop-blur">
+                <p className="text-xs uppercase tracking-[0.16em] text-white/70">Perfil ativo</p>
+                <p className="mt-2 text-4xl font-semibold">{initials}</p>
+                <p className="mt-2 text-sm text-white/75">Conta conectada</p>
               </div>
             </div>
 
-            <div className={cn("mt-6 grid gap-4 md:grid-cols-2", compact ? "gap-3" : "gap-4")}>
-              <div className="rounded-[1.5rem] bg-white/70 p-5 dark:bg-card/80">
-                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                  <span
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-2xl"
-                    style={{ backgroundColor: `${profileColor}10`, color: profileColor }}
-                  >
-                    <PencilLine className="h-4 w-4" />
-                  </span>
-                  Informações
-                </div>
-                <div className="mt-4 space-y-2 text-sm">
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Email:</span>
-                    <span className="font-medium text-foreground">{profile.email}</span>
+            <div className="mt-6">
+              <div className="grid gap-4 md:grid-cols-2">
+                {detailItems.map((item) => (
+                  <div key={item.label} className="rounded-2xl bg-white/6 p-4 dark:bg-white/5">
+                    <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{item.label}</p>
+                    <p className="mt-2 text-base font-semibold text-foreground">{item.value}</p>
                   </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Cargo:</span>
-                    <span className="font-medium text-foreground">{profile.cargo}</span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Equipe:</span>
-                    <span className="font-medium text-foreground">{profile.team}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-[1.5rem] bg-white/70 p-5 dark:bg-card/80">
-                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                  <span
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-2xl"
-                    style={{ backgroundColor: `${profileColor}10`, color: profileColor }}
-                  >
-                    <CheckCheck className="h-4 w-4" />
-                  </span>
-                  Atividade
-                </div>
-                <div className="mt-4 space-y-2 text-sm">
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Metas ativas:</span>
-                    <span className="font-semibold text-foreground">6</span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Posts este mês:</span>
-                    <span className="font-semibold text-foreground">48</span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Lembretes:</span>
-                    <span className="font-semibold text-foreground">{pendingCount}</span>
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
           </GlassPanel>
 
           <GlassPanel index={2}>
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                  <Bell className="h-4 w-4" style={{ color: profileColor }} />
-                  Lembretes
-                </div>
-                <p className="mt-1 text-sm text-muted-foreground">Acompanhe suas pendências e marque o que foi concluído.</p>
+            <SectionTitle
+              title="Resumo da conta"
+              description="Informações que aparecem nas telas do sistema e nos cards da equipe."
+            />
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl border border-border/60 bg-muted/35 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">ID do perfil</p>
+                <p className="mt-2 text-lg font-semibold text-foreground">{member.id}</p>
               </div>
-              <span
-                className="inline-flex rounded-full px-3 py-1 text-xs font-semibold"
-                style={{ backgroundColor: `${profileColor}16`, color: profileColor }}
-              >
-                {pendingCount} pendentes
-              </span>
-            </div>
-
-            <div className="mt-5 flex gap-3">
-              <input
-                value={newReminder}
-                onChange={(event) => setNewReminder(event.target.value)}
-                placeholder="Adicionar lembrete..."
-                className="min-w-0 flex-1 rounded-full border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-              />
-              <button
-                type="button"
-                onClick={handleAddReminder}
-                className="inline-flex h-12 w-12 items-center justify-center rounded-full text-white shadow-lg transition hover:scale-[1.02]"
-                style={{ backgroundColor: profileColor }}
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className={cn("mt-5 space-y-3", compact ? "space-y-2" : "space-y-3")}>
-              {reminders.map((item) => (
-                <div
-                  key={item.id}
-                  className={cn(
-                    "rounded-2xl border px-4 py-3 transition",
-                    item.done ? "opacity-60" : "bg-muted/35",
-                  )}
-                  style={{ borderColor: `${profileColor}18` }}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setReminders((previous) =>
-                          previous.map((entry) =>
-                            entry.id === item.id ? { ...entry, done: !entry.done } : entry,
-                          ),
-                        )
-                      }
-                      className="flex items-start gap-3 text-left"
-                    >
-                      <span
-                        className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-md border"
-                        style={{
-                          borderColor: item.done ? profileColor : "rgb(var(--border) / 1)",
-                          backgroundColor: item.done ? profileColor : "transparent",
-                          color: "#fff",
-                        }}
-                      >
-                        {item.done ? "✓" : ""}
-                      </span>
-                      <div>
-                        <p className={cn("text-sm font-medium", item.done && "line-through")}>{item.title}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{item.dueDate}</p>
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setReminders((previous) => previous.filter((entry) => entry.id !== item.id))
-                      }
-                      className="text-muted-foreground transition hover:text-foreground"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
+              <div className="rounded-2xl border border-border/60 bg-muted/35 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Avatar</p>
+                <p className="mt-2 text-lg font-semibold text-foreground">{member.avatarUrl ? "Foto personalizada" : "Inicial"}</p>
+              </div>
+              <div className="rounded-2xl border border-border/60 bg-muted/35 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Cor principal</p>
+                <div className="mt-3 flex items-center gap-3">
+                  <span className="h-8 w-8 rounded-2xl border border-border/60" style={{ backgroundColor: member.color }} />
+                  <p className="text-lg font-semibold text-foreground">{member.color}</p>
                 </div>
-              ))}
+              </div>
+              <div className="rounded-2xl border border-border/60 bg-muted/35 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Função</p>
+                <p className="mt-2 text-lg font-semibold text-foreground">{member.role}</p>
+              </div>
             </div>
           </GlassPanel>
         </div>
@@ -353,64 +226,48 @@ export function MyProfilePage() {
         <div className="space-y-6">
           <GlassPanel index={3}>
             <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <Settings2 className="h-4 w-4" style={{ color: profileColor }} />
-              Configurações rápidas
+              <Users className="h-4 w-4" style={{ color }} />
+              Dados do perfil
             </div>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Ajuste as preferências da conta sem sair da tela.
+              O login, a senha, a foto e a identidade visual deste perfil são compartilhados com as outras páginas.
             </p>
+
             <div className="mt-5 space-y-3">
-              <ToggleRow
-                title="Notificações"
-                description="Alertas no app e lembretes rápidos"
-                enabled={preferences.notifications}
-                onToggle={() => setPreferences((previous) => ({ ...previous, notifications: !previous.notifications }))}
-              />
-              <ToggleRow
-                title="Resumo por e-mail"
-                description="Receber panorama diário"
-                enabled={preferences.emailSummary}
-                onToggle={() => setPreferences((previous) => ({ ...previous, emailSummary: !previous.emailSummary }))}
-              />
-              <ToggleRow
-                title="Sincronizar calendário"
-                description="Sincroniza com o painel de calendário"
-                enabled={preferences.syncCalendar}
-                onToggle={() => setPreferences((previous) => ({ ...previous, syncCalendar: !previous.syncCalendar }))}
-              />
-              <ToggleRow
-                title="Modo compacto"
-                description="Ajusta a densidade das telas"
-                enabled={preferences.compactMode}
-                onToggle={() => setPreferences((previous) => ({ ...previous, compactMode: !previous.compactMode }))}
-              />
-            </div>
-            <div className="mt-5 rounded-2xl bg-muted/35 px-4 py-3 text-xs text-muted-foreground">
-              As preferências da conta ficam salvas neste painel.
+              <div className="rounded-2xl border border-border/60 bg-muted/35 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Login</p>
+                <p className="mt-2 text-sm font-semibold text-foreground">{member.email}</p>
+              </div>
+              <div className="rounded-2xl border border-border/60 bg-muted/35 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Senha</p>
+                <p className="mt-2 text-sm font-semibold text-foreground">••••••••••</p>
+              </div>
+              <div className="rounded-2xl border border-border/60 bg-muted/35 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Especialidade</p>
+                <p className="mt-2 text-sm font-semibold text-foreground">{member.specialty}</p>
+              </div>
             </div>
           </GlassPanel>
 
           <GlassPanel index={4}>
             <h3 className="text-sm font-semibold text-foreground">Equipe</h3>
             <div className="mt-4 space-y-3">
-              {teamMembers.map((member) => (
+              {profiles.map((profile) => (
                 <div
-                  key={member.id}
-                  className="flex items-center justify-between rounded-2xl border border-border/60 px-4 py-3"
+                  key={profile.id}
+                  className={cn(
+                    "flex items-center justify-between rounded-2xl border border-border/60 px-4 py-3 transition",
+                    profile.id === member.id ? "bg-primary/6" : "bg-transparent",
+                  )}
                 >
                   <div className="flex items-center gap-3">
-                    <span
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-semibold text-white"
-                      style={{ backgroundColor: member.color }}
-                    >
-                      {member.name.charAt(0)}
-                    </span>
+                    <Avatar name={profile.name} color={profile.color} src={profile.avatarUrl} size="sm" />
                     <div>
-                      <p className="text-sm font-medium text-foreground">{member.name}</p>
-                      <p className="text-xs text-muted-foreground">{member.role}</p>
+                      <p className="text-sm font-medium text-foreground">{profile.name}</p>
+                      <p className="text-xs text-muted-foreground">{profile.role}</p>
                     </div>
                   </div>
-                  <span className="h-3 w-3 rounded-full" style={{ backgroundColor: member.color }} />
+                  <span className="h-3 w-3 rounded-full" style={{ backgroundColor: profile.color }} />
                 </div>
               ))}
             </div>
@@ -418,90 +275,19 @@ export function MyProfilePage() {
         </div>
       </div>
 
-      {isSettingsOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm"
-          onClick={() => setIsSettingsOpen(false)}
-        >
-          <div
-            className="w-full max-w-2xl rounded-[2rem] border border-border/60 bg-background/95 p-6 shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:bg-card/95 dark:shadow-[0_30px_80px_rgba(0,0,0,0.35)]"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Configurações</p>
-                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Preferências da conta</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsSettingsOpen(false)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <ToggleRow
-                title="Notificações"
-                description="Receber alertas internos"
-                enabled={settingsForm.notifications}
-                onToggle={() =>
-                  setSettingsForm((previous) => ({ ...previous, notifications: !previous.notifications }))
-                }
-              />
-              <ToggleRow
-                title="Resumo por e-mail"
-                description="Receber resumo diário"
-                enabled={settingsForm.emailSummary}
-                onToggle={() =>
-                  setSettingsForm((previous) => ({ ...previous, emailSummary: !previous.emailSummary }))
-                }
-              />
-              <ToggleRow
-                title="Sincronizar calendário"
-                description="Integrar agenda do perfil"
-                enabled={settingsForm.syncCalendar}
-                onToggle={() =>
-                  setSettingsForm((previous) => ({ ...previous, syncCalendar: !previous.syncCalendar }))
-                }
-              />
-              <ToggleRow
-                title="Modo compacto"
-                description="Reduzir espaços da interface"
-                enabled={settingsForm.compactMode}
-                onToggle={() =>
-                  setSettingsForm((previous) => ({ ...previous, compactMode: !previous.compactMode }))
-                }
-              />
-            </div>
-
-            <div className="mt-6 flex flex-wrap justify-end gap-3">
-              <ActionButton variant="secondary" onClick={() => setIsSettingsOpen(false)}>
-                Cancelar
-              </ActionButton>
-              <ActionButton onClick={handleSaveSettings}>
-                <Save className="h-4 w-4" />
-                Salvar preferências
-              </ActionButton>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {isEditOpen ? (
+      {isEditOpen && editForm ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm"
           onClick={() => setIsEditOpen(false)}
         >
           <div
-            className="w-full max-w-xl rounded-[2rem] border border-border/60 bg-background/95 p-6 shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:bg-card/95 dark:shadow-[0_30px_80px_rgba(0,0,0,0.35)]"
+            className="w-full max-w-2xl rounded-[2rem] border border-border/60 bg-background/95 p-6 shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:border-white/8 dark:bg-card/95 dark:shadow-[0_30px_80px_rgba(0,0,0,0.35)]"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Editar Perfil</p>
-                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Ajustar dados do usuário</h3>
+                <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Editar perfil</p>
+                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Alterar dados do usuário</h3>
               </div>
               <button
                 type="button"
@@ -513,39 +299,40 @@ export function MyProfilePage() {
             </div>
 
             <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <label className="grid gap-2 md:col-span-2">
-                <span className="text-sm font-medium text-foreground">Nome</span>
-                <input
-                  value={editForm.name}
-                  onChange={(event) => setEditForm((previous) => ({ ...previous, name: event.target.value }))}
-                  className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                />
+              <div className="md:col-span-2">
+                <Field label="Nome" value={editForm.name} onChange={(value) => setEditForm((previous) => previous ? { ...previous, name: value } : previous)} />
+              </div>
+              <div className="md:col-span-2">
+                <Field label="Foto de perfil (URL)" value={editForm.avatarUrl} onChange={(value) => setEditForm((previous) => previous ? { ...previous, avatarUrl: value } : previous)} placeholder="Cole uma URL ou envie uma foto" />
+              </div>
+              <Field label="Login" value={editForm.email} onChange={(value) => setEditForm((previous) => previous ? { ...previous, email: value } : previous)} type="email" />
+              <Field label="Senha" value={editForm.password} onChange={(value) => setEditForm((previous) => previous ? { ...previous, password: value } : previous)} type="password" />
+              <Field label="Função" value={editForm.role} onChange={(value) => setEditForm((previous) => previous ? { ...previous, role: value } : previous)} />
+              <Field label="Especialidade" value={editForm.specialty} onChange={(value) => setEditForm((previous) => previous ? { ...previous, specialty: value } : previous)} />
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-foreground">Cor principal</span>
+                <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background px-4 py-3 dark:bg-white/5">
+                  <input
+                    type="color"
+                    value={editForm.color}
+                    onChange={(event) => setEditForm((previous) => previous ? { ...previous, color: event.target.value } : previous)}
+                    className="h-10 w-10 rounded-xl border border-border/60 bg-transparent p-1"
+                  />
+                  <span className="text-sm text-muted-foreground">{editForm.color}</span>
+                </div>
               </label>
-              <label className="grid gap-2 md:col-span-2">
-                <span className="text-sm font-medium text-foreground">Role</span>
-                <input
-                  value={editForm.role}
-                  onChange={(event) => setEditForm((previous) => ({ ...previous, role: event.target.value }))}
-                  className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                />
-              </label>
-              <label className="grid gap-2 md:col-span-2">
-                <span className="text-sm font-medium text-foreground">Email</span>
-                <input
-                  value={editForm.email}
-                  onChange={(event) => setEditForm((previous) => ({ ...previous, email: event.target.value }))}
-                  className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                />
-              </label>
+              <div className="md:col-span-2 rounded-2xl border border-dashed border-border/60 bg-muted/25 p-4 text-sm text-muted-foreground">
+                Alterações nesta tela são persistidas localmente e aparecem no perfil, no sidebar e nos cards da equipe.
+              </div>
             </div>
 
             <div className="mt-6 flex flex-wrap justify-end gap-3">
               <ActionButton variant="secondary" onClick={() => setIsEditOpen(false)}>
                 Cancelar
               </ActionButton>
-              <ActionButton onClick={handleSaveProfile}>
+              <ActionButton onClick={saveProfile}>
                 <Save className="h-4 w-4" />
-                Salvar
+                Salvar alterações
               </ActionButton>
             </div>
           </div>

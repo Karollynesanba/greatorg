@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
-import { goals, teamMembers } from "../data/mockData";
+import { goals } from "../data/mockData";
+import { useTeamProfiles } from "../data/profiles";
 import { createStorageKey, useSharedState } from "../data/sharedState";
 import {
   ActionButton,
@@ -33,6 +34,7 @@ function GoalProgressBar({ value, max, color }: { value: number; max: number; co
 export function GoalsPage() {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
+  const [teamMembers] = useTeamProfiles();
   const [items, setItems] = useSharedState(createStorageKey("goals"), goals);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ goalId: number; goalName: string } | null>(null);
@@ -182,7 +184,7 @@ export function GoalsPage() {
                           {goal.category}
                         </span>
                       </div>
-                      <MemberChip name={member.name} role={member.role} color={member.color} />
+                      <MemberChip name={member.name} role={member.role} color={member.color} src={member.avatarUrl} />
                     </div>
                   </div>
 

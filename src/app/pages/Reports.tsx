@@ -30,10 +30,10 @@ import {
   goals,
   insights,
   posts,
-  teamMembers,
   type ContentType,
 } from "../data/mockData";
 import { createStorageKey, useSharedState } from "../data/sharedState";
+import { useTeamProfiles } from "../data/profiles";
 import {
   ActionButton,
   GlassPanel,
@@ -244,6 +244,7 @@ export function ReportsPage() {
   const [typeFilter, setTypeFilter] = useState<ContentType | "todos">("todos");
   const [responsibleFilter, setResponsibleFilter] = useState<number | "todos">("todos");
   const [customRange, setCustomRange] = useState({ start: "2026-04-01", end: "2026-04-30" });
+  const [teamMembers] = useTeamProfiles();
   const [savedReports, setSavedReports] = useSharedState<SavedReport[]>(createStorageKey("reports-history"), []);
   const [selectedMetric, setSelectedMetric] = useState<MetricKey>("reach");
 

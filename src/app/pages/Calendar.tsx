@@ -13,11 +13,11 @@ import {
   calendarEvents,
   calendarHours,
   daysOfWeek,
-  teamMembers,
   weekLabel,
   type CalendarEvent,
 } from "../data/mockData";
 import { useSharedState, createStorageKey } from "../data/sharedState";
+import { useTeamProfiles } from "../data/profiles";
 import {
   ActionButton,
   ConfirmDialog,
@@ -78,11 +78,13 @@ function buildMonthCells(date: Date) {
 
 function EventChip({
   event,
+  teamMembers,
   compact = false,
   onClick,
   onDelete,
 }: {
   event: CalendarEvent;
+  teamMembers: { id: number; name: string; color: string }[];
   compact?: boolean;
   onClick?: () => void;
   onDelete?: () => void;
@@ -148,6 +150,7 @@ function CalendarSlot({
   date,
   time,
   events,
+  teamMembers,
   onDropEvent,
   onSelectEvent,
   onAddAtSlot,
@@ -156,6 +159,7 @@ function CalendarSlot({
   date: string;
   time: string;
   events: CalendarEvent[];
+  teamMembers: { id: number; name: string; color: string }[];
   onDropEvent: (eventId: number, nextDate: string, nextTime: string) => void;
   onSelectEvent: (event: CalendarEvent) => void;
   onAddAtSlot: (date: string, time: string) => void;
@@ -191,6 +195,7 @@ function CalendarSlot({
           <EventChip
             key={event.id}
             event={event}
+            teamMembers={teamMembers}
             compact
             onClick={() => onSelectEvent(event)}
             onDelete={() => onDeleteEvent(event)}
@@ -257,9 +262,11 @@ function MiniMonth({ date }: { date: Date }) {
 
 function SideAgenda({
   events,
+  teamMembers,
   onDelete,
 }: {
   events: CalendarEvent[];
+  teamMembers: { id: number; name: string; color: string }[];
   onDelete: (event: CalendarEvent) => void;
 }) {
   const orderedEvents = [...events].sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
@@ -306,9 +313,11 @@ function SideAgenda({
 
 function MemberDropdown({
   value,
+  teamMembers,
   onChange,
 }: {
   value: number;
+  teamMembers: { id: number; name: string; color: string }[];
   onChange: (value: number) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -384,6 +393,7 @@ function MemberDropdown({
 export function CalendarPage() {
   const [view, setView] = useState<(typeof viewModes)[number]>("Semana");
   const [currentDate, setCurrentDate] = useState(referenceDate);
+  const [teamMembers] = useTeamProfiles();
   const [events, setEvents] = useSharedState(createStorageKey("calendar-events"), calendarEvents);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [pendingDelete, setPendingDelete] = useState<CalendarEvent | null>(null);
@@ -566,7 +576,11 @@ export function CalendarPage() {
           </GlassPanel>
 
           <MiniMonth date={currentDate} />
-          <SideAgenda events={currentMonthEvents} onDelete={(event) => setPendingDelete(event)} />
+          <SideAgenda
+            events={currentMonthEvents}
+            teamMembers={teamMembers}
+            onDelete={(event) => setPendingDelete(event)}
+          />
         </aside>
 
         <div className="space-y-4">
@@ -657,11 +671,12 @@ export function CalendarPage() {
                           const slotEvents = events.filter((event) => event.date === dateKey && event.time === hour);
 
                           return (
-                            <CalendarSlot
+                          <CalendarSlot
                               key={`${dateKey}-${hour}`}
                               date={dateKey}
                               time={hour}
                               events={slotEvents}
+                              teamMembers={teamMembers}
                               onDropEvent={handleDropEvent}
                               onSelectEvent={setSelectedEvent}
                               onAddAtSlot={handleOpenQuickCreate}
@@ -696,6 +711,7 @@ export function CalendarPage() {
                           date={currentKey}
                           time={hour}
                           events={currentEvents}
+                          teamMembers={teamMembers}
                           onDropEvent={handleDropEvent}
                           onSelectEvent={setSelectedEvent}
                           onAddAtSlot={handleOpenQuickCreate}
@@ -735,6 +751,7 @@ export function CalendarPage() {
                             <EventChip
                               key={event.id}
                               event={event}
+                              teamMembers={teamMembers}
                               compact
                               onClick={() => setSelectedEvent(event)}
                               onDelete={() => setPendingDelete(event)}
@@ -929,6 +946,7 @@ export function CalendarPage() {
                 <span className="text-sm font-medium text-foreground">Responsável</span>
                 <MemberDropdown
                   value={createForm.responsibleId}
+                  teamMembers={teamMembers}
                   onChange={(value) => setCreateForm((previous) => ({ ...previous, responsibleId: value }))}
                 />
               </label>

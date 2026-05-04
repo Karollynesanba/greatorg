@@ -17,10 +17,10 @@ import {
   dashboardSummary,
   evolutionData,
   goals,
-  teamMembers,
   topPosts,
   worstPosts,
 } from "../data/mockData";
+import { useTeamProfiles } from "../data/profiles";
 import {
   GlassPanel,
   PageHeader,
@@ -49,15 +49,15 @@ const instagramThemeLight = {
 const instagramThemeDark = {
   ["--primary" as never]: "255 99 132",
   ["--primary-foreground" as never]: "255 255 255",
-  ["--background" as never]: "10 10 12",
-  ["--foreground" as never]: "245 245 247",
-  ["--card" as never]: "22 22 25",
-  ["--card-foreground" as never]: "245 245 247",
-  ["--muted" as never]: "40 40 44",
-  ["--muted-foreground" as never]: "176 176 180",
-  ["--border" as never]: "58 58 60",
+  ["--background" as never]: "8 10 14",
+  ["--foreground" as never]: "244 246 250",
+  ["--card" as never]: "18 21 28",
+  ["--card-foreground" as never]: "244 246 250",
+  ["--muted" as never]: "28 33 42",
+  ["--muted-foreground" as never]: "168 175 190",
+  ["--border" as never]: "40 46 59",
   ["--ring" as never]: "255 99 132",
-  ["--shadow" as never]: "0 0 0",
+  ["--shadow" as never]: "2 6 23",
 } as CSSProperties;
 
 function InstagramHealthScoreRing({ score }: { score: number }) {
@@ -119,7 +119,14 @@ function DashboardMetricCard({
   return (
     <GlassPanel
       className="overflow-hidden"
-      style={darkMode ? { background: "linear-gradient(180deg, rgba(24,24,26,0.98), rgba(16,16,18,0.96))" } : undefined}
+      style={
+        darkMode
+          ? {
+              background: "linear-gradient(180deg, rgba(16,18,24,0.98), rgba(10,12,17,0.96))",
+              borderColor: "rgba(255,255,255,0.08)",
+            }
+          : undefined
+      }
     >
       <div className="flex items-start justify-between gap-4">
         <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,rgba(131,58,180,0.14),rgba(225,48,108,0.14),rgba(245,96,64,0.12))] text-[#8A2FB1] ring-1 ring-[#833AB4]/10">
@@ -174,7 +181,7 @@ function DashboardProgressBar({ value, max, label }: { value: number; max: numbe
 
 function ContentTypePill({ type }: { type: string }) {
   return (
-    <span className="inline-flex items-center rounded-full border border-[#833AB4]/12 bg-[#833AB4]/6 px-3 py-1 text-xs font-semibold text-[#6C2CA1]">
+    <span className="inline-flex items-center rounded-full border border-[#833AB4]/12 bg-[#833AB4]/6 px-3 py-1 text-xs font-semibold text-[#6C2CA1] dark:border-[#ff9db2]/18 dark:bg-white/5 dark:text-[#ff9db2]">
       {type}
     </span>
   );
@@ -182,7 +189,7 @@ function ContentTypePill({ type }: { type: string }) {
 
 function SoftMemberChip({ name, role }: { name: string; role?: string }) {
   return (
-    <div className="inline-flex items-center gap-3 rounded-full border border-[#833AB4]/10 bg-white/70 px-3 py-2 dark:bg-card/80">
+    <div className="inline-flex items-center gap-3 rounded-full border border-[#833AB4]/10 bg-white/70 px-3 py-2 dark:border-white/8 dark:bg-white/5">
       <span className="h-2.5 w-2.5 rounded-full bg-[linear-gradient(135deg,#833AB4,#E1306C)]" />
       <div className="space-y-0.5">
         <p className="text-sm font-medium text-foreground">{name}</p>
@@ -195,6 +202,7 @@ function SoftMemberChip({ name, role }: { name: string; role?: string }) {
 export function DashboardPage() {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
+  const [teamMembers] = useTeamProfiles();
   const chartLegend = [
     { label: "Alcance", color: "#833AB4" },
     { label: "Engajamento", color: "#E1306C" },
@@ -222,11 +230,11 @@ export function DashboardPage() {
           >
             <InstagramHealthScoreRing score={dashboardSummary.healthScore} />
             <div className="mt-5 grid w-full gap-3 sm:grid-cols-2 xl:grid-cols-1">
-              <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur">
+              <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
                 <p className="text-xs uppercase tracking-[0.16em] text-white/72">Metas concluídas</p>
                 <p className="mt-2 text-2xl font-semibold text-white">{dashboardSummary.completedGoals}/6</p>
               </div>
-              <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur">
+              <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
                 <p className="text-xs uppercase tracking-[0.16em] text-white/72">Engajamento total</p>
                 <p className="mt-2 text-2xl font-semibold text-white">
                   {formatLongNumber(dashboardSummary.totalEngagement)}
@@ -258,7 +266,14 @@ export function DashboardPage() {
           <GlassPanel
             index={2}
             className="bg-card/90"
-            style={isDark ? { background: "linear-gradient(180deg, rgba(24,24,26,0.98), rgba(16,16,18,0.96))" } : undefined}
+            style={
+              isDark
+                ? {
+                    background: "linear-gradient(180deg, rgba(16,18,24,0.98), rgba(10,12,17,0.96))",
+                    borderColor: "rgba(255,255,255,0.08)",
+                  }
+                : undefined
+            }
           >
             <SectionTitle
               title="Top 5 conteúdos"
@@ -276,7 +291,7 @@ export function DashboardPage() {
                     style={
                       isDark
                         ? {
-                            background: "linear-gradient(180deg, rgba(24,24,26,0.98), rgba(16,16,18,0.96))",
+                            background: "linear-gradient(180deg, rgba(16,18,24,0.98), rgba(10,12,17,0.96))",
                             borderColor: "rgba(255,255,255,0.08)",
                           }
                         : undefined
@@ -314,7 +329,14 @@ export function DashboardPage() {
           <GlassPanel
             index={3}
             className="bg-card/90"
-            style={isDark ? { background: "linear-gradient(180deg, rgba(24,24,26,0.98), rgba(16,16,18,0.96))" } : undefined}
+            style={
+              isDark
+                ? {
+                    background: "linear-gradient(180deg, rgba(16,18,24,0.98), rgba(10,12,17,0.96))",
+                    borderColor: "rgba(255,255,255,0.08)",
+                  }
+                : undefined
+            }
           >
             <SectionTitle
               title="Conteúdos com baixa performance"
@@ -338,10 +360,10 @@ export function DashboardPage() {
                     }
                   >
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center rounded-full border border-[#E1306C]/12 bg-white/70 px-3 py-1 text-xs font-semibold text-[#B34B67] dark:bg-card/80 dark:text-[#ff9db2]">
+                      <span className="inline-flex items-center rounded-full border border-[#E1306C]/12 bg-white/70 px-3 py-1 text-xs font-semibold text-[#B34B67] dark:border-[#ff9db2]/20 dark:bg-white/5 dark:text-[#ff9db2]">
                         {post.type}
                       </span>
-                      <span className="inline-flex items-center rounded-full border border-[#F56040]/14 bg-[#F56040]/8 px-3 py-1 text-xs font-semibold text-[#B94A2D] dark:bg-[#33211d] dark:text-[#ffab8c]">
+                      <span className="inline-flex items-center rounded-full border border-[#F56040]/14 bg-[#F56040]/8 px-3 py-1 text-xs font-semibold text-[#B94A2D] dark:border-[#ffab8c]/18 dark:bg-[#251913] dark:text-[#ffab8c]">
                         Atenção suave
                       </span>
                     </div>
@@ -366,7 +388,14 @@ export function DashboardPage() {
           <GlassPanel
             index={4}
             className="bg-card/90"
-            style={isDark ? { background: "linear-gradient(180deg, rgba(24,24,26,0.98), rgba(16,16,18,0.96))" } : undefined}
+            style={
+              isDark
+                ? {
+                    background: "linear-gradient(180deg, rgba(16,18,24,0.98), rgba(10,12,17,0.96))",
+                    borderColor: "rgba(255,255,255,0.08)",
+                  }
+                : undefined
+            }
           >
             <SectionTitle
               title="Comparação meta vs resultado"
@@ -377,14 +406,14 @@ export function DashboardPage() {
                 const member = teamMembers.find((item) => item.id === goal.responsibleId)!;
                 const progress = (goal.current / goal.target) * 100;
                 const goalCardClassName = isDark
-                  ? "rounded-3xl bg-[#1c1c1f] p-5"
+                  ? "rounded-3xl bg-[#11151d] p-5"
                   : "rounded-3xl border border-border/70 bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.06)]";
 
                 return (
                   <div
                     key={goal.id}
                     className={goalCardClassName}
-                    style={isDark ? { background: "rgba(24,24,26,0.98)" } : undefined}
+                    style={isDark ? { background: "rgba(16,18,24,0.98)" } : undefined}
                   >
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                       <div className="space-y-2">
@@ -410,7 +439,14 @@ export function DashboardPage() {
           <GlassPanel
             index={5}
             className="bg-card/90"
-            style={isDark ? { background: "linear-gradient(180deg, rgba(24,24,26,0.98), rgba(16,16,18,0.96))" } : undefined}
+            style={
+              isDark
+                ? {
+                    background: "linear-gradient(180deg, rgba(16,18,24,0.98), rgba(10,12,17,0.96))",
+                    borderColor: "rgba(255,255,255,0.08)",
+                  }
+                : undefined
+            }
           >
             <SectionTitle
               title="Evolução nos últimos 30 dias"

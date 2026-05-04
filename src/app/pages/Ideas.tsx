@@ -3,8 +3,9 @@ import { ChevronDown, Plus, Lightbulb, X } from "lucide-react";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "motion/react";
 import { useTheme } from "next-themes";
-import { ideas, teamMembers } from "../data/mockData";
+import { ideas } from "../data/mockData";
 import { createStorageKey, useSharedState } from "../data/sharedState";
+import { useTeamProfiles } from "../data/profiles";
 import {
   ActionButton,
   ConfirmDialog,
@@ -25,6 +26,7 @@ function MemberDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const [teamMembers] = useTeamProfiles();
   const selectedMember = teamMembers.find((member) => member.id === value) ?? teamMembers[0];
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
@@ -103,6 +105,7 @@ function MemberDropdown({
 export function IdeasPage() {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
+  const [teamMembers] = useTeamProfiles();
   const [items, setItems] = useSharedState(createStorageKey("ideas"), ideas);
   const [isSparkOpen, setIsSparkOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -276,7 +279,7 @@ export function IdeasPage() {
               ) : null}
 
               <div className="mt-6 border-t border-border/60 pt-5">
-                <MemberChip name={member.name} role={member.role} color={member.color} />
+                <MemberChip name={member.name} role={member.role} color={member.color} src={member.avatarUrl} />
               </div>
             </GlassPanel>
           );

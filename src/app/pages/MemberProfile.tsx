@@ -12,7 +12,8 @@ import {
   YAxis,
 } from "recharts";
 import { useNavigate, useParams } from "react-router-dom";
-import { goals, teamMembers } from "../data/mockData";
+import { goals } from "../data/mockData";
+import { useTeamProfiles } from "../data/profiles";
 import {
   Avatar,
   DetailGrid,
@@ -44,6 +45,7 @@ export function MemberProfilePage() {
   const params = useParams();
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
+  const [teamMembers] = useTeamProfiles();
   const member = teamMembers.find((item) => String(item.id) === params.id) ?? teamMembers[0];
   const memberGoals = goals.filter((goal) => goal.responsibleId === member.id);
   const panelBackground = isDark
@@ -87,7 +89,7 @@ export function MemberProfilePage() {
       >
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-5">
-            <Avatar name={member.name} color={member.color} size="lg" />
+            <Avatar name={member.name} color={member.color} src={member.avatarUrl} size="lg" />
             <div className="space-y-2">
               <h2 className="text-3xl font-semibold tracking-tight text-foreground">{member.name}</h2>
               <p className="text-base text-muted-foreground">{member.role}</p>

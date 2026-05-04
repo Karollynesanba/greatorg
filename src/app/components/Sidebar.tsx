@@ -15,7 +15,8 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { cn } from "./ui";
+import { Avatar, cn } from "./ui";
+import { useCurrentTeamMember } from "../data/profiles";
 
 const navigation = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -33,6 +34,7 @@ export function Sidebar({ onLogout }: { onLogout?: () => void }) {
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
   const { theme, setTheme } = useTheme();
+  const { member } = useCurrentTeamMember();
 
   useEffect(() => {
     setOpen(false);
@@ -43,7 +45,7 @@ export function Sidebar({ onLogout }: { onLogout?: () => void }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed left-4 top-4 z-40 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-border/70 bg-card/90 text-foreground shadow-[var(--shadow-card)] backdrop-blur xl:hidden"
+        className="fixed left-4 top-4 z-40 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-border/70 bg-card/90 text-foreground shadow-[var(--shadow-card)] backdrop-blur xl:hidden dark:border-white/8 dark:bg-card/96"
       >
         <PanelLeft className="h-5 w-5" />
       </button>
@@ -59,18 +61,21 @@ export function Sidebar({ onLogout }: { onLogout?: () => void }) {
 
       <aside
         className={cn(
-          "fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-border/60 bg-sidebar/90 p-4 backdrop-blur-xl transition-transform duration-300 xl:static xl:translate-x-0",
+          "fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-border/60 bg-sidebar/90 p-4 backdrop-blur-xl transition-transform duration-300 xl:z-0 xl:static xl:translate-x-0 dark:border-white/8 dark:bg-sidebar/96",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
         <div className="mb-6 flex items-center justify-between xl:justify-start">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-lg font-bold text-primary-foreground shadow-lg shadow-primary/25">
-              G
-            </div>
+            <Avatar
+              name={member?.name ?? "G"}
+              color={member?.color ?? "rgb(var(--primary) / 1)"}
+              src={member?.avatarUrl}
+              size="md"
+            />
             <div>
-              <p className="text-base font-semibold text-foreground">Great Orgânico</p>
-              <p className="text-sm text-muted-foreground">Analytics Platform</p>
+              <p className="text-base font-semibold text-foreground">{member?.name ?? "Great Orgânico"}</p>
+              <p className="text-sm text-muted-foreground">{member?.role ?? "Analytics Platform"}</p>
             </div>
           </div>
           <button
@@ -119,11 +124,11 @@ export function Sidebar({ onLogout }: { onLogout?: () => void }) {
           </NavLink>
         </div>
 
-        <div className="mt-1 rounded-3xl border border-border/60 bg-card-strong/90 p-4">
+        <div className="mt-1 rounded-3xl border border-border/60 bg-card-strong/90 p-4 dark:border-white/8 dark:bg-card-strong/96">
           <button
             type="button"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="flex w-full items-center justify-between rounded-2xl bg-muted/70 px-4 py-3 text-sm font-medium text-foreground transition hover:bg-muted"
+            className="flex w-full items-center justify-between rounded-2xl bg-muted/70 px-4 py-3 text-sm font-medium text-foreground transition hover:bg-muted dark:bg-white/5 dark:hover:bg-white/10"
           >
             <span>{theme === "dark" ? "Modo claro" : "Modo escuro"}</span>
             {theme === "dark" ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}

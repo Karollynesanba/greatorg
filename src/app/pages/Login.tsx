@@ -1,8 +1,10 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { CalendarDays, ChartColumnBig, Eye, EyeOff, LockKeyhole, Mail, PieChart, Shield } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "../components/ui";
-import { signIn } from "../auth";
+import { signInAsMember } from "../auth";
+import { useTeamProfiles } from "../data/profiles";
 
 function Feature({
   icon: Icon,
@@ -24,9 +26,24 @@ function Feature({
   );
 }
 
+function GreatOrganicoMark({ className }: { className?: string }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={cn(
+        "flex items-center justify-center rounded-full bg-primary font-bold text-white shadow-[0_18px_50px_rgba(229,9,20,0.24)]",
+        className,
+      )}
+    >
+      <span className="translate-y-[-0.03em] text-[2.7rem] leading-none">G</span>
+    </div>
+  );
+}
+
 export function LoginPage({ onLogin }: { onLogin?: () => void }) {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("seu@email.com");
+  const [profiles] = useTeamProfiles();
+  const [email, setEmail] = useState("brenda@greatorganico.com");
   const [password, setPassword] = useState("great123");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -34,7 +51,17 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
-    signIn();
+    const matchedMember = profiles.find(
+      (member) => member.email.toLowerCase() === email.trim().toLowerCase() && member.password === password,
+    );
+
+    if (!matchedMember) {
+      toast.error("Email ou senha inválidos.");
+      setLoading(false);
+      return;
+    }
+
+    signInAsMember(matchedMember.id);
     onLogin?.();
     navigate("/dashboard", { replace: true });
     setLoading(false);
@@ -50,12 +77,10 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
 
           <div className="relative flex h-full flex-col">
             <div className="flex items-center gap-4">
-              <div className="flex h-15 w-15 items-center justify-center rounded-full bg-primary text-[2rem] font-bold text-white shadow-[0_18px_50px_rgba(229,9,20,0.24)]">
-                G
-              </div>
+              <GreatOrganicoMark className="h-[88px] w-[88px]" />
               <div>
-                <p className="text-[3.1rem] font-semibold leading-none tracking-tight text-foreground">Great</p>
-                <p className="mt-1 text-[0.9rem] font-semibold uppercase tracking-[0.48em] text-primary">Orgânico</p>
+                <p className="text-[3.2rem] font-semibold leading-none tracking-tight text-foreground">Great</p>
+                <p className="mt-2 pl-0.5 text-[0.92rem] font-semibold uppercase tracking-[0.5em] text-primary">Orgânico</p>
               </div>
             </div>
 

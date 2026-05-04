@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { CalendarClock, ChevronDown, SlidersHorizontal, Target, FileText } from "lucide-react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
-import { historyTimeline, teamMembers } from "../data/mockData";
+import { historyTimeline } from "../data/mockData";
 import { createStorageKey, useSharedState } from "../data/sharedState";
+import { useTeamProfiles } from "../data/profiles";
 import {
   ConfirmDialog,
   DeleteIconButton,
@@ -119,6 +120,7 @@ function FilterDropdown<T extends string | number>({
 export function HistoryPage() {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
+  const [teamMembers] = useTeamProfiles();
   const [itemsState, setItemsState] = useSharedState(createStorageKey("history"), historyTimeline);
   const [view, setView] = useState<"Timeline" | "Tabela">("Timeline");
   const [personFilter, setPersonFilter] = useState<number | "todos">("todos");
@@ -288,7 +290,7 @@ export function HistoryPage() {
                       </div>
                     </div>
                   </div>
-                  <MemberChip name={member.name} role={member.role} color={member.color} />
+                  <MemberChip name={member.name} role={member.role} color={member.color} src={member.avatarUrl} />
                 </div>
               </GlassPanel>
             );
@@ -320,7 +322,7 @@ export function HistoryPage() {
                       </td>
                       <td className="px-5 py-4 text-sm text-muted-foreground">{typeLabels[item.type]}</td>
                       <td className="px-5 py-4">
-                        <MemberChip name={member.name} role={member.role} color={member.color} />
+                        <MemberChip name={member.name} role={member.role} color={member.color} src={member.avatarUrl} />
                       </td>
                       <td className="px-5 py-4 text-sm text-muted-foreground">{item.date}</td>
                       <td className="px-5 py-4 text-sm text-foreground">{item.result}</td>

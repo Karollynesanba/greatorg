@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
-import { posts, teamMembers } from "../data/mockData";
+import { posts } from "../data/mockData";
+import { useTeamProfiles } from "../data/profiles";
 import {
   ActionButton,
   ChecklistItem,
@@ -23,6 +24,7 @@ export function PostDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams();
   const post = posts.find((item) => String(item.id) === id);
+  const [teamMembers] = useTeamProfiles();
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("Checklist");
   const [checklist, setChecklist] = useState(post?.checklist ?? []);
 
@@ -76,7 +78,7 @@ export function PostDetailPage() {
             <div className="rounded-3xl bg-muted/45 p-4">
               <img src={post.thumbnail} alt={post.title} className="h-44 w-full rounded-3xl object-cover" />
               <div className="mt-4 flex items-center justify-between gap-3">
-                <MemberChip name={member.name} role={member.role} color={member.color} />
+                <MemberChip name={member.name} role={member.role} color={member.color} src={member.avatarUrl} />
                 <div className="text-right text-sm text-muted-foreground">
                   <p>{formatLongNumber(post.reach)} de alcance</p>
                   <p>{post.metrics.saves} saves</p>
@@ -135,7 +137,7 @@ export function PostDetailPage() {
               return (
                 <div key={comment.id} className="rounded-3xl bg-muted/45 p-5">
                   <div className="flex items-center justify-between gap-4">
-                    <MemberChip name={author.name} role={author.role} color={author.color} />
+                    <MemberChip name={author.name} role={author.role} color={author.color} src={author.avatarUrl} />
                     <span className="text-sm text-muted-foreground">{comment.time}</span>
                   </div>
                   <p className="mt-4 text-sm leading-6 text-foreground">{comment.text}</p>

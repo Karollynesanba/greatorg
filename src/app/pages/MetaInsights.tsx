@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ImagePlus, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
-import { apiStatus, goals, metaPeriods, teamMembers } from "../data/mockData";
+import { apiStatus, goals, metaPeriods } from "../data/mockData";
 import { createStorageKey, useSharedState } from "../data/sharedState";
+import { useTeamProfiles } from "../data/profiles";
 import {
   ActionButton,
   Avatar,
@@ -23,6 +24,7 @@ export function MetaInsightsPage() {
   const [period, setPeriod] = useState<(typeof metaPeriods)[number]>("Mês");
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
+  const [teamMembers] = useTeamProfiles();
   const [items, setItems] = useSharedState(createStorageKey("meta-goals"), goals);
   const [goalImages, setGoalImages] = useSharedState<GoalImages>(createStorageKey("goal-images"), {});
   const [activeGoalId, setActiveGoalId] = useState<number | null>(null);
@@ -160,7 +162,7 @@ export function MetaInsightsPage() {
                   <p className="text-sm text-muted-foreground">{goal.category}</p>
                   <h2 className="mt-2 text-xl font-semibold text-foreground">{goal.name}</h2>
                 </div>
-                <Avatar name={member.name} color={member.color} />
+                <Avatar name={member.name} color={member.color} src={member.avatarUrl} />
               </div>
 
               <div className="mt-6 flex items-center gap-3">

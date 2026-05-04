@@ -60,7 +60,7 @@ export function GlassPanel({
       initial="hidden"
       animate="visible"
       className={cn(
-        "rounded-3xl border border-border/70 bg-card/90 p-5 shadow-[var(--shadow-card)] backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]",
+        "rounded-3xl border border-border/70 bg-card/96 p-5 shadow-[var(--shadow-card)] backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)] dark:border-white/8 dark:bg-card/98",
         className,
       )}
       style={style}
@@ -176,9 +176,9 @@ export function IconActionButton({
 }) {
   const tones = {
     neutral:
-      "border-border/70 bg-white/95 text-muted-foreground shadow-sm hover:border-primary/25 hover:text-foreground hover:shadow-md dark:bg-card/90 dark:text-muted-foreground dark:hover:bg-card",
+      "border-border/70 bg-white/95 text-muted-foreground shadow-sm hover:border-primary/25 hover:text-foreground hover:shadow-md dark:border-white/8 dark:bg-card/95 dark:text-muted-foreground dark:hover:bg-card",
     danger:
-      "border-rose-200 bg-white/95 text-rose-500 shadow-sm hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 hover:shadow-md dark:bg-card/90 dark:text-[#ff8da5] dark:hover:bg-[#2a171b]",
+      "border-rose-200 bg-white/95 text-rose-500 shadow-sm hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 hover:shadow-md dark:border-[#ff8da5]/20 dark:bg-card/95 dark:text-[#ff8da5] dark:hover:bg-[#2a171b]",
   };
 
   return (
@@ -229,7 +229,7 @@ export function ConfirmDialog({
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-md rounded-[2rem] border border-border/60 bg-white p-6 shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:bg-card/95 dark:shadow-[0_30px_80px_rgba(0,0,0,0.35)]"
+        className="w-full max-w-md rounded-[2rem] border border-border/60 bg-white p-6 shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:border-white/8 dark:bg-card/96 dark:shadow-[0_30px_80px_rgba(0,0,0,0.35)]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start gap-4">
@@ -284,10 +284,12 @@ export function FilterPill({
 export function Avatar({
   name,
   color,
+  src,
   size = "md",
 }: {
   name: string;
   color: string;
+  src?: string;
   size?: "sm" | "md" | "lg";
 }) {
   const sizes = {
@@ -299,12 +301,12 @@ export function Avatar({
   return (
     <div
       className={cn(
-        "inline-flex items-center justify-center rounded-2xl font-semibold text-white shadow-lg",
+        "relative inline-flex items-center justify-center overflow-hidden rounded-2xl font-semibold text-white shadow-lg",
         sizes[size],
       )}
       style={{ backgroundColor: color }}
     >
-      {name.charAt(0)}
+      {src ? <img src={src} alt={name} className="h-full w-full object-cover" /> : name.charAt(0)}
     </div>
   );
 }
@@ -313,14 +315,16 @@ export function MemberChip({
   name,
   role,
   color,
+  src,
 }: {
   name: string;
   role?: string;
   color: string;
+  src?: string;
 }) {
   return (
     <div className="flex items-center gap-3">
-      <Avatar name={name} color={color} size="sm" />
+      <Avatar name={name} color={color} src={src} size="sm" />
       <div className="space-y-0.5">
         <p className="text-sm font-medium text-foreground">{name}</p>
         {role ? <p className="text-xs text-muted-foreground">{role}</p> : null}
@@ -494,7 +498,7 @@ export function EmptyState({
   description: string;
 }) {
   return (
-    <div className="rounded-3xl border border-dashed border-border bg-muted/50 p-8 text-center">
+    <div className="rounded-3xl border border-dashed border-border bg-muted/50 p-8 text-center dark:border-white/10 dark:bg-white/3">
       <h3 className="text-lg font-semibold text-foreground">{title}</h3>
       <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
     </div>
@@ -518,7 +522,7 @@ export function FileBadge({ file }: { file: PostFile }) {
   const Icon = fileIcon(file.kind);
 
   return (
-    <div className="rounded-2xl border border-border/60 bg-muted/40 p-4">
+    <div className="rounded-2xl border border-border/60 bg-muted/40 p-4 dark:border-white/8 dark:bg-white/4">
       <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
         <Icon className="h-5 w-5" />
       </div>
@@ -543,7 +547,7 @@ export function ChecklistItem({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-3 rounded-2xl bg-muted/50 px-4 py-3 text-left transition hover:bg-muted"
+      className="flex w-full items-center gap-3 rounded-2xl bg-muted/50 px-4 py-3 text-left transition hover:bg-muted dark:bg-white/4 dark:hover:bg-white/7"
     >
       <span
         className={cn(
