@@ -376,11 +376,14 @@ export function DashboardPage() {
               {goals.slice(0, 3).map((goal) => {
                 const member = teamMembers.find((item) => item.id === goal.responsibleId)!;
                 const progress = (goal.current / goal.target) * 100;
+                const goalCardClassName = isDark
+                  ? "rounded-3xl bg-[#1c1c1f] p-5"
+                  : "rounded-3xl border border-border/70 bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.06)]";
 
                 return (
                   <div
                     key={goal.id}
-                    className="rounded-3xl bg-muted/45 p-5 dark:bg-[#1c1c1f]"
+                    className={goalCardClassName}
                     style={isDark ? { background: "rgba(24,24,26,0.98)" } : undefined}
                   >
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

@@ -726,10 +726,13 @@ export function ReportsPage() {
         }
       />
 
-      <GlassPanel index={1} className="overflow-hidden bg-[linear-gradient(135deg,rgba(209,0,0,0.95),rgba(255,122,89,0.88))] text-white">
+      <GlassPanel
+        index={1}
+        className="overflow-hidden bg-[linear-gradient(135deg,rgba(131,58,180,0.96),rgba(180,97,214,0.9),rgba(225,48,108,0.82))] text-white"
+      >
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
-            <p className="inline-flex rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/80">
+            <p className="inline-flex rounded-full bg-white/14 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/82 ring-1 ring-white/10">
               Visão geral
             </p>
             <h2 className="mt-3 text-2xl font-semibold">Resumo executivo</h2>
@@ -744,8 +747,8 @@ export function ReportsPage() {
               { label: "Engajamento", value: formatLongNumber(currentSummary.engagement) },
               { label: "Publicações", value: String(currentSummary.postsCount) },
             ].map((item) => (
-              <div key={item.label} className="rounded-3xl bg-white/10 p-5 backdrop-blur">
-                <p className="text-xs uppercase tracking-[0.16em] text-white/70">{item.label}</p>
+              <div key={item.label} className="rounded-3xl bg-white/12 p-5 ring-1 ring-white/10 backdrop-blur">
+                <p className="text-xs uppercase tracking-[0.16em] text-white/74">{item.label}</p>
                 <p className="mt-3 text-3xl font-semibold">{item.value}</p>
               </div>
             ))}
@@ -882,7 +885,7 @@ export function ReportsPage() {
 
         <GlassPanel index={8}>
           <SectionTitle title="Drill-down" description="Clique em uma métrica para abrir a leitura detalhada." />
-          <div className="mt-6 rounded-[2rem] border border-border/60 bg-muted/35 p-5">
+          <div className="mt-6 rounded-[2rem] border border-border/60 bg-muted/35 p-5 dark:bg-card/95">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">{selectedMetricDetails[selectedMetric].title}</p>
@@ -895,7 +898,7 @@ export function ReportsPage() {
             <p className="mt-4 text-sm leading-6 text-muted-foreground">{selectedMetricCard.detail}</p>
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
               {selectedMetricDetails[selectedMetric].breakdown.map((item) => (
-                <div key={item.label} className="rounded-2xl bg-white/80 p-4">
+                <div key={item.label} className="rounded-2xl bg-white/80 p-4 dark:bg-background/80">
                   <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{item.label}</p>
                   <p className="mt-2 text-base font-semibold text-foreground">{item.value}</p>
                 </div>
@@ -914,7 +917,10 @@ export function ReportsPage() {
               const member = teamMembers.find((item) => item.id === goal.responsibleId)!;
 
               return (
-                <div key={goal.id} className="rounded-3xl border border-border/60 bg-muted/35 p-5">
+                <div
+                  key={goal.id}
+                  className="rounded-3xl border border-border/60 bg-muted/35 p-5 dark:bg-card/95"
+                >
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-sm font-medium text-foreground">{goal.name}</p>
@@ -925,15 +931,15 @@ export function ReportsPage() {
                     </span>
                   </div>
                   <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
-                    <div className="rounded-2xl bg-white/80 p-3">
+                    <div className="rounded-2xl bg-white/80 p-3 dark:bg-background/80">
                       <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Atual</p>
                       <p className="mt-2 font-semibold text-foreground">{formatLongNumber(goal.current)}</p>
                     </div>
-                    <div className="rounded-2xl bg-white/80 p-3">
+                    <div className="rounded-2xl bg-white/80 p-3 dark:bg-background/80">
                       <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Meta</p>
                       <p className="mt-2 font-semibold text-foreground">{formatLongNumber(goal.target)}</p>
                     </div>
-                    <div className="rounded-2xl bg-white/80 p-3">
+                    <div className="rounded-2xl bg-white/80 p-3 dark:bg-background/80">
                       <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Restante</p>
                       <p className="mt-2 font-semibold text-foreground">{formatLongNumber(remaining)}</p>
                     </div>
@@ -953,7 +959,7 @@ export function ReportsPage() {
             {alerts.map((alert) => (
               <div
                 key={alert.title}
-                className="flex items-start gap-3 rounded-3xl border border-border/60 bg-muted/30 p-4"
+                className="flex items-start gap-3 rounded-3xl border border-border/60 bg-muted/30 p-4 dark:bg-card/95"
               >
                 <div
                   className={`mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-2xl ${
@@ -977,7 +983,7 @@ export function ReportsPage() {
           <SectionTitle title="Insights automáticos" description="Leituras geradas com base no recorte filtrado." />
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             {automaticInsights.map((item) => (
-              <div key={item.title} className="rounded-3xl bg-muted/35 p-5">
+              <div key={item.title} className="rounded-3xl bg-muted/35 p-5 dark:bg-card/90">
                 <p className="text-sm text-muted-foreground">{item.title}</p>
                 <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{item.value}</p>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.detail}</p>
@@ -990,7 +996,7 @@ export function ReportsPage() {
           <SectionTitle title="Relatório por responsável" description="Desempenho individual e comparação entre usuários." />
           <div className="mt-5 space-y-4">
             {memberPerformance.map((entry) => (
-              <div key={entry.member.id} className="rounded-3xl border border-border/60 bg-muted/35 p-5">
+              <div key={entry.member.id} className="rounded-3xl border border-border/60 bg-muted/35 p-5 dark:bg-card/95">
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="font-medium text-foreground">{entry.member.name}</p>
@@ -1002,15 +1008,15 @@ export function ReportsPage() {
                   </div>
                 </div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl bg-white/80 p-4">
+                  <div className="rounded-2xl bg-white/80 p-4 dark:bg-background/80">
                     <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Publicações</p>
                     <p className="mt-2 text-xl font-semibold text-foreground">{entry.posts}</p>
                   </div>
-                  <div className="rounded-2xl bg-white/80 p-4">
+                  <div className="rounded-2xl bg-white/80 p-4 dark:bg-background/80">
                     <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Engajamento</p>
                     <p className="mt-2 text-xl font-semibold text-foreground">{formatLongNumber(entry.engagement)}</p>
                   </div>
-                  <div className="rounded-2xl bg-white/80 p-4">
+                  <div className="rounded-2xl bg-white/80 p-4 dark:bg-background/80">
                     <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Concluído</p>
                     <p className="mt-2 text-xl font-semibold text-foreground">{formatPercent(entry.completionRate * 100, 0)}</p>
                   </div>
@@ -1029,7 +1035,7 @@ export function ReportsPage() {
               savedReports.map((snapshot) => (
                 <div
                   key={snapshot.id}
-                  className="flex flex-col gap-4 rounded-3xl border border-border/60 bg-muted/30 p-4 md:flex-row md:items-center md:justify-between"
+                  className="flex flex-col gap-4 rounded-3xl border border-border/60 bg-muted/30 p-4 md:flex-row md:items-center md:justify-between dark:bg-card/95"
                 >
                   <div>
                     <p className="font-medium text-foreground">{snapshot.label}</p>
@@ -1055,17 +1061,17 @@ export function ReportsPage() {
         <GlassPanel index={14}>
           <SectionTitle title="Resumo das decisões" description="O que o recorte atual está sugerindo." />
           <div className="mt-5 space-y-3">
-            <div className="rounded-3xl bg-muted/35 p-5">
+            <div className="rounded-3xl bg-muted/35 p-5 dark:bg-card/90">
               <p className="text-sm text-muted-foreground">Melhor horário</p>
               <p className="mt-2 text-2xl font-semibold text-foreground">
                 {insights.bestTime.day}, {insights.bestTime.hour}
               </p>
             </div>
-            <div className="rounded-3xl bg-muted/35 p-5">
+            <div className="rounded-3xl bg-muted/35 p-5 dark:bg-card/90">
               <p className="text-sm text-muted-foreground">Melhor conteúdo</p>
               <p className="mt-2 text-2xl font-semibold text-foreground">{automaticInsights[1].value}</p>
             </div>
-            <div className="rounded-3xl bg-muted/35 p-5">
+            <div className="rounded-3xl bg-muted/35 p-5 dark:bg-card/90">
               <p className="text-sm text-muted-foreground">Tendência</p>
               <p className="mt-2 text-2xl font-semibold text-foreground">
                 {comparison.reach >= 0 ? "Crescimento consistente" : "Pressão de queda"}

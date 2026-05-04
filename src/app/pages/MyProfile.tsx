@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
 import { Bell, CheckCheck, PencilLine, Plus, Save, Settings2, X } from "lucide-react";
 import { toast } from "sonner";
 import { teamMembers } from "../data/mockData";
@@ -18,7 +19,7 @@ type ProfilePreferences = {
   compactMode: boolean;
 };
 
-const colorOptions = ["#833AB4", "#E1306C", "#FCAF45", "#F56040", "#0EA5E9", "#16A34A", "#4F46E5"];
+const profileColor = "#833AB4";
 
 const initialProfile = {
   name: "Usuário Administrador",
@@ -76,31 +77,17 @@ function ToggleRow({
   );
 }
 
-function readStoredColor() {
-  if (typeof window === "undefined") {
-    return "#833AB4";
-  }
-
-  return window.localStorage.getItem("profile-color") ?? "#833AB4";
-}
-
 export function MyProfilePage() {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const [profile, setProfile] = useState(initialProfile);
-  const [accentColor, setAccentColor] = useState(() => readStoredColor());
   const [reminders, setReminders] = useState(initialReminders);
   const [newReminder, setNewReminder] = useState("");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editForm, setEditForm] = useState(initialProfile);
   const [preferences, setPreferences] = useState<ProfilePreferences>(initialPreferences);
-  const [settingsForm, setSettingsForm] = useState({
-    accentColor: readStoredColor(),
-    ...initialPreferences,
-  });
-
-  useEffect(() => {
-    window.localStorage.setItem("profile-color", accentColor);
-  }, [accentColor]);
+  const [settingsForm, setSettingsForm] = useState(initialPreferences);
 
   useEffect(() => {
     if (isEditOpen) {
@@ -110,12 +97,9 @@ export function MyProfilePage() {
 
   useEffect(() => {
     if (isSettingsOpen) {
-      setSettingsForm({
-        accentColor,
-        ...preferences,
-      });
+      setSettingsForm(preferences);
     }
-  }, [accentColor, isSettingsOpen, preferences]);
+  }, [isSettingsOpen, preferences]);
 
   useEffect(() => {
     if (!isSettingsOpen && !isEditOpen) {
@@ -136,11 +120,17 @@ export function MyProfilePage() {
   const pendingCount = reminders.filter((item) => !item.done).length;
   const compact = preferences.compactMode;
 
-  const accentPanelStyle = {
-    background: `linear-gradient(180deg, rgba(255,255,255,0.98), ${accentColor}08)`,
-    borderColor: `${accentColor}22`,
-    boxShadow: `0 18px 36px ${accentColor}10`,
-  };
+  const accentPanelStyle = isDark
+    ? {
+        background: "linear-gradient(180deg, rgba(24,24,26,0.98), rgba(16,16,18,0.96))",
+        borderColor: "rgba(255,255,255,0.08)",
+        boxShadow: "0 18px 36px rgba(0,0,0,0.28)",
+      }
+    : {
+        background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(131,58,180,0.08))",
+        borderColor: "rgba(131,58,180,0.14)",
+        boxShadow: "0 18px 36px rgba(131,58,180,0.10)",
+      };
 
   const handleAddReminder = () => {
     if (!newReminder.trim()) {
@@ -168,7 +158,6 @@ export function MyProfilePage() {
   };
 
   const handleSaveSettings = () => {
-    setAccentColor(settingsForm.accentColor);
     setPreferences({
       notifications: settingsForm.notifications,
       emailSummary: settingsForm.emailSummary,
@@ -192,7 +181,7 @@ export function MyProfilePage() {
           <GlassPanel index={1} style={accentPanelStyle}>
             <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
               <div className="flex items-start gap-5">
-                <Avatar name={profile.avatar} color={accentColor} size="lg" />
+                <Avatar name={profile.avatar} color={profileColor} size="lg" />
                 <div className="space-y-3">
                   <div>
                     <h2 className="text-3xl font-semibold tracking-tight text-foreground">{profile.name}</h2>
@@ -212,7 +201,7 @@ export function MyProfilePage() {
                 </div>
               </div>
 
-              <div className="rounded-[1.5rem] bg-white/75 px-6 py-5 text-center shadow-sm">
+              <div className="rounded-[1.5rem] bg-white/75 px-6 py-5 text-center shadow-sm dark:bg-card/80">
                 <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Usuário</p>
                 <p className="mt-2 text-4xl font-semibold text-foreground">Administrador</p>
                 <p className="mt-2 text-sm text-muted-foreground">Cor e preferências aplicadas</p>
@@ -220,9 +209,12 @@ export function MyProfilePage() {
             </div>
 
             <div className={cn("mt-6 grid gap-4 md:grid-cols-2", compact ? "gap-3" : "gap-4")}>
-              <div className="rounded-[1.5rem] bg-white/70 p-5">
+              <div className="rounded-[1.5rem] bg-white/70 p-5 dark:bg-card/80">
                 <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-2xl" style={{ backgroundColor: `${accentColor}10`, color: accentColor }}>
+                  <span
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-2xl"
+                    style={{ backgroundColor: `${profileColor}10`, color: profileColor }}
+                  >
                     <PencilLine className="h-4 w-4" />
                   </span>
                   Informações
@@ -243,9 +235,12 @@ export function MyProfilePage() {
                 </div>
               </div>
 
-              <div className="rounded-[1.5rem] bg-white/70 p-5">
+              <div className="rounded-[1.5rem] bg-white/70 p-5 dark:bg-card/80">
                 <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-2xl" style={{ backgroundColor: `${accentColor}10`, color: accentColor }}>
+                  <span
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-2xl"
+                    style={{ backgroundColor: `${profileColor}10`, color: profileColor }}
+                  >
                     <CheckCheck className="h-4 w-4" />
                   </span>
                   Atividade
@@ -272,12 +267,15 @@ export function MyProfilePage() {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                  <Bell className="h-4 w-4" style={{ color: accentColor }} />
+                  <Bell className="h-4 w-4" style={{ color: profileColor }} />
                   Lembretes
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">Acompanhe suas pendências e marque o que foi concluído.</p>
               </div>
-              <span className="inline-flex rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: `${accentColor}16`, color: accentColor }}>
+              <span
+                className="inline-flex rounded-full px-3 py-1 text-xs font-semibold"
+                style={{ backgroundColor: `${profileColor}16`, color: profileColor }}
+              >
                 {pendingCount} pendentes
               </span>
             </div>
@@ -293,7 +291,7 @@ export function MyProfilePage() {
                 type="button"
                 onClick={handleAddReminder}
                 className="inline-flex h-12 w-12 items-center justify-center rounded-full text-white shadow-lg transition hover:scale-[1.02]"
-                style={{ backgroundColor: accentColor }}
+                style={{ backgroundColor: profileColor }}
               >
                 <Plus className="h-4 w-4" />
               </button>
@@ -307,7 +305,7 @@ export function MyProfilePage() {
                     "rounded-2xl border px-4 py-3 transition",
                     item.done ? "opacity-60" : "bg-muted/35",
                   )}
-                  style={{ borderColor: `${accentColor}18` }}
+                  style={{ borderColor: `${profileColor}18` }}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <button
@@ -324,8 +322,8 @@ export function MyProfilePage() {
                       <span
                         className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-md border"
                         style={{
-                          borderColor: item.done ? accentColor : "rgb(var(--border) / 1)",
-                          backgroundColor: item.done ? accentColor : "transparent",
+                          borderColor: item.done ? profileColor : "rgb(var(--border) / 1)",
+                          backgroundColor: item.done ? profileColor : "transparent",
                           color: "#fff",
                         }}
                       >
@@ -355,7 +353,7 @@ export function MyProfilePage() {
         <div className="space-y-6">
           <GlassPanel index={3}>
             <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <Settings2 className="h-4 w-4" style={{ color: accentColor }} />
+              <Settings2 className="h-4 w-4" style={{ color: profileColor }} />
               Configurações rápidas
             </div>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -388,7 +386,7 @@ export function MyProfilePage() {
               />
             </div>
             <div className="mt-5 rounded-2xl bg-muted/35 px-4 py-3 text-xs text-muted-foreground">
-              A cor do perfil continua disponível em <span className="font-semibold text-foreground">Configurações</span>.
+              As preferências da conta ficam salvas neste painel.
             </div>
           </GlassPanel>
 
@@ -422,11 +420,11 @@ export function MyProfilePage() {
 
       {isSettingsOpen ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm"
           onClick={() => setIsSettingsOpen(false)}
         >
           <div
-            className="w-full max-w-2xl rounded-[2rem] border border-border/60 bg-white p-6 shadow-[0_30px_80px_rgba(15,23,42,0.18)]"
+            className="w-full max-w-2xl rounded-[2rem] border border-border/60 bg-background/95 p-6 shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:bg-card/95 dark:shadow-[0_30px_80px_rgba(0,0,0,0.35)]"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
@@ -444,33 +442,6 @@ export function MyProfilePage() {
             </div>
 
             <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <label className="grid gap-2 md:col-span-2">
-                <span className="text-sm font-medium text-foreground">Cor do perfil</span>
-                <div className="flex flex-wrap gap-3">
-                  {colorOptions.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => setSettingsForm((previous) => ({ ...previous, accentColor: color }))}
-                      className={cn(
-                        "h-11 w-11 rounded-2xl border transition hover:scale-[1.02]",
-                        settingsForm.accentColor === color ? "ring-2 ring-offset-2" : "",
-                      )}
-                      style={{
-                        backgroundColor: color,
-                        borderColor: settingsForm.accentColor === color ? color : `${color}66`,
-                      }}
-                    />
-                  ))}
-                </div>
-                <div className="rounded-2xl bg-muted/35 px-4 py-3 text-sm text-muted-foreground">
-                  Cor atual:{" "}
-                  <span className="font-semibold" style={{ color: settingsForm.accentColor }}>
-                    {settingsForm.accentColor}
-                  </span>
-                </div>
-              </label>
-
               <ToggleRow
                 title="Notificações"
                 description="Receber alertas internos"
@@ -520,11 +491,11 @@ export function MyProfilePage() {
 
       {isEditOpen ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm"
           onClick={() => setIsEditOpen(false)}
         >
           <div
-            className="w-full max-w-xl rounded-[2rem] border border-border/60 bg-white p-6 shadow-[0_30px_80px_rgba(15,23,42,0.18)]"
+            className="w-full max-w-xl rounded-[2rem] border border-border/60 bg-background/95 p-6 shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:bg-card/95 dark:shadow-[0_30px_80px_rgba(0,0,0,0.35)]"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
