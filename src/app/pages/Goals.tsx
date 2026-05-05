@@ -783,11 +783,11 @@ export function GoalsPage() {
             onClick={closeModal}
           >
             <div
-              className="w-full max-w-5xl overflow-hidden rounded-[2rem] border border-border/60 bg-white shadow-[0_30px_100px_rgba(15,23,42,0.22)] dark:border-white/8 dark:bg-card/98"
+              className="w-full max-w-4xl overflow-hidden rounded-[3.5rem] border border-border/60 bg-white shadow-[0_34px_110px_rgba(15,23,42,0.24)] dark:border-white/8 dark:bg-card/98"
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="grid lg:grid-cols-[1.2fr_0.8fr]">
-                <div className="p-6 sm:p-7">
+              <div className="grid lg:grid-cols-[1.08fr_0.92fr]">
+                <div className="p-5 sm:p-6">
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
@@ -809,7 +809,7 @@ export function GoalsPage() {
                     </button>
                   </div>
 
-                  <div className="mt-6 grid gap-5 md:grid-cols-2">
+                  <div className="mt-5 grid gap-4 md:grid-cols-2">
                     <label className="grid gap-2 md:col-span-2">
                       <span className="text-sm font-medium text-foreground">Nome da meta</span>
                       <input
@@ -845,7 +845,7 @@ export function GoalsPage() {
 
                     <div className="md:col-span-2">
                       <span className="mb-2 block text-sm font-medium text-foreground">Responsáveis</span>
-                      <div className="rounded-[1.5rem] border border-border/70 bg-muted/20 p-4">
+                      <div className="rounded-[2.25rem] border border-border/70 bg-muted/20 p-4">
                         <div className="mb-4 flex items-center justify-between gap-3">
                           <div>
                             <p className="text-sm font-semibold text-foreground">Selecione uma ou várias pessoas</p>
@@ -979,8 +979,8 @@ export function GoalsPage() {
                   </div>
                 </div>
 
-                <div className="border-t border-border/60 bg-gradient-to-b from-primary/5 to-transparent p-6 sm:p-7 lg:border-l lg:border-t-0">
-                  <div className="rounded-[1.75rem] border border-border/60 bg-white p-5 shadow-sm dark:bg-card/90">
+                <div className="border-t border-border/60 bg-gradient-to-b from-primary/5 to-transparent p-5 sm:p-6 lg:border-l lg:border-t-0">
+                      <div className="rounded-[2.25rem] border border-border/60 bg-white p-4 shadow-sm dark:bg-card/90">
                     <div className="flex items-center gap-3">
                       <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                         <Target className="h-5 w-5" />
@@ -991,7 +991,7 @@ export function GoalsPage() {
                       </div>
                     </div>
 
-                    <div className="mt-5 space-y-3 rounded-[1.5rem] bg-muted/35 p-4">
+                    <div className="mt-5 space-y-3 rounded-[2rem] bg-muted/35 p-4">
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-sm text-muted-foreground">Responsáveis</span>
                         <span className="text-sm font-semibold text-foreground">{form.responsibleIds.length}</span>
@@ -1019,22 +1019,22 @@ export function GoalsPage() {
                     </div>
 
                     <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
+                      <div className="rounded-[1.8rem] border border-border/60 bg-muted/20 p-4">
                         <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Meta</p>
                         <p className="mt-2 text-lg font-semibold text-foreground">{form.target || "0"}</p>
                       </div>
-                      <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
+                      <div className="rounded-[1.8rem] border border-border/60 bg-muted/20 p-4">
                         <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Atual</p>
                         <p className="mt-2 text-lg font-semibold text-foreground">{form.current || "0"}</p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="mt-6 rounded-[1.75rem] border border-dashed border-border/60 bg-background/70 p-4 text-sm leading-6 text-muted-foreground dark:bg-white/5">
+                  <div className="mt-5 rounded-[1.6rem] border border-dashed border-border/60 bg-background/70 p-4 text-sm leading-6 text-muted-foreground dark:bg-white/5">
                     Dica: metas em grupo funcionam melhor quando você divide o objetivo por etapa, seleciona todos os responsáveis e define um prazo visual.
                   </div>
 
-                  <div className="mt-6 flex flex-wrap justify-end gap-3">
+                  <div className="mt-5 flex flex-wrap justify-end gap-3">
                     <ActionButton variant="secondary" onClick={closeModal}>
                       Cancelar
                     </ActionButton>

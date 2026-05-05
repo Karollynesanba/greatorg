@@ -3,6 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import {
   Calendar,
   CheckCircle2,
+  Camera,
   FileText,
   History,
   LayoutDashboard,
@@ -25,6 +26,7 @@ const navigation = [
   { to: "/calendar", label: "Calendário", icon: Calendar },
   { to: "/insights", label: "Insights", icon: TrendingUp },
   { to: "/goals", label: "Metas", icon: CheckCircle2 },
+  { to: "/stories", label: "Stories", icon: Camera },
   { to: "/ideas", label: "Ideias", icon: Lightbulb },
   { to: "/member/1", label: "Equipe", icon: Users },
   { to: "/history", label: "Histórico", icon: History },

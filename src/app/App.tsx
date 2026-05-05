@@ -16,6 +16,7 @@ import { MyProfilePage } from "./pages/MyProfile";
 import { LoginPage } from "./pages/Login";
 import { PostDetailPage } from "./pages/PostDetail";
 import { ReportsPage } from "./pages/Reports";
+import { StoriesPage } from "./pages/Stories";
 import { isAuthenticated, signOut } from "./auth";
 import { ThemeModeProvider, useThemeMode } from "./theme";
 
@@ -72,9 +73,9 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
       }}
     >
       <Sidebar onLogout={onLogout} />
-      <main className="relative z-10 min-h-screen flex-1 overflow-y-auto p-4 sm:p-6 xl:p-7">
+      <main className="relative z-10 flex-1 p-4 sm:p-6 xl:p-7">
         <div
-          className="min-h-[calc(100vh-2rem)] overflow-hidden rounded-[28px] border sm:min-h-[calc(100vh-3rem)] xl:min-h-[calc(100vh-3.5rem)]"
+          className="min-h-[calc(100vh-2rem)] overflow-visible rounded-[28px] border sm:min-h-[calc(100vh-3rem)] xl:min-h-[calc(100vh-3.5rem)]"
           style={{
             background: isDark
               ? "linear-gradient(180deg, rgba(15,18,24,0.96), rgba(9,11,16,0.98))"
@@ -92,6 +93,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
             <Route path="/post/:id" element={<PostDetailPage />} />
             <Route path="/insights" element={<InsightsPage />} />
             <Route path="/goals" element={<GoalsPage />} />
+            <Route path="/stories" element={<StoriesPage />} />
             <Route path="/ideas" element={<IdeasPage />} />
             <Route path="/member/:id" element={<MemberProfilePage />} />
             <Route path="/history" element={<HistoryPage />} />

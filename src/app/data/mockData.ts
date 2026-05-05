@@ -142,6 +142,17 @@ export type CalendarEvent = {
   time: string;
 };
 
+export type StoryLog = {
+  id: number;
+  date: string;
+  time: string;
+  quantity: number;
+  mediaType: "video" | "photo";
+  madeById: number;
+  postedById: number;
+  notes: string;
+};
+
 export type Idea = {
   id: number;
   title: string;
@@ -677,6 +688,69 @@ export const calendarEvents: CalendarEvent[] = [
     status: "Agendado",
     date: "2026-05-02",
     time: "16:00",
+  },
+];
+
+export const storyLogs: StoryLog[] = [
+  {
+    id: 1,
+    date: "2026-05-01",
+    time: "09:00",
+    quantity: 12,
+    mediaType: "video",
+    madeById: 1,
+    postedById: 2,
+    notes: "Stories de bastidor com gancho para reels da semana.",
+  },
+  {
+    id: 2,
+    date: "2026-05-01",
+    time: "15:20",
+    quantity: 8,
+    mediaType: "photo",
+    madeById: 2,
+    postedById: 2,
+    notes: "Sequência de fotos para agenda e rotina do time.",
+  },
+  {
+    id: 3,
+    date: "2026-05-02",
+    time: "10:10",
+    quantity: 14,
+    mediaType: "video",
+    madeById: 1,
+    postedById: 1,
+    notes: "Captação de bastidores com enquete e CTA de resposta.",
+  },
+  {
+    id: 4,
+    date: "2026-05-03",
+    time: "11:40",
+    quantity: 10,
+    mediaType: "photo",
+    madeById: 2,
+    postedById: 3,
+    notes: "Stories visuais para reforçar prova social.",
+  },
+  {
+    id: 5,
+    date: "2026-05-04",
+    time: "14:30",
+    quantity: 16,
+    mediaType: "video",
+    madeById: 1,
+    postedById: 2,
+    notes: "Sequência editorial com chamada para destaque.",
+  },
+  {
+    id: 6,
+    date: "2026-05-05",
+    time: "08:50",
+    quantity: 9,
+    mediaType: "photo",
+    madeById: 3,
+    postedById: 2,
+    notes: "Stories de rotina com atualização do cronograma.",
   },
 ];
 
