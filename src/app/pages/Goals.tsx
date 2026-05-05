@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, Plus, Target, Users, X } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, PencilLine, Plus, Target, Users, X } from "lucide-react";
 import { toast } from "sonner";
-import { goals, getGoalResponsibleIds } from "../data/mockData";
+import { goals, getGoalResponsibleIds, type Goal } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import {
@@ -26,6 +26,21 @@ type GoalFormState = {
   deadline: string;
   responsibleIds: number[];
 };
+
+type TeamMemberCard = { id: number; name: string; role: string; color: string; avatarUrl: string };
+
+function createInitialGoalForm(teamMembers: TeamMemberCard[]): GoalFormState {
+  return {
+    name: "",
+    category: "Alcance",
+    description: "",
+    target: "",
+    current: "",
+    period: "Mês",
+    deadline: "",
+    responsibleIds: teamMembers[0] ? [teamMembers[0].id] : [],
+  };
+}
 
 function pad(number: number) {
   return String(number).padStart(2, "0");
@@ -91,10 +106,6 @@ function GoalDatePicker({
   const [cursor, setCursor] = useState(() => parseDateKey(value) ?? new Date());
 
   useEffect(() => {
-    if (!value) {
-      return;
-    }
-
     const nextDate = parseDateKey(value);
     if (nextDate) {
       setCursor(nextDate);
@@ -249,53 +260,56 @@ function GoalAssigneeChips({
   selectedIds,
   onToggle,
 }: {
-  members: { id: number; name: string; role: string; color: string; avatarUrl: string }[];
+  members: TeamMemberCard[];
   selectedIds: number[];
   onToggle: (id: number) => void;
 }) {
   return (
     <div className="grid gap-2 sm:grid-cols-2">
-      {members.map((member) => (
-        <button
-          key={member.id}
-          type="button"
-          onClick={() => onToggle(member.id)}
-          className={cn(
-            "group flex items-center justify-between rounded-2xl border px-3 py-3 text-left transition",
-            selectedIds.includes(member.id)
-              ? "border-primary/25 bg-primary/5 shadow-sm"
-              : "border-border/70 bg-background hover:border-primary/25 hover:bg-primary/5 dark:bg-card/80",
-          )}
-        >
-          <span className="flex items-center gap-3">
-            <span
-              className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl text-sm font-semibold text-white shadow-sm"
-              style={{ backgroundColor: member.color }}
-            >
-              {member.avatarUrl ? (
-                <img src={member.avatarUrl} alt={member.name} className="h-full w-full object-cover" />
-              ) : (
-                member.name.charAt(0)
-              )}
-            </span>
-            <span>
-              <span className="block text-sm font-semibold text-foreground">{member.name}</span>
-              <span className="block text-xs text-muted-foreground">{member.role}</span>
-            </span>
-          </span>
-          <span
+      {members.map((member) => {
+        const selected = selectedIds.includes(member.id);
+
+        return (
+          <button
+            key={member.id}
+            type="button"
+            onClick={() => onToggle(member.id)}
             className={cn(
-              "inline-flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-bold transition",
-              selectedIds.includes(member.id)
-                ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                : "border-border/60 text-transparent group-hover:border-primary/35",
+              "group flex items-center justify-between rounded-2xl border px-3 py-3 text-left transition",
+              selected
+                ? "border-primary/25 bg-primary/5 shadow-sm"
+                : "border-border/70 bg-background hover:border-primary/25 hover:bg-primary/5 dark:bg-card/80",
             )}
-            style={{ backgroundColor: "transparent" }}
           >
-            ✓
-          </span>
-        </button>
-      ))}
+            <span className="flex items-center gap-3">
+              <span
+                className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl text-sm font-semibold text-white shadow-sm"
+                style={{ backgroundColor: member.color }}
+              >
+                {member.avatarUrl ? (
+                  <img src={member.avatarUrl} alt={member.name} className="h-full w-full object-cover" />
+                ) : (
+                  member.name.charAt(0)
+                )}
+              </span>
+              <span>
+                <span className="block text-sm font-semibold text-foreground">{member.name}</span>
+                <span className="block text-xs text-muted-foreground">{member.role}</span>
+              </span>
+            </span>
+            <span
+              className={cn(
+                "inline-flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-bold transition",
+                selected
+                  ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                  : "border-border/60 text-transparent group-hover:border-primary/35",
+              )}
+            >
+              ✓
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -304,7 +318,7 @@ function GoalMemberStack({
   members,
   color,
 }: {
-  members: { id: number; name: string; role: string; color: string; avatarUrl: string }[];
+  members: TeamMemberCard[];
   color: string;
 }) {
   const primary = members[0];
@@ -330,17 +344,12 @@ export function GoalsPage() {
   const [teamMembers] = useTeamProfiles();
   const [items, setItems] = useSupabaseSyncedListState({ key: "goals", table: "goals", fallback: goals });
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingGoalId, setEditingGoalId] = useState<number | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ goalId: number; goalName: string } | null>(null);
-  const [form, setForm] = useState<GoalFormState>(() => ({
-    name: "",
-    category: "Alcance",
-    description: "",
-    target: "",
-    current: "",
-    period: "Mês",
-    deadline: "",
-    responsibleIds: teamMembers[0] ? [teamMembers[0].id] : [],
-  }));
+  const [form, setForm] = useState<GoalFormState>(() => createInitialGoalForm(teamMembers));
+
+  const teamCards = teamMembers as TeamMemberCard[];
+  const editingGoal = useMemo(() => items.find((goal) => goal.id === editingGoalId) ?? null, [editingGoalId, items]);
 
   const formatValue = (value: number) => new Intl.NumberFormat("pt-BR").format(value);
 
@@ -349,9 +358,7 @@ export function GoalsPage() {
     const groupGoals = items.filter((goal) => getGoalResponsibleIds(goal).length > 1).length;
     const coverage = new Set(items.flatMap((goal) => getGoalResponsibleIds(goal))).size;
     const avgProgress =
-      total === 0
-        ? 0
-        : items.reduce((sum, goal) => sum + (goal.current / Math.max(goal.target, 1)) * 100, 0) / total;
+      total === 0 ? 0 : items.reduce((sum, goal) => sum + (goal.current / Math.max(goal.target, 1)) * 100, 0) / total;
 
     return {
       total,
@@ -363,12 +370,12 @@ export function GoalsPage() {
 
   useEffect(() => {
     if (!isCreateOpen) {
-      return;
+      return undefined;
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setIsCreateOpen(false);
+        closeModal();
       }
     };
 
@@ -377,32 +384,82 @@ export function GoalsPage() {
   }, [isCreateOpen]);
 
   useEffect(() => {
+    if (!isCreateOpen || !editingGoal) {
+      return;
+    }
+
+    setForm({
+      name: editingGoal.name,
+      category: editingGoal.category,
+      description: editingGoal.description,
+      target: String(editingGoal.target),
+      current: String(editingGoal.current),
+      period: editingGoal.period,
+      deadline: editingGoal.deadline,
+      responsibleIds: getGoalResponsibleIds(editingGoal),
+    });
+  }, [editingGoal, isCreateOpen]);
+
+  useEffect(() => {
     if (form.responsibleIds.length > 0) {
       return;
     }
 
-    if (teamMembers[0]) {
-      setForm((previous) => ({ ...previous, responsibleIds: [teamMembers[0].id] }));
+    if (teamCards[0]) {
+      setForm((previous) => ({ ...previous, responsibleIds: [teamCards[0].id] }));
     }
-  }, [form.responsibleIds.length, teamMembers]);
+  }, [form.responsibleIds.length, teamCards]);
 
-  const resetForm = () => {
+  function openCreateGoal() {
+    setEditingGoalId(null);
+    setForm(createInitialGoalForm(teamCards));
+    setIsCreateOpen(true);
+  }
+
+  function openEditGoal(goalId: number) {
+    const goal = items.find((item) => item.id === goalId);
+    if (!goal) {
+      return;
+    }
+
+    setEditingGoalId(goalId);
     setForm({
-      name: "",
-      category: "Alcance",
-      description: "",
-      target: "",
-      current: "",
-      period: "Mês",
-      deadline: "",
-      responsibleIds: teamMembers[0] ? [teamMembers[0].id] : [],
+      name: goal.name,
+      category: goal.category,
+      description: goal.description,
+      target: String(goal.target),
+      current: String(goal.current),
+      period: goal.period,
+      deadline: goal.deadline,
+      responsibleIds: getGoalResponsibleIds(goal),
+    });
+    setIsCreateOpen(true);
+  }
+
+  function closeModal() {
+    setIsCreateOpen(false);
+    setEditingGoalId(null);
+    setForm(createInitialGoalForm(teamCards));
+  }
+
+  const toggleResponsible = (memberId: number) => {
+    setForm((previous) => {
+      const hasMember = previous.responsibleIds.includes(memberId);
+      const nextResponsibleIds = hasMember
+        ? previous.responsibleIds.filter((id) => id !== memberId)
+        : [...previous.responsibleIds, memberId];
+
+      return {
+        ...previous,
+        responsibleIds: nextResponsibleIds,
+      };
     });
   };
 
-  const handleCreateGoal = () => {
+  const handleSaveGoal = () => {
     const target = Number(form.target);
     const current = Number(form.current);
-    const selectedResponsibleIds = form.responsibleIds.length > 0 ? form.responsibleIds : teamMembers[0] ? [teamMembers[0].id] : [];
+    const selectedResponsibleIds = form.responsibleIds.length > 0 ? form.responsibleIds : teamCards[0] ? [teamCards[0].id] : [];
 
     if (
       !form.name.trim() ||
@@ -416,25 +473,33 @@ export function GoalsPage() {
       return;
     }
 
-    setItems((previous) => [
-      {
-        id: Math.max(...previous.map((goal) => goal.id), 0) + 1,
-        name: form.name.trim(),
-        category: form.category,
-        responsibleId: selectedResponsibleIds[0],
-        responsibleIds: selectedResponsibleIds,
-        target,
-        current,
-        period: form.period,
-        deadline: form.deadline,
-        description: form.description.trim(),
-      },
-      ...previous,
-    ]);
+    const goalPayload: Omit<Goal, "id"> = {
+      name: form.name.trim(),
+      category: form.category,
+      responsibleId: selectedResponsibleIds[0],
+      responsibleIds: selectedResponsibleIds,
+      target,
+      current,
+      period: form.period,
+      deadline: form.deadline,
+      description: form.description.trim(),
+    };
 
-    setIsCreateOpen(false);
-    resetForm();
-    toast.success("Meta criada com sucesso.");
+    if (editingGoalId !== null) {
+      setItems((previous) => previous.map((goal) => (goal.id === editingGoalId ? { ...goal, ...goalPayload } : goal)));
+      toast.success("Meta atualizada com sucesso.");
+    } else {
+      setItems((previous) => [
+        {
+          id: Math.max(...previous.map((goal) => goal.id), 0) + 1,
+          ...goalPayload,
+        },
+        ...previous,
+      ]);
+      toast.success("Meta criada com sucesso.");
+    }
+
+    closeModal();
   };
 
   const handleDeleteGoal = (goalId: number) => {
@@ -462,29 +527,15 @@ export function GoalsPage() {
     });
   };
 
-  const toggleResponsible = (memberId: number) => {
-    setForm((previous) => {
-      const hasMember = previous.responsibleIds.includes(memberId);
-      const nextResponsibleIds = hasMember
-        ? previous.responsibleIds.filter((id) => id !== memberId)
-        : [...previous.responsibleIds, memberId];
-
-      return {
-        ...previous,
-        responsibleIds: nextResponsibleIds,
-      };
-    });
-  };
-
   return (
     <PageTransition>
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 pb-8 sm:px-6 lg:px-8">
         <PageHeader
           eyebrow="Execution"
           title="Metas vivas e conectadas ao time"
-          description="Agora você pode criar metas individuais ou em grupo, distribuir responsáveis e definir prazo com calendário visual."
+          description="Crie metas individuais ou em grupo, distribua responsáveis e escolha o prazo com um calendário visual."
           actions={
-            <ActionButton onClick={() => setIsCreateOpen(true)}>
+            <ActionButton onClick={openCreateGoal}>
               <Plus className="h-4 w-4" />
               Nova Meta
             </ActionButton>
@@ -513,8 +564,8 @@ export function GoalsPage() {
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {items.map((goal, index) => {
             const assigneeIds = getGoalResponsibleIds(goal);
-            const assignees = teamMembers.filter((item) => assigneeIds.includes(item.id));
-            const primaryMember = assignees[0] ?? teamMembers[0];
+            const assignees = teamCards.filter((item) => assigneeIds.includes(item.id));
+            const primaryMember = assignees[0] ?? teamCards[0];
             const progress = (goal.current / goal.target) * 100;
             const remaining = Math.max(goal.target - goal.current, 0);
             const statusText = progress >= 100 ? "Meta atingida" : `Faltam ${formatValue(remaining)} para concluir`;
@@ -535,9 +586,19 @@ export function GoalsPage() {
                   borderLeftColor: primaryMember?.color ?? "#e50914",
                 }}
               >
-                <div className="absolute right-4 top-4 z-10 opacity-0 transition group-hover:opacity-100">
+                <div className="absolute right-4 top-4 z-10 flex gap-2 opacity-0 transition group-hover:opacity-100">
+                  <button
+                    type="button"
+                    onClick={() => openEditGoal(goal.id)}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-white text-muted-foreground shadow-sm transition hover:border-primary/25 hover:text-foreground dark:border-white/8 dark:bg-card/90"
+                    aria-label="Editar meta"
+                    title="Editar meta"
+                  >
+                    <PencilLine className="h-4 w-4" />
+                  </button>
                   <DeleteIconButton onClick={() => setPendingDelete({ goalId: goal.id, goalName: goal.name })} />
                 </div>
+
                 <div className="flex h-full flex-col gap-5">
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="min-w-0 space-y-3">
@@ -557,6 +618,7 @@ export function GoalsPage() {
                         <GoalMemberStack members={assignees} color={primaryMember?.color ?? "#e50914"} />
                       ) : null}
                     </div>
+
                     <div
                       className="rounded-full px-3 py-1.5 text-sm font-semibold"
                       style={{
@@ -601,7 +663,7 @@ export function GoalsPage() {
         {isCreateOpen ? (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-md"
-            onClick={() => setIsCreateOpen(false)}
+            onClick={closeModal}
           >
             <div
               className="w-full max-w-5xl overflow-hidden rounded-[2rem] border border-border/60 bg-white shadow-[0_30px_100px_rgba(15,23,42,0.22)] dark:border-white/8 dark:bg-card/98"
@@ -611,15 +673,19 @@ export function GoalsPage() {
                 <div className="p-6 sm:p-7">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Nova Meta</p>
-                      <h3 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">Criar meta completa</h3>
+                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                        {editingGoalId !== null ? "Editar Meta" : "Nova Meta"}
+                      </p>
+                      <h3 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
+                        {editingGoalId !== null ? "Editar meta completa" : "Criar meta completa"}
+                      </h3>
                       <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                        Defina uma meta individual ou em grupo, distribua as pessoas responsáveis e escolha o prazo em um calendário visual.
+                        Defina uma meta individual ou em grupo, distribua responsáveis e escolha o prazo em um calendário visual.
                       </p>
                     </div>
                     <button
                       type="button"
-                      onClick={() => setIsCreateOpen(false)}
+                      onClick={closeModal}
                       className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
                     >
                       <X className="h-4 w-4" />
@@ -673,11 +739,11 @@ export function GoalsPage() {
                             {form.responsibleIds.length} selecionado{form.responsibleIds.length === 1 ? "" : "s"}
                           </span>
                         </div>
-                        <GoalAssigneeChips members={teamMembers} selectedIds={form.responsibleIds} onToggle={toggleResponsible} />
+                        <GoalAssigneeChips members={teamCards} selectedIds={form.responsibleIds} onToggle={toggleResponsible} />
                       </div>
                       {form.responsibleIds.length > 0 ? (
                         <div className="mt-3 flex flex-wrap gap-2">
-                          {teamMembers
+                          {teamCards
                             .filter((member) => form.responsibleIds.includes(member.id))
                             .map((member) => (
                               <button
@@ -755,7 +821,7 @@ export function GoalsPage() {
                         <span className="text-sm font-semibold text-foreground">{form.responsibleIds.length}</span>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {teamMembers
+                        {teamCards
                           .filter((member) => form.responsibleIds.includes(member.id))
                           .map((member) => (
                             <span
@@ -793,12 +859,12 @@ export function GoalsPage() {
                   </div>
 
                   <div className="mt-6 flex flex-wrap justify-end gap-3">
-                    <ActionButton variant="secondary" onClick={() => setIsCreateOpen(false)}>
+                    <ActionButton variant="secondary" onClick={closeModal}>
                       Cancelar
                     </ActionButton>
-                    <ActionButton onClick={handleCreateGoal}>
+                    <ActionButton onClick={handleSaveGoal}>
                       <Plus className="h-4 w-4" />
-                      Criar meta
+                      {editingGoalId !== null ? "Salvar alterações" : "Criar meta"}
                     </ActionButton>
                   </div>
                 </div>
