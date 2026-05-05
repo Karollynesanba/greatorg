@@ -68,11 +68,25 @@ export function Sidebar({ onLogout }: { onLogout?: () => void }) {
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
+        <div className="mb-5 flex items-center gap-3 rounded-[1.75rem] border border-border/60 bg-background/80 px-3 py-3 shadow-[0_10px_24px_rgba(15,23,42,0.05)] dark:border-white/8 dark:bg-card/80">
+          <div className="inline-flex h-12 w-12 items-center justify-center overflow-hidden rounded-[1.25rem] bg-background">
+            <img
+              src="/great-logo.png"
+              alt="Great Orgânico"
+              className="h-full w-full object-contain p-1.5"
+            />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">Great Orgânico</p>
+            <p className="truncate text-sm text-muted-foreground">Plataforma operacional</p>
+          </div>
+        </div>
+
         <NavLink
           to="/profile"
           aria-label="Meu Perfil"
           title="Meu Perfil"
-          className="mb-6 flex items-center justify-between rounded-3xl border border-transparent px-2 py-2 transition hover:border-border/60 hover:bg-card-strong/70 xl:justify-start"
+          className="mb-6 flex items-center justify-between rounded-[1.75rem] border border-transparent px-2 py-2 transition hover:border-border/60 hover:bg-card-strong/70 xl:justify-start"
         >
           <div className="flex items-center gap-3">
             <Avatar
