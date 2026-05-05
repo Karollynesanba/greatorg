@@ -19,12 +19,12 @@ const teamProfilesTable = "team_profiles";
 
 const seedAccounts: EditableTeamMember[] = baseTeamMembers.map((member, index) => {
   const credentials = [
-    { email: "brenda@greatorganico.com", password: "great123" },
-    { email: "hannah@greatorganico.com", password: "great123" },
-    { email: "thiago@greatorganico.com", password: "great123" },
+    { email: "brendarayssa2706@gmail.com", password: "Great2026!" },
+    { email: "thiagomarquesdev23@hotmail.com", password: "Great2026!" },
+    { email: "hannahleticia13@gmail.com", password: "Great2026!" },
   ][index] ?? {
     email: `membro${index + 1}@greatorganico.com`,
-    password: "great123",
+    password: "Great2026!",
   };
 
   return {
