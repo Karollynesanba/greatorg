@@ -11,7 +11,9 @@ import {
   PageHeader,
   PageTransition,
   ProgressBar,
+  RoundedDatePicker,
   RoundedDropdown,
+  RoundedTimePicker,
 } from "../components/ui";
 
 type StoryMediaType = "video" | "photo";
@@ -291,21 +293,19 @@ export function StoriesPage() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className="grid gap-2">
                     <span className="text-sm font-medium text-foreground">Data</span>
-                    <input
-                      type="date"
+                    <RoundedDatePicker
+                      label="Data"
                       value={form.date}
-                      onChange={(event) => setForm((previous) => ({ ...previous, date: event.target.value }))}
-                      className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                      onChange={(value) => setForm((previous) => ({ ...previous, date: value }))}
                     />
                   </label>
 
                   <label className="grid gap-2">
                     <span className="text-sm font-medium text-foreground">Hora</span>
-                    <input
-                      type="time"
+                    <RoundedTimePicker
+                      label="Hora"
                       value={form.time}
-                      onChange={(event) => setForm((previous) => ({ ...previous, time: event.target.value }))}
-                      className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                      onChange={(value) => setForm((previous) => ({ ...previous, time: value }))}
                     />
                   </label>
 
@@ -316,7 +316,7 @@ export function StoriesPage() {
                       min="1"
                       value={form.quantity}
                       onChange={(event) => setForm((previous) => ({ ...previous, quantity: event.target.value }))}
-                      className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                    className="rounded-full border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                     />
                   </label>
 

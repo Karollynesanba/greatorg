@@ -5,6 +5,10 @@ import {
   AlertTriangle,
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  CalendarDays,
+  Clock3,
   File,
   FileImage,
   FileText,
@@ -242,7 +246,7 @@ export function RoundedDropdown<T extends string | number>({
                   className="flex w-full items-center justify-between rounded-full px-4 py-3 text-left text-sm transition hover:bg-muted"
                   style={{
                     backgroundColor: selected ? "rgb(var(--muted) / 1)" : undefined,
-                    boxShadow: selected ? "inset 0 0 0 1px rgba(var(--border), 0.6)" : undefined,
+                    boxShadow: selected ? "inset 0 0 0 1px rgb(var(--border) / 0.7)" : undefined,
                   }}
                 >
                   <span className="flex items-center gap-3">
@@ -264,6 +268,327 @@ export function RoundedDropdown<T extends string | number>({
                 </button>
               );
             })}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function pad(number: number) {
+  return String(number).padStart(2, "0");
+}
+
+function formatDateKey(date: Date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function parseDateKey(value: string) {
+  return value ? new Date(`${value}T12:00:00`) : null;
+}
+
+function startOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function addMonths(date: Date, amount: number) {
+  return new Date(date.getFullYear(), date.getMonth() + amount, 1);
+}
+
+function buildMonthGrid(date: Date) {
+  const firstDay = startOfMonth(date);
+  const startOffset = (firstDay.getDay() + 6) % 7;
+  const gridStart = new Date(firstDay);
+  gridStart.setDate(firstDay.getDate() - startOffset);
+  gridStart.setHours(12, 0, 0, 0);
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const nextDate = new Date(gridStart);
+    nextDate.setDate(gridStart.getDate() + index);
+    return nextDate;
+  });
+}
+
+function formatMonthTitle(date: Date) {
+  return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(date);
+}
+
+function formatDateLabel(value: string) {
+  const date = parseDateKey(value);
+
+  if (!date) {
+    return "Selecionar data";
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+export function RoundedDatePicker({
+  value,
+  onChange,
+  label = "Data",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  label?: string;
+}) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [cursor, setCursor] = useState(() => parseDateKey(value) ?? new Date());
+
+  useEffect(() => {
+    const nextDate = parseDateKey(value);
+    if (nextDate) {
+      setCursor(nextDate);
+    }
+  }, [value]);
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    window.addEventListener("mousedown", handlePointerDown);
+    return () => window.removeEventListener("mousedown", handlePointerDown);
+  }, [open]);
+
+  const todayKey = formatDateKey(new Date());
+  const selectedKey = value || todayKey;
+  const monthGrid = buildMonthGrid(cursor);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 bg-background px-4 py-3 text-left text-sm transition hover:border-primary/25 hover:shadow-sm dark:bg-card/90 dark:hover:bg-card"
+      >
+        <span className="flex items-center gap-3">
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <CalendarDays className="h-4 w-4" />
+          </span>
+          <span>
+            <span className="block text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{label}</span>
+            <span className="block font-medium text-foreground">{formatDateLabel(value)}</span>
+          </span>
+        </span>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open ? (
+        <div className="absolute right-0 top-full z-50 mt-3 w-[340px] overflow-hidden rounded-[1.75rem] border border-border/70 bg-background shadow-[0_24px_60px_rgba(15,23,42,0.16)] dark:border-border/60 dark:bg-card dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]">
+          <div className="flex items-center justify-between border-b border-border/60 px-4 py-4">
+            <button
+              type="button"
+              onClick={() => setCursor((current) => addMonths(current, -1))}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted text-foreground transition hover:bg-muted/80"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <div className="text-center">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Selecionar data</p>
+              <p className="mt-1 text-sm font-semibold text-foreground">{formatMonthTitle(cursor)}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCursor((current) => addMonths(current, 1))}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted text-foreground transition hover:bg-muted/80"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="px-4 pb-4 pt-3">
+            <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              {["S", "T", "Q", "Q", "S", "S", "D"].map((day) => (
+                <span key={day}>{day}</span>
+              ))}
+            </div>
+            <div className="mt-2 grid grid-cols-7 gap-1">
+              {monthGrid.map((date) => {
+                const key = formatDateKey(date);
+                const isCurrentMonth = date.getMonth() === cursor.getMonth();
+                const isSelected = key === selectedKey;
+                const isToday = key === todayKey;
+
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => {
+                      onChange(key);
+                      setOpen(false);
+                    }}
+                    className={cn(
+                      "flex h-10 items-center justify-center rounded-full text-sm transition",
+                      isSelected && "bg-primary text-primary-foreground shadow-lg shadow-primary/20",
+                      !isSelected && isToday && "border border-primary/30 bg-primary/8 text-primary",
+                      !isSelected && !isToday && isCurrentMonth && "text-foreground hover:bg-muted",
+                      !isCurrentMonth && "text-muted-foreground/35",
+                    )}
+                  >
+                    {date.getDate()}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const now = new Date();
+                  onChange(formatDateKey(now));
+                  setCursor(now);
+                  setOpen(false);
+                }}
+                className="rounded-full border border-border/60 bg-muted/40 px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-muted/70"
+              >
+                Hoje
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="rounded-full border border-border/60 bg-background px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:text-foreground dark:bg-card/80"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function RoundedTimePicker({
+  value,
+  onChange,
+  label = "Hora",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  label?: string;
+}) {
+  const hours = Array.from({ length: 24 }, (_, index) => pad(index));
+  const minutes = Array.from({ length: 12 }, (_, index) => pad(index * 5));
+  const [hour, minute] = value.split(":");
+  const selectedHour = hours.includes(hour) ? hour : "09";
+  const selectedMinute = minutes.includes(minute) ? minute : "00";
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    window.addEventListener("mousedown", handlePointerDown);
+    return () => window.removeEventListener("mousedown", handlePointerDown);
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 bg-background px-4 py-3 text-left text-sm transition hover:border-primary/25 hover:shadow-sm dark:bg-card/90 dark:hover:bg-card"
+      >
+        <span className="flex items-center gap-3">
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Clock3 className="h-4 w-4" />
+          </span>
+          <span>
+            <span className="block text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{label}</span>
+            <span className="block font-medium text-foreground">{value || "09:00"}</span>
+          </span>
+        </span>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open ? (
+        <div className="absolute right-0 top-full z-50 mt-3 w-[320px] overflow-hidden rounded-[1.75rem] border border-border/70 bg-background shadow-[0_24px_60px_rgba(15,23,42,0.16)] dark:border-border/60 dark:bg-card dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]">
+          <div className="border-b border-border/60 px-4 py-4 text-center">
+            <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Selecionar hora</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">{`${selectedHour}:${selectedMinute}`}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-0 p-3">
+            <div className="max-h-56 overflow-auto pr-1">
+              <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Hora</p>
+              <div className="space-y-1">
+                {hours.map((item) => {
+                  const active = item === selectedHour;
+                  return (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => onChange(`${item}:${selectedMinute}`)}
+                      className="flex w-full items-center justify-between rounded-full px-3 py-2 text-sm transition hover:bg-muted"
+                      style={{
+                        backgroundColor: active ? "rgb(var(--muted) / 1)" : undefined,
+                      }}
+                    >
+                      <span className="font-medium text-foreground">{item}</span>
+                      {active ? <span className="text-xs font-semibold text-muted-foreground">Ativo</span> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="max-h-56 overflow-auto pl-1">
+              <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Minuto</p>
+              <div className="space-y-1">
+                {minutes.map((item) => {
+                  const active = item === selectedMinute;
+                  return (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => onChange(`${selectedHour}:${item}`)}
+                      className="flex w-full items-center justify-between rounded-full px-3 py-2 text-sm transition hover:bg-muted"
+                      style={{
+                        backgroundColor: active ? "rgb(var(--muted) / 1)" : undefined,
+                      }}
+                    >
+                      <span className="font-medium text-foreground">{item}</span>
+                      {active ? <span className="text-xs font-semibold text-muted-foreground">Ativo</span> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center justify-between border-t border-border/60 px-4 py-3">
+            <button
+              type="button"
+              onClick={() => onChange("09:00")}
+              className="rounded-full border border-border/60 bg-muted/40 px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-muted/70"
+            >
+              09:00
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="rounded-full border border-border/60 bg-background px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:text-foreground dark:bg-card/80"
+            >
+              Fechar
+            </button>
           </div>
         </div>
       ) : null}

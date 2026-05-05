@@ -378,7 +378,7 @@ export function IdeasPage() {
                 <input
                   value={form.title}
                   onChange={(event) => setForm((previous) => ({ ...previous, title: event.target.value }))}
-                  className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                  className="rounded-full border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                 />
               </label>
               <label className="grid gap-2">
@@ -402,7 +402,7 @@ export function IdeasPage() {
                 <input
                   value={form.theme}
                   onChange={(event) => setForm((previous) => ({ ...previous, theme: event.target.value }))}
-                  className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                  className="rounded-full border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                 />
               </label>
               <label className="grid gap-2 md:col-span-2">
@@ -411,7 +411,7 @@ export function IdeasPage() {
                   value={form.description}
                   onChange={(event) => setForm((previous) => ({ ...previous, description: event.target.value }))}
                   rows={3}
-                  className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                  className="rounded-[1.75rem] border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                 />
               </label>
               <label className="grid gap-2 md:col-span-2">
@@ -420,7 +420,7 @@ export function IdeasPage() {
                   value={form.script}
                   onChange={(event) => setForm((previous) => ({ ...previous, script: event.target.value }))}
                   rows={4}
-                  className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                  className="rounded-[1.75rem] border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                 />
               </label>
             </div>

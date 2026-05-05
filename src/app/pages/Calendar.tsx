@@ -25,6 +25,8 @@ import {
   GlassPanel,
   PageHeader,
   PageTransition,
+  RoundedDatePicker,
+  RoundedTimePicker,
   cn,
 } from "../components/ui";
 
@@ -932,18 +934,18 @@ export function CalendarPage() {
               </label>
               <label className="grid gap-2">
                 <span className="text-sm font-medium text-foreground">Data</span>
-                <input
+                <RoundedDatePicker
+                  label="Data"
                   value={createForm.date}
-                  onChange={(event) => setCreateForm((previous) => ({ ...previous, date: event.target.value }))}
-                  className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                  onChange={(value) => setCreateForm((previous) => ({ ...previous, date: value }))}
                 />
               </label>
               <label className="grid gap-2">
                 <span className="text-sm font-medium text-foreground">Horário</span>
-                <input
+                <RoundedTimePicker
+                  label="Hora"
                   value={createForm.time}
-                  onChange={(event) => setCreateForm((previous) => ({ ...previous, time: event.target.value }))}
-                  className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                  onChange={(value) => setCreateForm((previous) => ({ ...previous, time: value }))}
                 />
               </label>
               <label className="grid gap-2 md:col-span-2">
