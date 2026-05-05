@@ -14,6 +14,7 @@ import {
   MemberChip,
   PageHeader,
   PageTransition,
+  RoundedDropdown,
   StatusBadge,
 } from "../components/ui";
 
@@ -66,7 +67,7 @@ function MemberDropdown({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="flex w-full items-center justify-between gap-3 rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm transition hover:border-primary/25 hover:shadow-sm"
+        className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 bg-background px-4 py-3 text-sm transition hover:border-primary/25 hover:shadow-sm"
       >
         <span className="flex items-center gap-3 text-left">
           <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: selectedMember.color }} />
@@ -79,7 +80,7 @@ function MemberDropdown({
 
       {open ? (
         <div
-          className="absolute left-0 top-full z-50 mt-2 w-full rounded-[1.5rem] border border-border/70 p-2 shadow-[0_24px_60px_rgba(15,23,42,0.14)]"
+          className="absolute left-0 top-full z-50 mt-2 w-full rounded-[1.75rem] border border-border/70 p-2 shadow-[0_24px_60px_rgba(15,23,42,0.14)]"
           style={{
             backgroundColor: isDark ? "rgb(var(--card) / 0.98)" : "rgb(255 255 255 / 1)",
           }}
@@ -99,7 +100,7 @@ function MemberDropdown({
                     onChange(member.id);
                     setOpen(false);
                   }}
-                  className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm transition hover:bg-muted/70"
+                  className="flex w-full items-center justify-between rounded-full px-4 py-3 text-left text-sm transition hover:bg-muted/70"
                   style={{
                     backgroundColor: selected ? `${member.color}12` : undefined,
                   }}
@@ -392,19 +393,12 @@ export function IdeasPage() {
               </label>
               <label className="grid gap-2">
                 <span className="text-sm font-medium text-foreground">Categoria</span>
-                <select
+                <RoundedDropdown
+                  label="Categoria"
                   value={form.category}
-                  onChange={(event) =>
-                    setForm((previous) => ({ ...previous, category: event.target.value as IdeaCategory }))
-                  }
-                  className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                >
-                  {ideaCategories.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
-                    </option>
-                  ))}
-                </select>
+                  options={ideaCategories.map((category) => ({ label: category, value: category }))}
+                  onChange={(value) => setForm((previous) => ({ ...previous, category: value }))}
+                />
               </label>
               <label className="grid gap-2">
                 <span className="text-sm font-medium text-foreground">Tema</span>

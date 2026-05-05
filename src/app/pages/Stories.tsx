@@ -4,7 +4,15 @@ import { toast } from "sonner";
 import { storyLogs, type StoryLog } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
-import { ActionButton, GlassPanel, MemberChip, PageHeader, PageTransition, ProgressBar } from "../components/ui";
+import {
+  ActionButton,
+  GlassPanel,
+  MemberChip,
+  PageHeader,
+  PageTransition,
+  ProgressBar,
+  RoundedDropdown,
+} from "../components/ui";
 
 type StoryMediaType = "video" | "photo";
 
@@ -314,50 +322,43 @@ export function StoriesPage() {
 
                   <label className="grid gap-2">
                     <span className="text-sm font-medium text-foreground">Formato</span>
-                    <select
+                    <RoundedDropdown
+                      label="Formato"
                       value={form.mediaType}
-                      onChange={(event) =>
-                        setForm((previous) => ({ ...previous, mediaType: event.target.value as StoryMediaType }))
-                      }
-                      className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                    >
-                      <option value="video">Vídeo</option>
-                      <option value="photo">Foto</option>
-                    </select>
+                      options={[
+                        { label: "Vídeo", value: "video" },
+                        { label: "Foto", value: "photo" },
+                      ]}
+                      onChange={(value) => setForm((previous) => ({ ...previous, mediaType: value }))}
+                    />
                   </label>
 
                   <label className="grid gap-2">
                     <span className="text-sm font-medium text-foreground">Quem fez</span>
-                    <select
+                    <RoundedDropdown
+                      label="Quem fez"
                       value={form.madeById}
-                      onChange={(event) =>
-                        setForm((previous) => ({ ...previous, madeById: Number(event.target.value) }))
-                      }
-                      className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                    >
-                      {teamMembers.map((member) => (
-                        <option key={member.id} value={member.id}>
-                          {member.name}
-                        </option>
-                      ))}
-                    </select>
+                      options={teamMembers.map((member) => ({
+                        label: member.name,
+                        value: member.id,
+                        color: member.color,
+                      }))}
+                      onChange={(value) => setForm((previous) => ({ ...previous, madeById: value }))}
+                    />
                   </label>
 
                   <label className="grid gap-2">
                     <span className="text-sm font-medium text-foreground">Quem postou</span>
-                    <select
+                    <RoundedDropdown
+                      label="Quem postou"
                       value={form.postedById}
-                      onChange={(event) =>
-                        setForm((previous) => ({ ...previous, postedById: Number(event.target.value) }))
-                      }
-                      className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                    >
-                      {teamMembers.map((member) => (
-                        <option key={member.id} value={member.id}>
-                          {member.name}
-                        </option>
-                      ))}
-                    </select>
+                      options={teamMembers.map((member) => ({
+                        label: member.name,
+                        value: member.id,
+                        color: member.color,
+                      }))}
+                      onChange={(value) => setForm((previous) => ({ ...previous, postedById: value }))}
+                    />
                   </label>
 
                   <label className="grid gap-2 md:col-span-2">

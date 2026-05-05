@@ -1,8 +1,19 @@
 import clsx from "clsx";
 import { motion } from "motion/react";
 import type { LucideIcon } from "lucide-react";
-import { AlertTriangle, Check, File, FileImage, FileText, Film, Trash2, TrendingDown, TrendingUp } from "lucide-react";
-import type { CSSProperties, PropsWithChildren, ReactNode } from "react";
+import {
+  AlertTriangle,
+  Check,
+  ChevronDown,
+  File,
+  FileImage,
+  FileText,
+  Film,
+  Trash2,
+  TrendingDown,
+  TrendingUp,
+} from "lucide-react";
+import { useEffect, useRef, useState, type CSSProperties, type PropsWithChildren, type ReactNode } from "react";
 import type { ContentType, PostFile, PostStatus } from "../data/mockData";
 import { statusColors, typeColors } from "../data/mockData";
 
@@ -156,6 +167,106 @@ export function ActionButton({
     >
       {children}
     </button>
+  );
+}
+
+export type RoundedDropdownOption<T extends string | number> = {
+  label: string;
+  value: T;
+  color?: string;
+};
+
+export function RoundedDropdown<T extends string | number>({
+  label,
+  value,
+  options,
+  onChange,
+  placeholder = "Selecionar",
+}: {
+  label: string;
+  value: T;
+  options: Array<RoundedDropdownOption<T>>;
+  onChange: (value: T) => void;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const selectedOption = options.find((option) => option.value === value) ?? options[0];
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, []);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 bg-background px-4 py-3 text-sm transition hover:border-primary/25 hover:shadow-sm dark:bg-card/90 dark:hover:bg-card"
+      >
+        <span className="flex items-center gap-3 text-left">
+          {selectedOption?.color ? (
+            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: selectedOption.color }} />
+          ) : null}
+          <span className="font-medium text-foreground">
+            {selectedOption?.label ?? placeholder}
+          </span>
+        </span>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open ? (
+        <div className="absolute left-0 top-full z-50 mt-2 w-full rounded-[1.75rem] border border-border/70 bg-white p-2 shadow-[0_24px_60px_rgba(15,23,42,0.14)] dark:border-border/60 dark:bg-card/95 dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]">
+          <p className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            {label}
+          </p>
+          <div className="space-y-1">
+            {options.map((option) => {
+              const selected = option.value === value;
+
+              return (
+                <button
+                  key={String(option.value)}
+                  type="button"
+                  onClick={() => {
+                    onChange(option.value);
+                    setOpen(false);
+                  }}
+                  className="flex w-full items-center justify-between rounded-full px-4 py-3 text-left text-sm transition hover:bg-muted/70"
+                  style={{
+                    backgroundColor: selected ? `${option.color ?? "rgb(var(--primary) / 1)"}12` : undefined,
+                  }}
+                >
+                  <span className="flex items-center gap-3">
+                    {option.color ? (
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: option.color }} />
+                    ) : (
+                      <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/40" />
+                    )}
+                    <span
+                      className="font-medium"
+                      style={{
+                        color: option.color ?? "rgb(var(--foreground) / 1)",
+                      }}
+                    >
+                      {option.label}
+                    </span>
+                  </span>
+                  {selected ? <span className="text-xs font-semibold text-muted-foreground">Ativo</span> : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
