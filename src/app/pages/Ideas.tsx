@@ -17,6 +17,26 @@ import {
   StatusBadge,
 } from "../components/ui";
 
+const ideaCategories = [
+  "Stories em foto",
+  "Stories em vídeo",
+  "Reels",
+  "Post",
+  "Carrossel",
+  "Feed",
+] as const;
+
+type IdeaCategory = (typeof ideaCategories)[number];
+
+type IdeaFormState = {
+  title: string;
+  category: IdeaCategory;
+  theme: string;
+  description: string;
+  script: string;
+  responsibleId: number;
+};
+
 function MemberDropdown({
   value,
   onChange,
@@ -109,8 +129,9 @@ export function IdeasPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ ideaId: number; ideaTitle: string } | null>(null);
   const sparkTimerRef = useRef<number | null>(null);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<IdeaFormState>({
     title: "",
+    category: ideaCategories[0],
     theme: "",
     description: "",
     script: "",
@@ -154,8 +175,8 @@ export function IdeasPage() {
   };
 
   const handleCreateIdea = () => {
-    if (!form.title.trim() || !form.theme.trim() || !form.description.trim()) {
-      toast.error("Preencha título, tema e descrição.");
+    if (!form.title.trim() || !form.category.trim() || !form.theme.trim() || !form.description.trim()) {
+      toast.error("Preencha título, categoria, tema e descrição.");
       return;
     }
 
@@ -163,6 +184,7 @@ export function IdeasPage() {
       {
         id: Math.max(...previous.map((idea) => idea.id), 0) + 1,
         title: form.title.trim(),
+        category: form.category,
         theme: form.theme.trim(),
         description: form.description.trim(),
         status: "Ideia",
@@ -175,6 +197,7 @@ export function IdeasPage() {
     setIsCreateOpen(false);
     setForm({
       title: "",
+      category: ideaCategories[0],
       theme: "",
       description: "",
       script: "",
@@ -257,12 +280,13 @@ export function IdeasPage() {
               </div>
 
               <div className="mt-5">
-                <div className="flex flex-wrap items-center gap-3">
-                  <h2 className="text-xl font-semibold text-foreground">{idea.title}</h2>
-                  <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground">
-                    {idea.theme}
-                  </span>
-                </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="text-xl font-semibold text-foreground">{idea.title}</h2>
+                <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground">
+                    {idea.category}
+                </span>
+              </div>
+              <p className="mt-2 text-sm font-medium text-muted-foreground">{idea.theme}</p>
                 <p className="mt-3 text-sm leading-6 text-muted-foreground">{idea.description}</p>
               </div>
 
@@ -365,6 +389,22 @@ export function IdeasPage() {
                   value={form.responsibleId}
                   onChange={(value) => setForm((previous) => ({ ...previous, responsibleId: value }))}
                 />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-foreground">Categoria</span>
+                <select
+                  value={form.category}
+                  onChange={(event) =>
+                    setForm((previous) => ({ ...previous, category: event.target.value as IdeaCategory }))
+                  }
+                  className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                >
+                  {ideaCategories.map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="grid gap-2">
                 <span className="text-sm font-medium text-foreground">Tema</span>

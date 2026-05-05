@@ -19,6 +19,7 @@ export type ContentType = "Reels" | "Stories" | "Carrossel" | "Feed";
 export type PostStatus = "Agendado" | "Em produção" | "Aprovado" | "Publicado";
 export type IdeaStatus = "Ideia" | "Em produção" | "Pronto";
 export type TimelineType = "post" | "goal" | "schedule";
+export type IdeaCategory = "Stories em foto" | "Stories em vídeo" | "Reels" | "Post" | "Carrossel" | "Feed";
 
 export type TeamMember = {
   id: number;
@@ -157,6 +158,7 @@ export type Idea = {
   id: number;
   title: string;
   description: string;
+  category: IdeaCategory;
   theme: string;
   status: IdeaStatus;
   script?: string;
@@ -759,6 +761,7 @@ export const ideas: Idea[] = [
     id: 1,
     title: "Série 'por trás do calendário'",
     description: "Explicar como a Great organiza produção semanal e tomada de decisão.",
+    category: "Reels",
     theme: "Processo",
     status: "Em produção",
     script: "Abrir com caos comum em agências, mostrar framework e encerrar com convite para salvar.",
@@ -768,6 +771,7 @@ export const ideas: Idea[] = [
     id: 2,
     title: "Carrossel com 7 gatilhos de retenção",
     description: "Peça visual com exemplos reais de títulos e capas.",
+    category: "Carrossel",
     theme: "Design",
     status: "Ideia",
     responsibleId: 3,
@@ -776,6 +780,7 @@ export const ideas: Idea[] = [
     id: 3,
     title: "Stories de dúvidas frequentes",
     description: "Caixinha semanal para gerar pauta e responder objeções do público.",
+    category: "Stories em foto",
     theme: "Comunidade",
     status: "Pronto",
     script: "Abrir com pergunta, coletar respostas e transformar as melhores em sequência narrativa.",
