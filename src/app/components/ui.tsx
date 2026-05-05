@@ -223,7 +223,7 @@ export function RoundedDropdown<T extends string | number>({
       </button>
 
       {open ? (
-        <div className="absolute left-0 top-full z-50 mt-2 w-full rounded-[1.75rem] border border-border/70 bg-white p-2 shadow-[0_24px_60px_rgba(15,23,42,0.14)] dark:border-border/60 dark:bg-card/95 dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]">
+        <div className="absolute left-0 top-full z-50 mt-2 w-full rounded-[1.75rem] border border-border/70 bg-background p-2 shadow-[0_24px_60px_rgba(15,23,42,0.14)] dark:border-border/60 dark:bg-card dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]">
           <p className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             {label}
           </p>
@@ -239,9 +239,10 @@ export function RoundedDropdown<T extends string | number>({
                     onChange(option.value);
                     setOpen(false);
                   }}
-                  className="flex w-full items-center justify-between rounded-full px-4 py-3 text-left text-sm transition hover:bg-muted/70"
+                  className="flex w-full items-center justify-between rounded-full px-4 py-3 text-left text-sm transition hover:bg-muted"
                   style={{
-                    backgroundColor: selected ? `${option.color ?? "rgb(var(--primary) / 1)"}12` : undefined,
+                    backgroundColor: selected ? "rgb(var(--muted) / 1)" : undefined,
+                    boxShadow: selected ? "inset 0 0 0 1px rgba(var(--border), 0.6)" : undefined,
                   }}
                 >
                   <span className="flex items-center gap-3">
