@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ImagePlus, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
-import { apiStatus, goals, metaPeriods } from "../data/mockData";
+import { apiStatus, goals, getGoalResponsibleIds, metaPeriods } from "../data/mockData";
 import { createStorageKey, useSharedState } from "../data/sharedState";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
@@ -134,7 +134,8 @@ export function MetaInsightsPage() {
 
       <div className="grid gap-6 xl:grid-cols-2">
         {items.map((goal, index) => {
-          const member = teamMembers.find((item) => item.id === goal.responsibleId)!;
+          const responsibleIds = getGoalResponsibleIds(goal);
+          const member = teamMembers.find((item) => item.id === responsibleIds[0]) ?? teamMembers[0];
           const progress = (goal.current / goal.target) * 100;
           const healthy = progress >= 100;
           const caution = progress >= 70 && progress < 100;

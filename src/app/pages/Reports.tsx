@@ -28,6 +28,7 @@ import {
 import { toast } from "sonner";
 import {
   goals,
+  getGoalResponsibleIds,
   insights,
   posts,
   type ContentType,
@@ -281,7 +282,13 @@ export function ReportsPage() {
   );
 
   const filteredGoals = useMemo(() => {
-    const byResponsible = goals.filter((goal) => responsibleFilter === "todos" || goal.responsibleId === responsibleFilter);
+    const byResponsible = goals.filter((goal) => {
+      if (responsibleFilter === "todos") {
+        return true;
+      }
+
+      return getGoalResponsibleIds(goal).includes(responsibleFilter);
+    });
     const inPeriod = byResponsible.filter((goal) => inRange(goal.deadline, currentRange.start, currentRange.end));
 
     return inPeriod.length > 0 ? inPeriod : byResponsible;
@@ -369,7 +376,7 @@ export function ReportsPage() {
     () =>
       teamMembers.map((member) => {
         const memberPosts = filteredPosts.filter((post) => post.authorId === member.id);
-        const memberGoals = filteredGoals.filter((goal) => goal.responsibleId === member.id);
+        const memberGoals = filteredGoals.filter((goal) => getGoalResponsibleIds(goal).includes(member.id));
         const engagement = memberPosts.reduce((sum, post) => sum + post.engagement, 0);
         const reach = memberPosts.reduce((sum, post) => sum + post.reach, 0);
         const completionRate =
@@ -915,7 +922,8 @@ export function ReportsPage() {
           <div className="mt-5 space-y-4">
             {filteredGoals.map((goal) => {
               const remaining = Math.max(goal.target - goal.current, 0);
-              const member = teamMembers.find((item) => item.id === goal.responsibleId)!;
+              const responsibleIds = getGoalResponsibleIds(goal);
+              const member = teamMembers.find((item) => item.id === responsibleIds[0]) ?? teamMembers[0];
 
               return (
                 <div

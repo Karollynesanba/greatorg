@@ -12,7 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import { useNavigate, useParams } from "react-router-dom";
-import { goals } from "../data/mockData";
+import { getGoalResponsibleIds, goals } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
 import { useThemeMode } from "../theme";
 import {
@@ -46,7 +46,7 @@ export function MemberProfilePage() {
   const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
   const member = teamMembers.find((item) => String(item.id) === params.id) ?? teamMembers[0];
-  const memberGoals = goals.filter((goal) => goal.responsibleId === member.id);
+  const memberGoals = goals.filter((goal) => getGoalResponsibleIds(goal).includes(member.id));
   const panelBackground = isDark
     ? `linear-gradient(180deg, rgba(24,24,26,0.98), ${member.color}12)`
     : `linear-gradient(180deg, rgba(255,255,255,0.98), ${member.color}08)`;

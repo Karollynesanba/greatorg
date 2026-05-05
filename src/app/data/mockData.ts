@@ -109,12 +109,27 @@ export type Goal = {
   name: string;
   category: string;
   responsibleId: number;
+  responsibleIds?: number[];
   target: number;
   current: number;
   period: string;
   deadline: string;
   description: string;
 };
+
+export function getGoalResponsibleIds(goal: Goal) {
+  const ids = goal.responsibleIds?.filter((value, index, array) => array.indexOf(value) === index) ?? [];
+
+  if (ids.length > 0) {
+    return ids;
+  }
+
+  return goal.responsibleId ? [goal.responsibleId] : [];
+}
+
+export function getGoalPrimaryResponsibleId(goal: Goal) {
+  return getGoalResponsibleIds(goal)[0] ?? goal.responsibleId;
+}
 
 export type CalendarEvent = {
   id: number;

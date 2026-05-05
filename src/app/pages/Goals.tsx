@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { CalendarDays, ChevronLeft, ChevronRight, Plus, Target, Users, X } from "lucide-react";
 import { toast } from "sonner";
-import { goals } from "../data/mockData";
+import { goals, getGoalResponsibleIds } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import {
@@ -12,8 +12,221 @@ import {
   MemberChip,
   PageHeader,
   PageTransition,
+  cn,
 } from "../components/ui";
 import { useThemeMode } from "../theme";
+
+type GoalFormState = {
+  name: string;
+  category: string;
+  description: string;
+  target: string;
+  current: string;
+  period: string;
+  deadline: string;
+  responsibleIds: number[];
+};
+
+function pad(number: number) {
+  return String(number).padStart(2, "0");
+}
+
+function formatDateKey(date: Date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function parseDateKey(value: string) {
+  return value ? new Date(`${value}T12:00:00`) : null;
+}
+
+function formatDeadlineLabel(value: string) {
+  const date = parseDateKey(value);
+
+  if (!date) {
+    return "Selecione o prazo";
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function startOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function addMonths(date: Date, amount: number) {
+  return new Date(date.getFullYear(), date.getMonth() + amount, 1);
+}
+
+function buildMonthGrid(date: Date) {
+  const firstDay = startOfMonth(date);
+  const startOffset = (firstDay.getDay() + 6) % 7;
+  const gridStart = new Date(firstDay);
+  gridStart.setDate(firstDay.getDate() - startOffset);
+  gridStart.setHours(12, 0, 0, 0);
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const nextDate = new Date(gridStart);
+    nextDate.setDate(gridStart.getDate() + index);
+    return nextDate;
+  });
+}
+
+function formatMonthTitle(date: Date) {
+  return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(date);
+}
+
+function GoalDatePicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [cursor, setCursor] = useState(() => parseDateKey(value) ?? new Date());
+
+  useEffect(() => {
+    if (!value) {
+      return;
+    }
+
+    const nextDate = parseDateKey(value);
+    if (nextDate) {
+      setCursor(nextDate);
+    }
+  }, [value]);
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    window.addEventListener("mousedown", handlePointerDown);
+    return () => window.removeEventListener("mousedown", handlePointerDown);
+  }, [open]);
+
+  const todayKey = formatDateKey(new Date());
+  const selectedKey = value || todayKey;
+  const monthGrid = buildMonthGrid(cursor);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className={cn(
+          "flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left text-sm transition",
+          "border-border/70 bg-background shadow-sm hover:border-primary/25 hover:shadow-md dark:bg-card/85",
+        )}
+      >
+        <span className="flex items-center gap-3">
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <CalendarDays className="h-4 w-4" />
+          </span>
+          <span>
+            <span className="block text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Prazo</span>
+            <span className="block font-medium text-foreground">{value ? formatDeadlineLabel(value) : "Escolher data"}</span>
+          </span>
+        </span>
+        <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition", open && "rotate-90")} />
+      </button>
+
+      {open ? (
+        <div className="absolute right-0 top-full z-50 mt-3 w-[340px] overflow-hidden rounded-[1.5rem] border border-border/70 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.16)] dark:border-white/10 dark:bg-card/98">
+          <div className="flex items-center justify-between border-b border-border/60 px-4 py-4">
+            <button
+              type="button"
+              onClick={() => setCursor((current) => addMonths(current, -1))}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted text-foreground transition hover:bg-muted/80"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <div className="text-center">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Selecionar prazo</p>
+              <p className="mt-1 text-sm font-semibold text-foreground">{formatMonthTitle(cursor)}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCursor((current) => addMonths(current, 1))}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted text-foreground transition hover:bg-muted/80"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="px-4 pb-4 pt-3">
+            <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              {["S", "T", "Q", "Q", "S", "S", "D"].map((day) => (
+                <span key={day}>{day}</span>
+              ))}
+            </div>
+            <div className="mt-2 grid grid-cols-7 gap-1">
+              {monthGrid.map((date) => {
+                const key = formatDateKey(date);
+                const isCurrentMonth = date.getMonth() === cursor.getMonth();
+                const isSelected = key === selectedKey;
+                const isToday = key === todayKey;
+
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => {
+                      onChange(key);
+                      setOpen(false);
+                    }}
+                    className={cn(
+                      "flex h-10 items-center justify-center rounded-full text-sm transition",
+                      isSelected && "bg-primary text-primary-foreground shadow-lg shadow-primary/20",
+                      !isSelected && isToday && "border border-primary/30 bg-primary/8 text-primary",
+                      !isSelected && !isToday && isCurrentMonth && "text-foreground hover:bg-muted",
+                      !isCurrentMonth && "text-muted-foreground/35",
+                    )}
+                  >
+                    {date.getDate()}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const now = new Date();
+                  onChange(formatDateKey(now));
+                  setCursor(now);
+                  setOpen(false);
+                }}
+                className="rounded-full border border-border/60 bg-muted/40 px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-muted/70"
+              >
+                Hoje
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="rounded-full border border-border/60 bg-background px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:text-foreground dark:bg-card/80"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function GoalProgressBar({ value, max, color }: { value: number; max: number; color: string }) {
   const progress = max === 0 ? 0 : (value / max) * 100;
@@ -31,13 +244,94 @@ function GoalProgressBar({ value, max, color }: { value: number; max: number; co
   );
 }
 
+function GoalAssigneeChips({
+  members,
+  selectedIds,
+  onToggle,
+}: {
+  members: { id: number; name: string; role: string; color: string; avatarUrl: string }[];
+  selectedIds: number[];
+  onToggle: (id: number) => void;
+}) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      {members.map((member) => (
+        <button
+          key={member.id}
+          type="button"
+          onClick={() => onToggle(member.id)}
+          className={cn(
+            "group flex items-center justify-between rounded-2xl border px-3 py-3 text-left transition",
+            selectedIds.includes(member.id)
+              ? "border-primary/25 bg-primary/5 shadow-sm"
+              : "border-border/70 bg-background hover:border-primary/25 hover:bg-primary/5 dark:bg-card/80",
+          )}
+        >
+          <span className="flex items-center gap-3">
+            <span
+              className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl text-sm font-semibold text-white shadow-sm"
+              style={{ backgroundColor: member.color }}
+            >
+              {member.avatarUrl ? (
+                <img src={member.avatarUrl} alt={member.name} className="h-full w-full object-cover" />
+              ) : (
+                member.name.charAt(0)
+              )}
+            </span>
+            <span>
+              <span className="block text-sm font-semibold text-foreground">{member.name}</span>
+              <span className="block text-xs text-muted-foreground">{member.role}</span>
+            </span>
+          </span>
+          <span
+            className={cn(
+              "inline-flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-bold transition",
+              selectedIds.includes(member.id)
+                ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                : "border-border/60 text-transparent group-hover:border-primary/35",
+            )}
+            style={{ backgroundColor: "transparent" }}
+          >
+            ✓
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function GoalMemberStack({
+  members,
+  color,
+}: {
+  members: { id: number; name: string; role: string; color: string; avatarUrl: string }[];
+  color: string;
+}) {
+  const primary = members[0];
+  const extraCount = Math.max(members.length - 1, 0);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {primary ? <MemberChip name={primary.name} role={primary.role} color={primary.color} src={primary.avatarUrl} /> : null}
+      {extraCount > 0 ? (
+        <span
+          className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold"
+          style={{ borderColor: `${color}2A`, color, backgroundColor: `${color}0D` }}
+        >
+          +{extraCount} pessoa{extraCount > 1 ? "s" : ""}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 export function GoalsPage() {
   const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
   const [items, setItems] = useSupabaseSyncedListState({ key: "goals", table: "goals", fallback: goals });
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ goalId: number; goalName: string } | null>(null);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<GoalFormState>(() => ({
     name: "",
     category: "Alcance",
     description: "",
@@ -45,10 +339,27 @@ export function GoalsPage() {
     current: "",
     period: "Mês",
     deadline: "",
-    responsibleId: teamMembers[0].id,
-  });
+    responsibleIds: teamMembers[0] ? [teamMembers[0].id] : [],
+  }));
 
   const formatValue = (value: number) => new Intl.NumberFormat("pt-BR").format(value);
+
+  const stats = useMemo(() => {
+    const total = items.length;
+    const groupGoals = items.filter((goal) => getGoalResponsibleIds(goal).length > 1).length;
+    const coverage = new Set(items.flatMap((goal) => getGoalResponsibleIds(goal))).size;
+    const avgProgress =
+      total === 0
+        ? 0
+        : items.reduce((sum, goal) => sum + (goal.current / Math.max(goal.target, 1)) * 100, 0) / total;
+
+    return {
+      total,
+      groupGoals,
+      coverage,
+      avgProgress,
+    };
+  }, [items]);
 
   useEffect(() => {
     if (!isCreateOpen) {
@@ -65,12 +376,43 @@ export function GoalsPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isCreateOpen]);
 
+  useEffect(() => {
+    if (form.responsibleIds.length > 0) {
+      return;
+    }
+
+    if (teamMembers[0]) {
+      setForm((previous) => ({ ...previous, responsibleIds: [teamMembers[0].id] }));
+    }
+  }, [form.responsibleIds.length, teamMembers]);
+
+  const resetForm = () => {
+    setForm({
+      name: "",
+      category: "Alcance",
+      description: "",
+      target: "",
+      current: "",
+      period: "Mês",
+      deadline: "",
+      responsibleIds: teamMembers[0] ? [teamMembers[0].id] : [],
+    });
+  };
+
   const handleCreateGoal = () => {
     const target = Number(form.target);
     const current = Number(form.current);
+    const selectedResponsibleIds = form.responsibleIds.length > 0 ? form.responsibleIds : teamMembers[0] ? [teamMembers[0].id] : [];
 
-    if (!form.name.trim() || !form.description.trim() || !form.deadline.trim() || Number.isNaN(target) || Number.isNaN(current)) {
-      toast.error("Preencha nome, descrição, data, meta e atual.");
+    if (
+      !form.name.trim() ||
+      !form.description.trim() ||
+      !form.deadline.trim() ||
+      Number.isNaN(target) ||
+      Number.isNaN(current) ||
+      selectedResponsibleIds.length === 0
+    ) {
+      toast.error("Preencha nome, responsáveis, descrição, data, meta e atual.");
       return;
     }
 
@@ -79,7 +421,8 @@ export function GoalsPage() {
         id: Math.max(...previous.map((goal) => goal.id), 0) + 1,
         name: form.name.trim(),
         category: form.category,
-        responsibleId: form.responsibleId,
+        responsibleId: selectedResponsibleIds[0],
+        responsibleIds: selectedResponsibleIds,
         target,
         current,
         period: form.period,
@@ -90,16 +433,7 @@ export function GoalsPage() {
     ]);
 
     setIsCreateOpen(false);
-    setForm({
-      name: "",
-      category: "Alcance",
-      description: "",
-      target: "",
-      current: "",
-      period: "Mês",
-      deadline: "",
-      responsibleId: teamMembers[0].id,
-    });
+    resetForm();
     toast.success("Meta criada com sucesso.");
   };
 
@@ -128,13 +462,27 @@ export function GoalsPage() {
     });
   };
 
+  const toggleResponsible = (memberId: number) => {
+    setForm((previous) => {
+      const hasMember = previous.responsibleIds.includes(memberId);
+      const nextResponsibleIds = hasMember
+        ? previous.responsibleIds.filter((id) => id !== memberId)
+        : [...previous.responsibleIds, memberId];
+
+      return {
+        ...previous,
+        responsibleIds: nextResponsibleIds,
+      };
+    });
+  };
+
   return (
     <PageTransition>
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 pb-8 sm:px-6 lg:px-8">
         <PageHeader
           eyebrow="Execution"
           title="Metas vivas e conectadas ao time"
-          description="Cada meta reúne responsável, contexto, progresso e o status operacional para a Great agir antes do resultado final."
+          description="Agora você pode criar metas individuais ou em grupo, distribuir responsáveis e definir prazo com calendário visual."
           actions={
             <ActionButton onClick={() => setIsCreateOpen(true)}>
               <Plus className="h-4 w-4" />
@@ -143,12 +491,34 @@ export function GoalsPage() {
           }
         />
 
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <GlassPanel className="p-5">
+            <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Total de metas</p>
+            <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{stats.total}</p>
+          </GlassPanel>
+          <GlassPanel className="p-5">
+            <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Metas em grupo</p>
+            <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{stats.groupGoals}</p>
+          </GlassPanel>
+          <GlassPanel className="p-5">
+            <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Pessoas envolvidas</p>
+            <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{stats.coverage}</p>
+          </GlassPanel>
+          <GlassPanel className="p-5">
+            <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Progresso médio</p>
+            <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{stats.avgProgress.toFixed(0)}%</p>
+          </GlassPanel>
+        </div>
+
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {items.map((goal, index) => {
-            const member = teamMembers.find((item) => item.id === goal.responsibleId)!;
+            const assigneeIds = getGoalResponsibleIds(goal);
+            const assignees = teamMembers.filter((item) => assigneeIds.includes(item.id));
+            const primaryMember = assignees[0] ?? teamMembers[0];
             const progress = (goal.current / goal.target) * 100;
             const remaining = Math.max(goal.target - goal.current, 0);
             const statusText = progress >= 100 ? "Meta atingida" : `Faltam ${formatValue(remaining)} para concluir`;
+            const deadline = parseDateKey(goal.deadline);
 
             return (
               <GlassPanel
@@ -159,55 +529,64 @@ export function GoalsPage() {
                   background: isDark
                     ? "linear-gradient(180deg, rgba(24,24,26,0.98), rgba(16,16,18,0.96))"
                     : "linear-gradient(180deg, rgba(255,255,255,0.99), rgba(250,250,250,0.96))",
-                  borderColor: `${member.color}22`,
-                  boxShadow: `0 14px 28px ${member.color}0d`,
+                  borderColor: `${primaryMember?.color ?? "#e50914"}22`,
+                  boxShadow: `0 14px 28px ${primaryMember?.color ?? "#e50914"}0d`,
                   borderLeftWidth: "4px",
-                  borderLeftColor: member.color,
+                  borderLeftColor: primaryMember?.color ?? "#e50914",
                 }}
               >
                 <div className="absolute right-4 top-4 z-10 opacity-0 transition group-hover:opacity-100">
                   <DeleteIconButton onClick={() => setPendingDelete({ goalId: goal.id, goalName: goal.name })} />
                 </div>
-                <div className="flex h-full flex-col gap-6">
-                  <div className="flex items-start justify-between gap-4">
+                <div className="flex h-full flex-col gap-5">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="min-w-0 space-y-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <h2 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">{goal.name}</h2>
                         <span
                           className="rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]"
                           style={{
-                            backgroundColor: `${member.color}12`,
-                            color: member.color,
+                            backgroundColor: `${primaryMember?.color ?? "#e50914"}12`,
+                            color: primaryMember?.color ?? "#e50914",
                           }}
                         >
                           {goal.category}
                         </span>
                       </div>
-                      <MemberChip name={member.name} role={member.role} color={member.color} src={member.avatarUrl} />
-                    </div>
-                  </div>
-
-                  <div className="flex items-end justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Atual</p>
-                      <p className="mt-1 text-4xl font-semibold tracking-tight text-foreground">
-                        {formatValue(goal.current)}
-                      </p>
-                      <p className="mt-1 text-sm text-muted-foreground">de {formatValue(goal.target)}</p>
+                      {assignees.length > 0 ? (
+                        <GoalMemberStack members={assignees} color={primaryMember?.color ?? "#e50914"} />
+                      ) : null}
                     </div>
                     <div
                       className="rounded-full px-3 py-1.5 text-sm font-semibold"
                       style={{
-                        backgroundColor: progress >= 100 ? `${member.color}12` : `${member.color}08`,
-                        color: member.color,
+                        backgroundColor: progress >= 100 ? `${primaryMember?.color ?? "#e50914"}12` : `${primaryMember?.color ?? "#e50914"}08`,
+                        color: primaryMember?.color ?? "#e50914",
                       }}
                     >
                       {progress.toFixed(0)}%
                     </div>
                   </div>
 
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-border/60 bg-muted/35 p-4">
+                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Atual</p>
+                      <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{formatValue(goal.current)}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">de {formatValue(goal.target)}</p>
+                    </div>
+                    <div className="rounded-2xl border border-border/60 bg-muted/35 p-4">
+                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Prazo</p>
+                      <p className="mt-2 text-base font-semibold text-foreground">
+                        {deadline
+                          ? new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).format(deadline)
+                          : "Sem data"}
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">{goal.period}</p>
+                    </div>
+                  </div>
+
                   <div className="space-y-3">
-                    <GoalProgressBar value={goal.current} max={goal.target} color={member.color} />
+                    <GoalProgressBar value={goal.current} max={goal.target} color={primaryMember?.color ?? "#e50914"} />
                     <div className="flex items-center justify-between gap-3 text-sm">
                       <span className="font-medium text-foreground">{statusText}</span>
                       <span className="text-muted-foreground">{goal.period}</span>
@@ -221,104 +600,208 @@ export function GoalsPage() {
 
         {isCreateOpen ? (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-md"
             onClick={() => setIsCreateOpen(false)}
           >
             <div
-              className="w-full max-w-2xl rounded-[2rem] border border-border/60 bg-white p-6 shadow-[0_30px_80px_rgba(15,23,42,0.18)]"
+              className="w-full max-w-5xl overflow-hidden rounded-[2rem] border border-border/60 bg-white shadow-[0_30px_100px_rgba(15,23,42,0.22)] dark:border-white/8 dark:bg-card/98"
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Nova Meta</p>
-                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Criar meta rápida</h3>
+              <div className="grid lg:grid-cols-[1.2fr_0.8fr]">
+                <div className="p-6 sm:p-7">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Nova Meta</p>
+                      <h3 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">Criar meta completa</h3>
+                      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                        Defina uma meta individual ou em grupo, distribua as pessoas responsáveis e escolha o prazo em um calendário visual.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsCreateOpen(false)}
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  <div className="mt-6 grid gap-5 md:grid-cols-2">
+                    <label className="grid gap-2 md:col-span-2">
+                      <span className="text-sm font-medium text-foreground">Nome da meta</span>
+                      <input
+                        value={form.name}
+                        onChange={(event) => setForm((previous) => ({ ...previous, name: event.target.value }))}
+                        placeholder="Ex.: Lançar 12 reels no mês"
+                        className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:bg-white/5"
+                      />
+                    </label>
+
+                    <label className="grid gap-2">
+                      <span className="text-sm font-medium text-foreground">Categoria</span>
+                      <input
+                        value={form.category}
+                        onChange={(event) => setForm((previous) => ({ ...previous, category: event.target.value }))}
+                        className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:bg-white/5"
+                      />
+                    </label>
+
+                    <label className="grid gap-2">
+                      <span className="text-sm font-medium text-foreground">Período</span>
+                      <select
+                        value={form.period}
+                        onChange={(event) => setForm((previous) => ({ ...previous, period: event.target.value }))}
+                        className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:bg-white/5"
+                      >
+                        <option value="Semana">Semana</option>
+                        <option value="Mês">Mês</option>
+                        <option value="Trimestre">Trimestre</option>
+                        <option value="Ano">Ano</option>
+                      </select>
+                    </label>
+
+                    <div className="md:col-span-2">
+                      <span className="mb-2 block text-sm font-medium text-foreground">Responsáveis</span>
+                      <div className="rounded-[1.5rem] border border-border/70 bg-muted/20 p-4">
+                        <div className="mb-4 flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">Selecione uma ou várias pessoas</p>
+                            <p className="text-xs text-muted-foreground">A meta pode ser individual ou compartilhada por todo o time.</p>
+                          </div>
+                          <span className="inline-flex items-center gap-2 rounded-full bg-background px-3 py-1 text-xs font-semibold text-muted-foreground shadow-sm dark:bg-card/80">
+                            <Users className="h-3.5 w-3.5" />
+                            {form.responsibleIds.length} selecionado{form.responsibleIds.length === 1 ? "" : "s"}
+                          </span>
+                        </div>
+                        <GoalAssigneeChips members={teamMembers} selectedIds={form.responsibleIds} onToggle={toggleResponsible} />
+                      </div>
+                      {form.responsibleIds.length > 0 ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {teamMembers
+                            .filter((member) => form.responsibleIds.includes(member.id))
+                            .map((member) => (
+                              <button
+                                key={member.id}
+                                type="button"
+                                onClick={() => toggleResponsible(member.id)}
+                                className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-rose-50 dark:bg-card/80 dark:hover:bg-white/5"
+                              >
+                                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: member.color }} />
+                                {member.name}
+                                <X className="h-3 w-3 text-muted-foreground" />
+                              </button>
+                            ))}
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <GoalDatePicker
+                        value={form.deadline}
+                        onChange={(value) => setForm((previous) => ({ ...previous, deadline: value }))}
+                      />
+                    </div>
+
+                    <label className="grid gap-2">
+                      <span className="text-sm font-medium text-foreground">Meta</span>
+                      <input
+                        value={form.target}
+                        onChange={(event) => setForm((previous) => ({ ...previous, target: event.target.value }))}
+                        inputMode="decimal"
+                        placeholder="Ex.: 120000"
+                        className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:bg-white/5"
+                      />
+                    </label>
+
+                    <label className="grid gap-2">
+                      <span className="text-sm font-medium text-foreground">Atual</span>
+                      <input
+                        value={form.current}
+                        onChange={(event) => setForm((previous) => ({ ...previous, current: event.target.value }))}
+                        inputMode="decimal"
+                        placeholder="Ex.: 84500"
+                        className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:bg-white/5"
+                      />
+                    </label>
+
+                    <label className="grid gap-2 md:col-span-2">
+                      <span className="text-sm font-medium text-foreground">Descrição</span>
+                      <textarea
+                        value={form.description}
+                        onChange={(event) => setForm((previous) => ({ ...previous, description: event.target.value }))}
+                        rows={5}
+                        placeholder="Explique o objetivo, o contexto e o que precisa acontecer para a meta ser concluída."
+                        className="rounded-[1.5rem] border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:bg-white/5"
+                      />
+                    </label>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setIsCreateOpen(false)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
 
-              <div className="mt-6 grid gap-4 md:grid-cols-2">
-                <label className="grid gap-2">
-                  <span className="text-sm font-medium text-foreground">Nome</span>
-                  <input
-                    value={form.name}
-                    onChange={(event) => setForm((previous) => ({ ...previous, name: event.target.value }))}
-                    className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                  />
-                </label>
-                <label className="grid gap-2">
-                  <span className="text-sm font-medium text-foreground">Responsável</span>
-                  <select
-                    value={form.responsibleId}
-                    onChange={(event) =>
-                      setForm((previous) => ({ ...previous, responsibleId: Number(event.target.value) }))
-                    }
-                    className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                  >
-                    {teamMembers.map((member) => (
-                      <option key={member.id} value={member.id}>
-                        {member.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="grid gap-2">
-                  <span className="text-sm font-medium text-foreground">Categoria</span>
-                  <input
-                    value={form.category}
-                    onChange={(event) => setForm((previous) => ({ ...previous, category: event.target.value }))}
-                    className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                  />
-                </label>
-                <label className="grid gap-2">
-                  <span className="text-sm font-medium text-foreground">Prazo</span>
-                  <input
-                    value={form.deadline}
-                    onChange={(event) => setForm((previous) => ({ ...previous, deadline: event.target.value }))}
-                    placeholder="2026-05-15"
-                    className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                  />
-                </label>
-                <label className="grid gap-2">
-                  <span className="text-sm font-medium text-foreground">Meta</span>
-                  <input
-                    value={form.target}
-                    onChange={(event) => setForm((previous) => ({ ...previous, target: event.target.value }))}
-                    className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                  />
-                </label>
-                <label className="grid gap-2">
-                  <span className="text-sm font-medium text-foreground">Atual</span>
-                  <input
-                    value={form.current}
-                    onChange={(event) => setForm((previous) => ({ ...previous, current: event.target.value }))}
-                    className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                  />
-                </label>
-                <label className="grid gap-2 md:col-span-2">
-                  <span className="text-sm font-medium text-foreground">Descrição</span>
-                  <textarea
-                    value={form.description}
-                    onChange={(event) => setForm((previous) => ({ ...previous, description: event.target.value }))}
-                    rows={4}
-                    className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                  />
-                </label>
-              </div>
+                <div className="border-t border-border/60 bg-gradient-to-b from-primary/5 to-transparent p-6 sm:p-7 lg:border-l lg:border-t-0">
+                  <div className="rounded-[1.75rem] border border-border/60 bg-white p-5 shadow-sm dark:bg-card/90">
+                    <div className="flex items-center gap-3">
+                      <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                        <Target className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Pré-visualização</p>
+                        <p className="mt-1 text-lg font-semibold text-foreground">{form.name || "Sua nova meta"}</p>
+                      </div>
+                    </div>
 
-              <div className="mt-6 flex flex-wrap justify-end gap-3">
-                <ActionButton variant="secondary" onClick={() => setIsCreateOpen(false)}>
-                  Cancelar
-                </ActionButton>
-                <ActionButton onClick={handleCreateGoal}>
-                  <Plus className="h-4 w-4" />
-                  Criar meta
-                </ActionButton>
+                    <div className="mt-5 space-y-3 rounded-[1.5rem] bg-muted/35 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-sm text-muted-foreground">Responsáveis</span>
+                        <span className="text-sm font-semibold text-foreground">{form.responsibleIds.length}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {teamMembers
+                          .filter((member) => form.responsibleIds.includes(member.id))
+                          .map((member) => (
+                            <span
+                              key={member.id}
+                              className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold"
+                              style={{ backgroundColor: `${member.color}14`, color: member.color }}
+                            >
+                              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: member.color }} />
+                              {member.name}
+                            </span>
+                          ))}
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-sm text-muted-foreground">Prazo</span>
+                        <span className="text-sm font-semibold text-foreground">
+                          {form.deadline ? formatDeadlineLabel(form.deadline) : "Sem data"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
+                        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Meta</p>
+                        <p className="mt-2 text-lg font-semibold text-foreground">{form.target || "0"}</p>
+                      </div>
+                      <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
+                        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Atual</p>
+                        <p className="mt-2 text-lg font-semibold text-foreground">{form.current || "0"}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 rounded-[1.75rem] border border-dashed border-border/60 bg-background/70 p-4 text-sm leading-6 text-muted-foreground dark:bg-white/5">
+                    Dica: metas em grupo funcionam melhor quando você divide o objetivo por etapa, seleciona todos os responsáveis e define um prazo visual.
+                  </div>
+
+                  <div className="mt-6 flex flex-wrap justify-end gap-3">
+                    <ActionButton variant="secondary" onClick={() => setIsCreateOpen(false)}>
+                      Cancelar
+                    </ActionButton>
+                    <ActionButton onClick={handleCreateGoal}>
+                      <Plus className="h-4 w-4" />
+                      Criar meta
+                    </ActionButton>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -327,7 +810,7 @@ export function GoalsPage() {
         {pendingDelete ? (
           <ConfirmDialog
             title="Tem certeza que deseja apagar?"
-            description="Essa ação não pode ser desfeita."
+            description={`A meta "${pendingDelete.goalName}" será removida e não poderá ser desfeita.`}
             onCancel={() => setPendingDelete(null)}
             onConfirm={() => handleDeleteGoal(pendingDelete.goalId)}
           />

@@ -15,6 +15,7 @@ import {
   dashboardMetrics,
   dashboardSummary,
   evolutionData,
+  getGoalResponsibleIds,
   goals,
   topPosts,
   worstPosts,
@@ -400,10 +401,11 @@ export function DashboardPage() {
               title="Comparação meta vs resultado"
               description="As três metas mais críticas do ciclo atual."
             />
-            <div className="mt-5 space-y-5">
-              {goals.slice(0, 3).map((goal) => {
-                const member = teamMembers.find((item) => item.id === goal.responsibleId)!;
-                const progress = (goal.current / goal.target) * 100;
+              <div className="mt-5 space-y-5">
+                {goals.slice(0, 3).map((goal) => {
+                  const responsibleIds = getGoalResponsibleIds(goal);
+                  const member = teamMembers.find((item) => item.id === responsibleIds[0]) ?? teamMembers[0];
+                  const progress = (goal.current / goal.target) * 100;
                 const goalCardClassName = isDark
                   ? "rounded-3xl bg-[#11151d] p-5"
                   : "rounded-3xl border border-border/70 bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.06)]";
