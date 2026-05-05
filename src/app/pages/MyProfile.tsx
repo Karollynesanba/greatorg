@@ -143,9 +143,9 @@ export function MyProfilePage() {
           <GlassPanel
             index={1}
             style={{
-              background: `linear-gradient(180deg, ${color}1A, rgba(16,18,24,0.98))`,
-              borderColor: `${color}26`,
-              boxShadow: `0 18px 36px ${color}10`,
+              background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,247,252,0.98))",
+              borderColor: "rgb(232 231 240 / 1)",
+              boxShadow: "0 18px 36px rgba(15,23,42,0.05)",
             }}
           >
             <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
@@ -202,17 +202,17 @@ export function MyProfilePage() {
                 </div>
               </div>
 
-              <div className="rounded-[1.5rem] bg-white/8 px-6 py-5 text-center text-white backdrop-blur">
-                <p className="text-xs uppercase tracking-[0.16em] text-white/70">Perfil ativo</p>
+              <div className="rounded-[1.5rem] border border-border/60 bg-muted/30 px-6 py-5 text-center text-foreground backdrop-blur">
+                <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Perfil ativo</p>
                 <p className="mt-2 text-4xl font-semibold">{initials}</p>
-                <p className="mt-2 text-sm text-white/75">Conta conectada</p>
+                <p className="mt-2 text-sm text-muted-foreground">Conta conectada</p>
               </div>
             </div>
 
             <div className="mt-6">
               <div className="grid gap-4 md:grid-cols-2">
                 {detailItems.map((item) => (
-                  <div key={item.label} className="rounded-2xl bg-white/6 p-4 dark:bg-white/5">
+                  <div key={item.label} className="rounded-2xl border border-border/60 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
                     <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{item.label}</p>
                     <p className="mt-2 text-base font-semibold text-foreground">{item.value}</p>
                   </div>
