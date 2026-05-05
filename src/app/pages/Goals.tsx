@@ -28,6 +28,7 @@ type GoalFormState = {
 };
 
 type TeamMemberCard = { id: number; name: string; role: string; color: string; avatarUrl: string };
+type GoalView = "all" | "individual" | "group";
 
 function createInitialGoalForm(teamMembers: TeamMemberCard[]): GoalFormState {
   return {
@@ -339,14 +340,20 @@ function GoalMemberStack({
   );
 }
 
+function getGoalView(goal: Goal) {
+  return getGoalResponsibleIds(goal).length > 1 ? "group" : "individual";
+}
+
 export function GoalsPage() {
   const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
   const [items, setItems] = useSupabaseSyncedListState({ key: "goals", table: "goals", fallback: goals });
+  const [goalView, setGoalView] = useState<GoalView>("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingGoalId, setEditingGoalId] = useState<number | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ goalId: number; goalName: string } | null>(null);
   const [form, setForm] = useState<GoalFormState>(() => createInitialGoalForm(teamMembers));
+  const migratedGoalsRef = useRef(false);
 
   const teamCards = teamMembers as TeamMemberCard[];
   const editingGoal = useMemo(() => items.find((goal) => goal.id === editingGoalId) ?? null, [editingGoalId, items]);
@@ -367,6 +374,14 @@ export function GoalsPage() {
       avgProgress,
     };
   }, [items]);
+
+  const filteredItems = useMemo(() => {
+    if (goalView === "all") {
+      return items;
+    }
+
+    return items.filter((goal) => getGoalView(goal) === goalView);
+  }, [goalView, items]);
 
   useEffect(() => {
     if (!isCreateOpen) {
@@ -399,6 +414,48 @@ export function GoalsPage() {
       responsibleIds: getGoalResponsibleIds(editingGoal),
     });
   }, [editingGoal, isCreateOpen]);
+
+  useEffect(() => {
+    if (migratedGoalsRef.current || teamCards.length < 2 || items.length === 0) {
+      return;
+    }
+
+    if (items.some((goal) => getGoalView(goal) === "group")) {
+      migratedGoalsRef.current = true;
+      return;
+    }
+
+    const nextItems = items.map((goal, index) => {
+      if (index === 0) {
+        return {
+          ...goal,
+          responsibleId: teamCards[0].id,
+          responsibleIds: [teamCards[0].id, teamCards[1].id],
+        };
+      }
+
+      if (index === 1 && teamCards[2]) {
+        return {
+          ...goal,
+          responsibleId: teamCards[1].id,
+          responsibleIds: [teamCards[1].id, teamCards[2].id],
+        };
+      }
+
+      if (index === 4) {
+        return {
+          ...goal,
+          responsibleId: teamCards[1].id,
+          responsibleIds: teamCards.map((member) => member.id),
+        };
+      }
+
+      return goal;
+    });
+
+    migratedGoalsRef.current = true;
+    setItems(nextItems);
+  }, [items, setItems, teamCards]);
 
   useEffect(() => {
     if (form.responsibleIds.length > 0) {
@@ -561,8 +618,48 @@ export function GoalsPage() {
           </GlassPanel>
         </div>
 
+        <GlassPanel className="border-primary/10 bg-white/80 p-4 shadow-[0_14px_40px_rgba(15,23,42,0.06)]">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Tipos de metas</p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                Filtre a lista para ver só metas individuais, só metas em grupo ou tudo junto.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { key: "all" as GoalView, label: "Todas", value: items.length },
+                { key: "individual" as GoalView, label: "Individuais", value: items.filter((goal) => getGoalView(goal) === "individual").length },
+                { key: "group" as GoalView, label: "Em grupo", value: items.filter((goal) => getGoalView(goal) === "group").length },
+              ].map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => setGoalView(option.key)}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition",
+                    goalView === option.key
+                      ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                      : "border border-border/60 bg-background text-muted-foreground hover:border-primary/20 hover:text-foreground",
+                  )}
+                >
+                  {option.label}
+                  <span
+                    className={cn(
+                      "inline-flex min-w-6 items-center justify-center rounded-full px-2 py-0.5 text-xs font-bold",
+                      goalView === option.key ? "bg-white/15 text-white" : "bg-muted text-foreground",
+                    )}
+                  >
+                    {option.value}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </GlassPanel>
+
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {items.map((goal, index) => {
+          {filteredItems.map((goal, index) => {
             const assigneeIds = getGoalResponsibleIds(goal);
             const assignees = teamCards.filter((item) => assigneeIds.includes(item.id));
             const primaryMember = assignees[0] ?? teamCards[0];
@@ -570,6 +667,7 @@ export function GoalsPage() {
             const remaining = Math.max(goal.target - goal.current, 0);
             const statusText = progress >= 100 ? "Meta atingida" : `Faltam ${formatValue(remaining)} para concluir`;
             const deadline = parseDateKey(goal.deadline);
+            const isGroupGoal = assigneeIds.length > 1;
 
             return (
               <GlassPanel
@@ -613,6 +711,15 @@ export function GoalsPage() {
                         >
                           {goal.category}
                         </span>
+                        <span
+                          className="rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]"
+                          style={{
+                            backgroundColor: isGroupGoal ? `${primaryMember?.color ?? "#e50914"}12` : "rgba(148,163,184,0.16)",
+                            color: primaryMember?.color ?? "#e50914",
+                          }}
+                        >
+                          {isGroupGoal ? `Grupo com ${assignees.length}` : "Individual"}
+                        </span>
                       </div>
                       {assignees.length > 0 ? (
                         <GoalMemberStack members={assignees} color={primaryMember?.color ?? "#e50914"} />
@@ -643,7 +750,9 @@ export function GoalsPage() {
                           ? new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).format(deadline)
                           : "Sem data"}
                       </p>
-                      <p className="mt-1 text-sm text-muted-foreground">{goal.period}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {goal.period} {isGroupGoal ? " - meta compartilhada" : " - meta individual"}
+                      </p>
                     </div>
                   </div>
 
