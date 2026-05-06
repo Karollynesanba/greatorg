@@ -138,6 +138,7 @@ export type CalendarEvent = {
   description: string;
   type: ContentType;
   responsibleId: number;
+  responsibleIds?: number[];
   status: PostStatus;
   date: string;
   time: string;

@@ -91,7 +91,10 @@ function EventChip({
   onClick?: () => void;
   onDelete?: () => void;
 }) {
-  const member = teamMembers.find((item) => item.id === event.responsibleId)!;
+  const responsibleIds = event.responsibleIds?.filter((value, index, array) => array.indexOf(value) === index) ?? [];
+  const primaryResponsibleId = responsibleIds[0] ?? event.responsibleId;
+  const member = teamMembers.find((item) => item.id === primaryResponsibleId)!;
+  const extraCount = Math.max(responsibleIds.length - 1, 0);
   const [, drag] = useDrag(() => ({
     type: dragType,
     item: { id: event.id },
@@ -128,6 +131,11 @@ function EventChip({
               {event.type}
             </span>
             <span className="text-[10px] text-muted-foreground">{event.time}</span>
+            {extraCount > 0 ? (
+              <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-foreground shadow-sm">
+                +{extraCount}
+              </span>
+            ) : null}
             {!compact ? (
               <span
                 className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
@@ -146,6 +154,19 @@ function EventChip({
       ) : null}
     </div>
   );
+}
+
+function getUniqueIds(values: number[]) {
+  return values.filter((value, index, array) => array.indexOf(value) === index);
+}
+
+function getEventResponsibleIds(event: CalendarEvent) {
+  const ids = getUniqueIds(event.responsibleIds ?? []);
+  if (ids.length > 0) {
+    return ids;
+  }
+
+  return event.responsibleId ? [event.responsibleId] : [];
 }
 
 function CalendarSlot({
@@ -216,6 +237,119 @@ function CalendarSlot({
           >
             +
           </button>
+      ) : null}
+    </div>
+  );
+}
+
+function ResponsibleMultiPicker({
+  value,
+  teamMembers,
+  onChange,
+}: {
+  value: number[];
+  teamMembers: { id: number; name: string; color: string }[];
+  onChange: (value: number[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const selectedIds = getUniqueIds(value);
+  const selectedMembers = teamMembers.filter((member) => selectedIds.includes(member.id));
+  const firstMember = selectedMembers[0] ?? teamMembers[0];
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, []);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 bg-background px-4 py-3 text-left text-sm transition hover:border-primary/25 hover:shadow-sm dark:bg-card/90 dark:hover:bg-card"
+      >
+        <span className="flex min-w-0 items-center gap-3">
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+            {selectedMembers.length > 0 ? selectedMembers.length : "0"}
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Responsáveis</span>
+            <span className="block truncate font-medium text-foreground">
+              {selectedMembers.length > 0
+                ? `${firstMember?.name ?? "Selecionar"}${selectedMembers.length > 1 ? ` +${selectedMembers.length - 1}` : ""}`
+                : "Selecionar responsáveis"}
+            </span>
+          </span>
+        </span>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open ? (
+        <div className="absolute left-0 top-full z-50 mt-2 w-full overflow-hidden rounded-[1.75rem] border border-border/70 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.16)] dark:border-border/60 dark:bg-card dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]">
+          <div className="border-b border-border/60 px-4 py-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Responsáveis</p>
+            <p className="mt-1 text-sm text-muted-foreground">Selecione quantos quiser para esta tarefa.</p>
+          </div>
+
+          <div className="max-h-64 overflow-y-auto p-2">
+            <div className="space-y-1">
+              {teamMembers.map((member) => {
+                const selected = selectedIds.includes(member.id);
+
+                return (
+                  <button
+                    key={member.id}
+                    type="button"
+                    onClick={() => {
+                      const nextIds = selected
+                        ? selectedIds.filter((id) => id !== member.id)
+                        : [...selectedIds, member.id];
+
+                      onChange(nextIds.length > 0 ? getUniqueIds(nextIds) : selectedIds);
+                    }}
+                    className="flex w-full items-center justify-between rounded-full px-4 py-3 text-left text-sm transition hover:bg-muted"
+                    style={{
+                      backgroundColor: selected ? "rgb(var(--muted) / 1)" : undefined,
+                      boxShadow: selected ? "inset 0 0 0 1px rgb(var(--border) / 0.7)" : undefined,
+                    }}
+                  >
+                    <span className="flex items-center gap-3">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: member.color }} />
+                      <span className="font-medium" style={{ color: member.color }}>
+                        {member.name}
+                      </span>
+                    </span>
+                    {selected ? <span className="text-xs font-semibold text-muted-foreground">Ativo</span> : null}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between border-t border-border/60 px-4 py-3">
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              className="rounded-full border border-border/60 bg-muted/40 px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-muted/70"
+            >
+              Limpar
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="rounded-full border border-border/60 bg-background px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:text-foreground dark:bg-card/80"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
       ) : null}
     </div>
   );
@@ -313,85 +447,6 @@ function SideAgenda({
   );
 }
 
-function MemberDropdown({
-  value,
-  teamMembers,
-  onChange,
-}: {
-  value: number;
-  teamMembers: { id: number; name: string; color: string }[];
-  onChange: (value: number) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const selectedMember = teamMembers.find((member) => member.id === value) ?? teamMembers[0];
-
-  useEffect(() => {
-    const handlePointerDown = (event: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, []);
-
-  return (
-    <div ref={rootRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        className="flex w-full items-center justify-between gap-3 rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm transition hover:border-primary/25 hover:shadow-sm dark:bg-card/90 dark:hover:bg-card"
-      >
-        <span className="flex items-center gap-3 text-left">
-          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: selectedMember.color }} />
-          <span className="font-medium" style={{ color: selectedMember.color }}>
-            {selectedMember.name}
-          </span>
-        </span>
-        <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition ${open ? "rotate-180" : ""}`} />
-      </button>
-
-      {open ? (
-        <div className="absolute left-0 top-full z-50 mt-2 w-full rounded-[1.5rem] border border-border/70 bg-white p-2 shadow-[0_24px_60px_rgba(15,23,42,0.14)] dark:border-border/60 dark:bg-card/95 dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]">
-          <p className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-            Responsável
-          </p>
-          <div className="space-y-1">
-            {teamMembers.map((member) => {
-              const selected = member.id === selectedMember.id;
-
-              return (
-                <button
-                  key={member.id}
-                  type="button"
-                  onClick={() => {
-                    onChange(member.id);
-                    setOpen(false);
-                  }}
-                  className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm transition hover:bg-muted/70"
-                  style={{
-                    backgroundColor: selected ? `${member.color}12` : undefined,
-                  }}
-                >
-                  <span className="flex items-center gap-3">
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: member.color }} />
-                    <span className="font-medium" style={{ color: member.color }}>
-                      {member.name}
-                    </span>
-                  </span>
-                  {selected ? <span className="text-xs font-semibold text-muted-foreground">Ativo</span> : null}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 export function CalendarPage() {
   const [view, setView] = useState<(typeof viewModes)[number]>("Semana");
   const [currentDate, setCurrentDate] = useState(referenceDate);
@@ -411,7 +466,8 @@ export function CalendarPage() {
     status: "Agendado" as CalendarEvent["status"],
     date: formatDateKey(referenceDate),
     time: "09:00",
-    responsibleId: teamMembers[0].id,
+    responsibleId: teamMembers[0]?.id ?? 1,
+    responsibleIds: [teamMembers[0]?.id ?? 1],
   });
 
   const weekDates = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(startOfWeek(currentDate), index)), [currentDate]);
@@ -447,13 +503,16 @@ export function CalendarPage() {
     }
 
     const nextId = Math.max(...events.map((event) => event.id), 0) + 1;
+    const responsibleIds = getEventResponsibleIds(selectedEvent);
     const duplicatedEvent: CalendarEvent = {
       ...selectedEvent,
       id: nextId,
+      responsibleId: responsibleIds[0] ?? selectedEvent.responsibleId,
+      responsibleIds,
     };
 
     setEvents((previous) => [...previous, duplicatedEvent]);
-    toast.success("Nova atividade criada neste horário.");
+    toast.success("Tarefa duplicada com sucesso.");
   };
 
   const handleDeleteEvent = (eventId: number) => {
@@ -489,6 +548,8 @@ export function CalendarPage() {
       time,
       title: "",
       description: "",
+      responsibleId: teamMembers[0]?.id ?? previous.responsibleId,
+      responsibleIds: [teamMembers[0]?.id ?? previous.responsibleId],
     }));
     setIsCreateOpen(true);
   };
@@ -507,7 +568,10 @@ export function CalendarPage() {
         title: createForm.title.trim(),
         description: createForm.description.trim(),
         type: createForm.type,
-        responsibleId: createForm.responsibleId,
+        responsibleId: createForm.responsibleIds[0] ?? createForm.responsibleId,
+        responsibleIds: getUniqueIds(
+          createForm.responsibleIds.length > 0 ? createForm.responsibleIds : [createForm.responsibleId],
+        ),
         status: createForm.status,
         date: createForm.date,
         time: createForm.time,
@@ -546,6 +610,19 @@ export function CalendarPage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isCreateOpen]);
+
+  useEffect(() => {
+    if (!selectedEvent && !isCreateOpen && !pendingDelete) {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isCreateOpen, pendingDelete, selectedEvent]);
 
   const dayHeader = view === "Dia" ? formatDayLabel(currentDate) : formatWeekRange(currentDate);
 
@@ -776,76 +853,93 @@ export function CalendarPage() {
 
       {selectedEvent ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4 backdrop-blur-[2px]"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4"
           onClick={() => setSelectedEvent(null)}
         >
           <div
-            className="w-full max-w-lg rounded-[2rem] border border-border/60 bg-white p-6 shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:bg-card/95 dark:shadow-[0_30px_80px_rgba(0,0,0,0.35)]"
+            className="w-full max-w-lg overflow-hidden rounded-[2.25rem] border border-border/60 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:border-white/8 dark:bg-card dark:shadow-[0_30px_80px_rgba(0,0,0,0.35)]"
             onClick={(event) => event.stopPropagation()}
           >
-            {(() => {
-              const member = teamMembers.find((item) => item.id === selectedEvent.responsibleId)!;
+            <div className="max-h-[88vh] overflow-y-auto p-6">
+              {(() => {
+                const responsibleIds = getEventResponsibleIds(selectedEvent);
+                const members = responsibleIds
+                  .map((id) => teamMembers.find((item) => item.id === id))
+                  .filter((item): item is (typeof teamMembers)[number] => Boolean(item));
+                const primaryMember = members[0] ?? teamMembers.find((item) => item.id === selectedEvent.responsibleId)!;
 
-              return (
-                <>
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-2">
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Atividade</p>
-                      <h3 className="text-2xl font-semibold tracking-tight text-foreground">{selectedEvent.title}</h3>
+                return (
+                  <>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-2">
+                        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Atividade</p>
+                        <h3 className="text-2xl font-semibold tracking-tight text-foreground">{selectedEvent.title}</h3>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedEvent(null)}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
+                      >
+                        ×
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedEvent(null)}
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
-                    >
-                      ×
-                    </button>
-                  </div>
 
-                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-2xl bg-muted/45 p-4">
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Data</p>
-                      <p className="mt-2 text-sm font-semibold text-foreground">{selectedEvent.date}</p>
+                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-2xl bg-muted/45 p-4">
+                        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Data</p>
+                        <p className="mt-2 text-sm font-semibold text-foreground">{selectedEvent.date}</p>
+                      </div>
+                      <div className="rounded-2xl bg-muted/45 p-4">
+                        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Horário</p>
+                        <p className="mt-2 text-sm font-semibold text-foreground">{selectedEvent.time}</p>
+                      </div>
+                      <div className="rounded-2xl bg-muted/45 p-4 sm:col-span-2">
+                        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Responsáveis</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {members.map((member) => (
+                            <span
+                              key={member.id}
+                              className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
+                              style={{ backgroundColor: `${member.color}14`, color: member.color }}
+                            >
+                              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: member.color }} />
+                              {member.name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl bg-muted/45 p-4">
+                        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Status</p>
+                        <p className="mt-2 text-sm font-semibold text-foreground">{selectedEvent.status}</p>
+                      </div>
                     </div>
-                    <div className="rounded-2xl bg-muted/45 p-4">
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Horário</p>
-                      <p className="mt-2 text-sm font-semibold text-foreground">{selectedEvent.time}</p>
-                    </div>
-                    <div className="rounded-2xl bg-muted/45 p-4">
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Responsável</p>
-                      <p className="mt-2 text-sm font-semibold text-foreground">{member.name}</p>
-                    </div>
-                    <div className="rounded-2xl bg-muted/45 p-4">
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Status</p>
-                      <p className="mt-2 text-sm font-semibold text-foreground">{selectedEvent.status}</p>
-                    </div>
-                  </div>
 
-                  <div className="mt-5 flex flex-wrap items-center gap-2">
-                    <span
-                      className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
-                      style={{ backgroundColor: `${member.color}14`, color: member.color }}
-                    >
-                      {selectedEvent.type}
-                    </span>
-                    <span className="text-sm text-muted-foreground">{selectedEvent.description}</span>
-                  </div>
+                    <div className="mt-5 flex flex-wrap items-center gap-2">
+                      <span
+                        className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
+                        style={{ backgroundColor: `${primaryMember.color}14`, color: primaryMember.color }}
+                      >
+                        {selectedEvent.type}
+                      </span>
+                      <span className="text-sm text-muted-foreground">{selectedEvent.description}</span>
+                    </div>
 
-                  <div className="mt-6 flex flex-wrap gap-3">
-                    <ActionButton
-                      onClick={handleDuplicateEvent}
-                      className="bg-primary text-primary-foreground shadow-lg shadow-primary/20"
-                    >
-                      <Plus className="h-4 w-4" />
-                      Adicionar outra atividade neste horário
-                    </ActionButton>
-                    <ActionButton variant="secondary" onClick={() => setSelectedEvent(null)}>
-                      Fechar
-                    </ActionButton>
-                  </div>
-                </>
-              );
-            })()}
+                    <div className="mt-6 flex flex-wrap gap-3">
+                      <ActionButton
+                        onClick={handleDuplicateEvent}
+                        className="bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Duplicar tarefa
+                      </ActionButton>
+                      <ActionButton variant="secondary" onClick={() => setSelectedEvent(null)}>
+                        Fechar
+                      </ActionButton>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
           </div>
         </div>
       ) : null}
@@ -861,111 +955,119 @@ export function CalendarPage() {
 
       {isCreateOpen ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4 backdrop-blur-[2px]"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4"
           onClick={() => setIsCreateOpen(false)}
         >
           <div
-            className="w-full max-w-2xl rounded-[2rem] border border-border/60 bg-white p-6 shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:bg-card/95 dark:shadow-[0_30px_80px_rgba(0,0,0,0.35)]"
+            className="w-full max-w-2xl overflow-hidden rounded-[2.25rem] border border-border/60 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:border-white/8 dark:bg-card dark:shadow-[0_30px_80px_rgba(0,0,0,0.35)]"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Novo Post</p>
-                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Criar atividade rápida</h3>
+            <div className="max-h-[88vh] overflow-y-auto p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Novo Post</p>
+                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Criar atividade rápida</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsCreateOpen(false)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
+                >
+                  <span className="text-lg leading-none">×</span>
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsCreateOpen(false)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
-              >
-                <span className="text-lg leading-none">×</span>
-              </button>
-            </div>
 
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <label className="grid gap-2 md:col-span-2">
-                <span className="text-sm font-medium text-foreground">Título</span>
-                <input
-                  value={createForm.title}
-                  onChange={(event) => setCreateForm((previous) => ({ ...previous, title: event.target.value }))}
-                  className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                />
-              </label>
-              <label className="grid gap-2 md:col-span-2">
-                <span className="text-sm font-medium text-foreground">Descrição</span>
-                <textarea
-                  value={createForm.description}
-                  onChange={(event) =>
-                    setCreateForm((previous) => ({ ...previous, description: event.target.value }))
-                  }
-                  rows={3}
-                  className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                />
-              </label>
-              <label className="grid gap-2">
-                <span className="text-sm font-medium text-foreground">Tipo</span>
-                <select
-                  value={createForm.type}
-                  onChange={(event) =>
-                    setCreateForm((previous) => ({ ...previous, type: event.target.value as CalendarEvent["type"] }))
-                  }
-                  className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                >
-                  <option value="Reels">Reels</option>
-                  <option value="Stories">Stories</option>
-                  <option value="Carrossel">Carrossel</option>
-                  <option value="Feed">Feed</option>
-                </select>
-              </label>
-              <label className="grid gap-2">
-                <span className="text-sm font-medium text-foreground">Status</span>
-                <select
-                  value={createForm.status}
-                  onChange={(event) =>
-                    setCreateForm((previous) => ({ ...previous, status: event.target.value as CalendarEvent["status"] }))
-                  }
-                  className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                >
-                  <option value="Agendado">Agendado</option>
-                  <option value="Em produção">Em produção</option>
-                  <option value="Aprovado">Aprovado</option>
-                  <option value="Publicado">Publicado</option>
-                </select>
-              </label>
-              <label className="grid gap-2">
-                <span className="text-sm font-medium text-foreground">Data</span>
-                <RoundedDatePicker
-                  label="Data"
-                  value={createForm.date}
-                  onChange={(value) => setCreateForm((previous) => ({ ...previous, date: value }))}
-                />
-              </label>
-              <label className="grid gap-2">
-                <span className="text-sm font-medium text-foreground">Horário</span>
-                <RoundedTimePicker
-                  label="Hora"
-                  value={createForm.time}
-                  onChange={(value) => setCreateForm((previous) => ({ ...previous, time: value }))}
-                />
-              </label>
-              <label className="grid gap-2 md:col-span-2">
-                <span className="text-sm font-medium text-foreground">Responsável</span>
-                <MemberDropdown
-                  value={createForm.responsibleId}
-                  teamMembers={teamMembers}
-                  onChange={(value) => setCreateForm((previous) => ({ ...previous, responsibleId: value }))}
-                />
-              </label>
-            </div>
+              <div className="mt-6 grid gap-4 md:grid-cols-2">
+                <label className="grid gap-2 md:col-span-2">
+                  <span className="text-sm font-medium text-foreground">Título</span>
+                  <input
+                    value={createForm.title}
+                    onChange={(event) => setCreateForm((previous) => ({ ...previous, title: event.target.value }))}
+                    className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                  />
+                </label>
+                <label className="grid gap-2 md:col-span-2">
+                  <span className="text-sm font-medium text-foreground">Descrição</span>
+                  <textarea
+                    value={createForm.description}
+                    onChange={(event) =>
+                      setCreateForm((previous) => ({ ...previous, description: event.target.value }))
+                    }
+                    rows={3}
+                    className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-foreground">Tipo</span>
+                  <select
+                    value={createForm.type}
+                    onChange={(event) =>
+                      setCreateForm((previous) => ({ ...previous, type: event.target.value as CalendarEvent["type"] }))
+                    }
+                    className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                  >
+                    <option value="Reels">Reels</option>
+                    <option value="Stories">Stories</option>
+                    <option value="Carrossel">Carrossel</option>
+                    <option value="Feed">Feed</option>
+                  </select>
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-foreground">Status</span>
+                  <select
+                    value={createForm.status}
+                    onChange={(event) =>
+                      setCreateForm((previous) => ({ ...previous, status: event.target.value as CalendarEvent["status"] }))
+                    }
+                    className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                  >
+                    <option value="Agendado">Agendado</option>
+                    <option value="Em produção">Em produção</option>
+                    <option value="Aprovado">Aprovado</option>
+                    <option value="Publicado">Publicado</option>
+                  </select>
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-foreground">Data</span>
+                  <RoundedDatePicker
+                    label="Data"
+                    value={createForm.date}
+                    onChange={(value) => setCreateForm((previous) => ({ ...previous, date: value }))}
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-foreground">Horário</span>
+                  <RoundedTimePicker
+                    label="Hora"
+                    value={createForm.time}
+                    onChange={(value) => setCreateForm((previous) => ({ ...previous, time: value }))}
+                  />
+                </label>
+                <label className="grid gap-2 md:col-span-2">
+                  <span className="text-sm font-medium text-foreground">Responsáveis</span>
+                  <ResponsibleMultiPicker
+                    value={createForm.responsibleIds}
+                    teamMembers={teamMembers}
+                    onChange={(value) =>
+                      setCreateForm((previous) => ({
+                        ...previous,
+                        responsibleIds: value,
+                        responsibleId: value[0] ?? previous.responsibleId,
+                      }))
+                    }
+                  />
+                </label>
+              </div>
 
-            <div className="mt-6 flex flex-wrap justify-end gap-3">
-              <ActionButton variant="secondary" onClick={() => setIsCreateOpen(false)}>
-                Cancelar
-              </ActionButton>
-              <ActionButton onClick={handleCreateEvent}>
-                <Plus className="h-4 w-4" />
-                Criar post
-              </ActionButton>
+              <div className="mt-6 flex flex-wrap justify-end gap-3">
+                <ActionButton variant="secondary" onClick={() => setIsCreateOpen(false)}>
+                  Cancelar
+                </ActionButton>
+                <ActionButton onClick={handleCreateEvent}>
+                  <Plus className="h-4 w-4" />
+                  Criar post
+                </ActionButton>
+              </div>
             </div>
           </div>
         </div>
