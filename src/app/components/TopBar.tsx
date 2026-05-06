@@ -1,6 +1,5 @@
 import { NavLink } from "react-router-dom";
 import {
-  LogOut,
   MoonStar,
   Search,
   SunMedium,
@@ -9,9 +8,9 @@ import { Avatar } from "./ui";
 import { useCurrentTeamMember } from "../data/profiles";
 import { useThemeMode } from "../theme";
 
-export function TopBar({ onLogout }: { onLogout?: () => void }) {
-  const { isDark, setTheme } = useThemeMode();
+export function TopBar() {
   const { member } = useCurrentTeamMember();
+  const { isDark, setTheme } = useThemeMode();
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-sidebar/90 backdrop-blur-xl dark:border-white/8">
@@ -34,17 +33,6 @@ export function TopBar({ onLogout }: { onLogout?: () => void }) {
           >
             {isDark ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
           </button>
-
-          {onLogout ? (
-            <button
-              type="button"
-              onClick={onLogout}
-              className="hidden items-center gap-2 rounded-full border border-border/60 bg-background/70 px-4 py-2 text-sm font-medium text-foreground transition hover:border-primary/30 hover:bg-card sm:inline-flex"
-            >
-              <LogOut className="h-4 w-4" />
-              Sair
-            </button>
-          ) : null}
 
           <NavLink
             to="/profile"

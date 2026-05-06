@@ -17,6 +17,7 @@ import { MyProfilePage } from "./pages/MyProfile";
 import { LoginPage } from "./pages/Login";
 import { PostDetailPage } from "./pages/PostDetail";
 import { ReportsPage } from "./pages/Reports";
+import { SettingsPage } from "./pages/Settings";
 import { StoriesPage } from "./pages/Stories";
 import { isAuthenticated, signOut } from "./auth";
 import { ThemeModeProvider, useThemeMode } from "./theme";
@@ -75,7 +76,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
     >
       <Sidebar onLogout={onLogout} />
       <div className="flex min-h-0 flex-1 flex-col xl:ml-64">
-        <TopBar onLogout={onLogout} />
+        <TopBar />
         <main className="relative z-10 min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-hidden p-4 sm:p-6 xl:p-7" tabIndex={0}>
           <div
             className="min-h-full overflow-visible rounded-[28px] border"
@@ -101,6 +102,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
               <Route path="/member/:id" element={<MemberProfilePage />} />
               <Route path="/history" element={<HistoryPage />} />
               <Route path="/reports" element={<ReportsPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
               <Route path="/profile" element={<MyProfilePage />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>

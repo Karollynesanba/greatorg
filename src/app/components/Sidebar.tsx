@@ -8,16 +8,15 @@ import {
   History,
   LayoutDashboard,
   Lightbulb,
-  MoonStar,
+  LogOut,
   PanelLeft,
-  SunMedium,
+  Settings,
   Target,
   TrendingUp,
   Users,
   X,
 } from "lucide-react";
 import { cn } from "./ui";
-import { useThemeMode } from "../theme";
 
 const navigation = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -30,12 +29,12 @@ const navigation = [
   { to: "/member/1", label: "Equipe", icon: Users },
   { to: "/history", label: "Histórico", icon: History },
   { to: "/reports", label: "Relatórios", icon: FileText },
+  { to: "/settings", label: "Configurações", icon: Settings },
 ];
 
 export function Sidebar({ onLogout }: { onLogout?: () => void }) {
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
-  const { isDark, setTheme } = useThemeMode();
 
   useEffect(() => {
     setOpen(false);
@@ -110,23 +109,30 @@ export function Sidebar({ onLogout }: { onLogout?: () => void }) {
           ))}
         </nav>
 
-        <div className="mt-1 rounded-3xl border border-border/60 bg-card-strong/90 p-3 shadow-[0_12px_30px_rgba(15,23,42,0.04)] dark:border-white/8 dark:bg-card-strong/96 dark:shadow-[0_12px_30px_rgba(0,0,0,0.24)]">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setTheme(isDark ? "light" : "dark")}
-              aria-label={isDark ? "Trocar para modo claro" : "Trocar para modo escuro"}
-              title={isDark ? "Modo claro" : "Modo escuro"}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-border/50 bg-muted/35 text-foreground transition hover:bg-muted/50 dark:border-white/5 dark:bg-white/5 dark:hover:bg-white/10"
+        <div className="mt-2 border-t border-border/60 pt-4 dark:border-white/10">
+          <div className="space-y-1">
+            <NavLink
+              to="/settings"
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-3 rounded-2xl px-3 py-2 text-sm font-medium transition",
+                  isActive
+                    ? "bg-muted/60 text-foreground"
+                    : "text-muted-foreground hover:bg-muted/40 hover:text-foreground",
+                )
+              }
             >
-              {isDark ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
-            </button>
+              <Settings className="h-4 w-4 shrink-0" />
+              Configurações
+            </NavLink>
+
             {onLogout ? (
               <button
                 type="button"
                 onClick={onLogout}
-                className="flex flex-1 items-center justify-center rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm font-semibold text-primary transition hover:bg-primary/10"
+                className="flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-sm font-medium text-muted-foreground transition hover:bg-muted/40 hover:text-foreground"
               >
+                <LogOut className="h-4 w-4 shrink-0" />
                 Sair
               </button>
             ) : null}
