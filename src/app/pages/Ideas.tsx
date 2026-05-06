@@ -1,16 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Plus, Lightbulb, X } from "lucide-react";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "motion/react";
 import { ideas } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
+import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import { useThemeMode } from "../theme";
 import {
   ActionButton,
   ConfirmDialog,
   DeleteIconButton,
   GlassPanel,
+  EmptyState,
   MemberChip,
   PageHeader,
   PageTransition,
@@ -123,6 +125,7 @@ export function IdeasPage() {
   const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
   const [items, setItems] = useSupabaseSyncedListState({ key: "ideas", table: "ideas", fallback: ideas });
+  const [teamScope] = useTeamScope();
   const [isSparkOpen, setIsSparkOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ ideaId: number; ideaTitle: string } | null>(null);
@@ -135,6 +138,11 @@ export function IdeasPage() {
     script: "",
     responsibleId: teamMembers[0].id,
   });
+
+  const visibleItems = useMemo(
+    () => items.filter((idea) => matchesTeamScope(idea.responsibleId, teamScope)),
+    [items, teamScope],
+  );
 
   useEffect(() => {
     if (!isCreateOpen) {
@@ -244,7 +252,7 @@ export function IdeasPage() {
       />
 
       <div className="grid gap-6 xl:grid-cols-2">
-        {items.map((idea, index) => {
+        {visibleItems.length > 0 ? visibleItems.map((idea, index) => {
           const member = teamMembers.find((item) => item.id === idea.responsibleId)!;
           const panelBackground = isDark
             ? `linear-gradient(180deg, rgba(20,20,22,0.98), ${member.color}10)`
@@ -303,7 +311,14 @@ export function IdeasPage() {
               </div>
             </GlassPanel>
           );
-        })}
+        }) : (
+          <GlassPanel className="xl:col-span-2">
+            <EmptyState
+              title="Nenhuma ideia neste filtro"
+              description="Troque o membro na visualização ou crie uma nova ideia compartilhada para aparecer aqui."
+            />
+          </GlassPanel>
+        )}
       </div>
 
       <AnimatePresence>

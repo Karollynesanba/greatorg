@@ -5,6 +5,7 @@ import { apiStatus, goals, getGoalResponsibleIds, metaPeriods } from "../data/mo
 import { createStorageKey, useSharedState } from "../data/sharedState";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
+import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import { useThemeMode } from "../theme";
 import {
   ActionButton,
@@ -26,6 +27,7 @@ export function MetaInsightsPage() {
   const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
   const [items, setItems] = useSupabaseSyncedListState({ key: "goals", table: "goals", fallback: goals });
+  const [teamScope] = useTeamScope();
   const [goalImages, setGoalImages] = useSharedState<GoalImages>(createStorageKey("goal-images"), {});
   const [activeGoalId, setActiveGoalId] = useState<number | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ goalId: number; goalName: string } | null>(null);
@@ -38,6 +40,10 @@ export function MetaInsightsPage() {
   const activeGoal = useMemo(
     () => items.find((goal) => goal.id === activeGoalId) ?? null,
     [activeGoalId, items],
+  );
+  const visibleGoals = useMemo(
+    () => items.filter((goal) => getGoalResponsibleIds(goal).some((memberId) => matchesTeamScope(memberId, teamScope))),
+    [items, teamScope],
   );
 
   useEffect(() => {
@@ -137,7 +143,7 @@ export function MetaInsightsPage() {
       />
 
       <div className="grid gap-6 xl:grid-cols-2">
-        {items.map((goal, index) => {
+        {visibleGoals.length > 0 ? visibleGoals.map((goal, index) => {
           const responsibleIds = getGoalResponsibleIds(goal);
           const member = teamMembers.find((item) => item.id === responsibleIds[0]) ?? teamMembers[0];
           const progress = (goal.current / goal.target) * 100;
@@ -253,7 +259,15 @@ export function MetaInsightsPage() {
               </div>
             </GlassPanel>
           );
-        })}
+        }) : (
+          <div className="col-span-full">
+            <GlassPanel>
+              <p className="text-sm text-muted-foreground">
+                Nenhuma meta encontrada para o recorte atual.
+              </p>
+            </GlassPanel>
+          </div>
+        )}
       </div>
 
       <input

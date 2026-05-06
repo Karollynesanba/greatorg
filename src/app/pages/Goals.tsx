@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { goals, getGoalResponsibleIds, type Goal } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
+import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import {
   ActionButton,
   ConfirmDialog,
@@ -348,6 +349,7 @@ export function GoalsPage() {
   const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
   const [items, setItems] = useSupabaseSyncedListState({ key: "goals", table: "goals", fallback: goals });
+  const [teamScope] = useTeamScope();
   const [goalView, setGoalView] = useState<GoalView>("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingGoalId, setEditingGoalId] = useState<number | null>(null);
@@ -376,12 +378,14 @@ export function GoalsPage() {
   }, [items]);
 
   const filteredItems = useMemo(() => {
+    const byScope = items.filter((goal) => getGoalResponsibleIds(goal).some((id) => matchesTeamScope(id, teamScope)));
+
     if (goalView === "all") {
-      return items;
+      return byScope;
     }
 
-    return items.filter((goal) => getGoalView(goal) === goalView);
-  }, [goalView, items]);
+    return byScope.filter((goal) => getGoalView(goal) === goalView);
+  }, [goalView, items, teamScope]);
 
   useEffect(() => {
     if (!isCreateOpen) {

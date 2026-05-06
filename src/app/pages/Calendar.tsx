@@ -19,6 +19,7 @@ import {
 } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
+import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import {
   ActionButton,
   ConfirmDialog,
@@ -538,6 +539,7 @@ export function CalendarPage() {
   const [view, setView] = useState<(typeof viewModes)[number]>("Semana");
   const [currentDate, setCurrentDate] = useState(referenceDate);
   const [teamMembers] = useTeamProfiles();
+  const [teamScope] = useTeamScope();
   const [events, setEvents] = useSupabaseSyncedListState({
     key: "calendar-events",
     table: "calendar_events",
@@ -559,9 +561,17 @@ export function CalendarPage() {
 
   const weekDates = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(startOfWeek(currentDate), index)), [currentDate]);
   const monthCells = useMemo(() => buildMonthCells(currentDate), [currentDate]);
+  const filteredEvents = useMemo(
+    () =>
+      events.filter((event) => {
+        const responsibleIds = event.responsibleIds?.length ? event.responsibleIds : [event.responsibleId];
+        return responsibleIds.some((id) => matchesTeamScope(id, teamScope));
+      }),
+    [events, teamScope],
+  );
   const currentMonthEvents = useMemo(
-    () => events.filter((event) => event.date.startsWith(`${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}`)),
-    [currentDate, events],
+    () => filteredEvents.filter((event) => event.date.startsWith(`${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}`)),
+    [currentDate, filteredEvents],
   );
   const handleNavigate = (direction: -1 | 1) => {
     if (view === "Dia") {
@@ -844,7 +854,7 @@ export function CalendarPage() {
                         </div>
                         {weekDates.map((date) => {
                           const dateKey = formatDateKey(date);
-                          const slotEvents = events.filter((event) => event.date === dateKey && event.time === hour);
+                          const slotEvents = filteredEvents.filter((event) => event.date === dateKey && event.time === hour);
 
                           return (
                           <CalendarSlot
@@ -878,7 +888,7 @@ export function CalendarPage() {
                 <div className="space-y-3">
                   {calendarHours.map((hour) => {
                     const currentKey = formatDateKey(currentDate);
-                    const currentEvents = events.filter((event) => event.date === currentKey && event.time === hour);
+                    const currentEvents = filteredEvents.filter((event) => event.date === currentKey && event.time === hour);
 
                     return (
                       <div key={hour} className="grid gap-3 lg:grid-cols-[120px_minmax(0,1fr)] lg:items-start">
@@ -910,7 +920,7 @@ export function CalendarPage() {
                 <div className="grid grid-cols-7 gap-3">
                   {monthCells.map((date) => {
                     const dateKey = formatDateKey(date);
-                    const monthEvents = events.filter((event) => event.date === dateKey);
+                    const monthEvents = filteredEvents.filter((event) => event.date === dateKey);
                     const isCurrentMonth = date.getMonth() === currentDate.getMonth();
 
                     return (

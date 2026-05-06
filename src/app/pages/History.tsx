@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { historyTimeline } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
+import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import { useThemeMode } from "../theme";
 import {
   ConfirmDialog,
@@ -120,6 +121,7 @@ function FilterDropdown<T extends string | number>({
 export function HistoryPage() {
   const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
+  const [teamScope] = useTeamScope();
   const [itemsState, setItemsState] = useSupabaseSyncedListState({
     key: "history",
     table: "history_events",
@@ -133,8 +135,9 @@ export function HistoryPage() {
   const items = itemsState.filter((item) => {
     const matchesPerson = personFilter === "todos" || item.authorId === personFilter;
     const matchesType = typeFilter === "todos" || item.type === typeFilter;
+    const matchesScope = matchesTeamScope(item.authorId, teamScope);
 
-    return matchesPerson && matchesType;
+    return matchesPerson && matchesType && matchesScope;
   });
 
   const handleDeleteHistory = (historyId: number) => {

@@ -16,8 +16,10 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { Avatar, cn } from "./ui";
+import { Avatar, RoundedDropdown, cn } from "./ui";
 import { useCurrentTeamMember } from "../data/profiles";
+import { useTeamProfiles } from "../data/profiles";
+import { useTeamScope } from "../data/teamScope";
 import { useThemeMode } from "../theme";
 
 const navigation = [
@@ -38,6 +40,8 @@ export function Sidebar({ onLogout }: { onLogout?: () => void }) {
   const { pathname } = useLocation();
   const { isDark, setTheme } = useThemeMode();
   const { member } = useCurrentTeamMember();
+  const [teamMembers] = useTeamProfiles();
+  const [teamScope, setTeamScope] = useTeamScope();
 
   useEffect(() => {
     setOpen(false);
@@ -128,6 +132,21 @@ export function Sidebar({ onLogout }: { onLogout?: () => void }) {
             </NavLink>
           ))}
         </nav>
+
+        <div className="mb-3 rounded-3xl border border-border/60 bg-card-strong/90 p-3 shadow-[0_12px_30px_rgba(15,23,42,0.04)] dark:border-white/8 dark:bg-card-strong/96 dark:shadow-[0_12px_30px_rgba(0,0,0,0.24)]">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            Visualização
+          </p>
+          <RoundedDropdown
+            label="Filtrar por membro"
+            value={teamScope}
+            options={[
+              { label: "Todos os membros", value: "todos" as const },
+              ...teamMembers.map((item) => ({ label: item.name, value: item.id, color: item.color })),
+            ]}
+            onChange={setTeamScope}
+          />
+        </div>
 
         <div className="mt-1 rounded-3xl border border-border/60 bg-card-strong/90 p-3 shadow-[0_12px_30px_rgba(15,23,42,0.04)] dark:border-white/8 dark:bg-card-strong/96 dark:shadow-[0_12px_30px_rgba(0,0,0,0.24)]">
           <div className="flex items-center gap-2">

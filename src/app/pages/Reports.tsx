@@ -36,6 +36,7 @@ import { createStorageKey, useSharedState } from "../data/sharedState";
 import { useTeamProfiles } from "../data/profiles";
 import { usePosts, type Post } from "../data/posts";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
+import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import {
   ActionButton,
   GlassPanel,
@@ -249,6 +250,7 @@ export function ReportsPage() {
   const [teamMembers] = useTeamProfiles();
   const [posts] = usePosts();
   const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
+  const [teamScope] = useTeamScope();
   const [savedReports, setSavedReports] = useSharedState<SavedReport[]>(createStorageKey("reports-history"), []);
   const [selectedMetric, setSelectedMetric] = useState<MetricKey>("reach");
 
@@ -269,10 +271,11 @@ export function ReportsPage() {
         const matchesType = typeFilter === "todos" || post.type === typeFilter;
         const matchesResponsible =
           responsibleFilter === "todos" || post.authorId === responsibleFilter;
+        const matchesScope = matchesTeamScope(post.authorId, teamScope);
 
-        return matchesDate && matchesType && matchesResponsible;
+        return matchesDate && matchesType && matchesResponsible && matchesScope;
       }),
-    [currentRange.end, currentRange.start, responsibleFilter, typeFilter],
+    [currentRange.end, currentRange.start, responsibleFilter, teamScope, typeFilter],
   );
 
   const previousPosts = useMemo(
@@ -282,24 +285,25 @@ export function ReportsPage() {
         const matchesType = typeFilter === "todos" || post.type === typeFilter;
         const matchesResponsible =
           responsibleFilter === "todos" || post.authorId === responsibleFilter;
+        const matchesScope = matchesTeamScope(post.authorId, teamScope);
 
-        return matchesDate && matchesType && matchesResponsible;
+        return matchesDate && matchesType && matchesResponsible && matchesScope;
       }),
-    [previousRange.end, previousRange.start, responsibleFilter, typeFilter],
+    [previousRange.end, previousRange.start, responsibleFilter, teamScope, typeFilter],
   );
 
   const filteredGoals = useMemo(() => {
     const byResponsible = goals.filter((goal) => {
       if (responsibleFilter === "todos") {
-        return true;
+        return getGoalResponsibleIds(goal).some((id) => matchesTeamScope(id, teamScope));
       }
 
-      return getGoalResponsibleIds(goal).includes(responsibleFilter);
+      return getGoalResponsibleIds(goal).includes(responsibleFilter) && getGoalResponsibleIds(goal).some((id) => matchesTeamScope(id, teamScope));
     });
     const inPeriod = byResponsible.filter((goal) => inRange(goal.deadline, currentRange.start, currentRange.end));
 
     return inPeriod.length > 0 ? inPeriod : byResponsible;
-  }, [currentRange.end, currentRange.start, responsibleFilter]);
+  }, [currentRange.end, currentRange.start, responsibleFilter, teamScope]);
 
   const currentSummary = useMemo(() => {
     const reach = filteredPosts.reduce((sum, post) => sum + post.reach, 0);
@@ -381,25 +385,27 @@ export function ReportsPage() {
 
   const memberPerformance = useMemo(
     () =>
-      teamMembers.map((member) => {
-        const memberPosts = filteredPosts.filter((post) => post.authorId === member.id);
-        const memberGoals = filteredGoals.filter((goal) => getGoalResponsibleIds(goal).includes(member.id));
-        const engagement = memberPosts.reduce((sum, post) => sum + post.engagement, 0);
-        const reach = memberPosts.reduce((sum, post) => sum + post.reach, 0);
-        const completionRate =
-          memberGoals.length > 0
-            ? memberGoals.filter((goal) => goal.current >= goal.target).length / memberGoals.length
-            : 0;
+      teamMembers
+        .filter((member) => matchesTeamScope(member.id, teamScope))
+        .map((member) => {
+          const memberPosts = filteredPosts.filter((post) => post.authorId === member.id);
+          const memberGoals = filteredGoals.filter((goal) => getGoalResponsibleIds(goal).includes(member.id));
+          const engagement = memberPosts.reduce((sum, post) => sum + post.engagement, 0);
+          const reach = memberPosts.reduce((sum, post) => sum + post.reach, 0);
+          const completionRate =
+            memberGoals.length > 0
+              ? memberGoals.filter((goal) => goal.current >= goal.target).length / memberGoals.length
+              : 0;
 
-        return {
-          member,
-          posts: memberPosts.length,
-          engagement,
-          reach,
-          completionRate,
-        };
-      }).sort((a, b) => b.engagement - a.engagement),
-    [filteredGoals, filteredPosts],
+          return {
+            member,
+            posts: memberPosts.length,
+            engagement,
+            reach,
+            completionRate,
+          };
+        }).sort((a, b) => b.engagement - a.engagement),
+    [filteredGoals, filteredPosts, teamMembers, teamScope],
   );
 
   const selectedMetricCard = useMemo(() => {

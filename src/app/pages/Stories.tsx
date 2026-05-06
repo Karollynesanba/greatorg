@@ -4,9 +4,11 @@ import { toast } from "sonner";
 import { storyLogs, type StoryLog } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
+import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import {
   ActionButton,
   GlassPanel,
+  EmptyState,
   MemberChip,
   PageHeader,
   PageTransition,
@@ -79,13 +81,24 @@ export function StoriesPage() {
     table: "story_logs",
     fallback: storyLogs,
   });
+  const [teamScope] = useTeamScope();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [form, setForm] = useState<StoryFormState>(() => emptyForm(teamMembers));
 
+  const visibleItems = useMemo(
+    () =>
+      items.filter((item) => {
+        const matchesMadeBy = matchesTeamScope(item.madeById, teamScope);
+        const matchesPostedBy = matchesTeamScope(item.postedById, teamScope);
+        return matchesMadeBy || matchesPostedBy;
+      }),
+    [items, teamScope],
+  );
+
   const stats = useMemo(() => {
-    const total = items.reduce((sum, item) => sum + item.quantity, 0);
-    const video = items.filter((item) => item.mediaType === "video").reduce((sum, item) => sum + item.quantity, 0);
-    const photo = items.filter((item) => item.mediaType === "photo").reduce((sum, item) => sum + item.quantity, 0);
+    const total = visibleItems.reduce((sum, item) => sum + item.quantity, 0);
+    const video = visibleItems.filter((item) => item.mediaType === "video").reduce((sum, item) => sum + item.quantity, 0);
+    const photo = visibleItems.filter((item) => item.mediaType === "photo").reduce((sum, item) => sum + item.quantity, 0);
 
     return {
       total,
@@ -93,11 +106,26 @@ export function StoriesPage() {
       photo,
       remainingTotal: Math.max(monthlyGoals.total - total, 0),
     };
-  }, [items]);
+  }, [visibleItems]);
 
   const sortedItems = useMemo(() => {
-    return [...items].sort((a, b) => `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`));
-  }, [items]);
+    return [...visibleItems].sort((a, b) => `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`));
+  }, [visibleItems]);
+
+  const memberContributions = useMemo(
+    () =>
+      teamMembers
+        .filter((member) => matchesTeamScope(member.id, teamScope))
+        .map((member) => {
+        const memberItems = items.filter((item) => item.madeById === member.id);
+        const total = memberItems.reduce((sum, item) => sum + item.quantity, 0);
+        const video = memberItems.filter((item) => item.mediaType === "video").reduce((sum, item) => sum + item.quantity, 0);
+        const photo = memberItems.filter((item) => item.mediaType === "photo").reduce((sum, item) => sum + item.quantity, 0);
+
+        return { member, total, video, photo, count: memberItems.length };
+        }),
+    [items, teamMembers, teamScope],
+  );
 
   const closeModal = () => {
     setIsCreateOpen(false);
@@ -158,6 +186,25 @@ export function StoriesPage() {
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6">
           <div className="grid gap-3 sm:grid-cols-3">
+            {memberContributions.map((entry) => (
+              <GlassPanel key={entry.member.id} className="p-4" style={teamScope === entry.member.id ? { borderColor: `${entry.member.color}55` } : undefined}>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{entry.member.name}</p>
+                    <p className="mt-2 text-2xl font-semibold text-foreground">{entry.total}</p>
+                  </div>
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-semibold text-white" style={{ backgroundColor: entry.member.color }}>
+                    {entry.member.name.charAt(0)}
+                  </span>
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  {entry.video} vídeo(s) • {entry.photo} foto(s) • {entry.count} registro(s)
+                </p>
+              </GlassPanel>
+            ))}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
             <GlassPanel className="p-4">
               <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Meta total</p>
               <p className="mt-2 text-3xl font-semibold text-foreground">
@@ -188,7 +235,7 @@ export function StoriesPage() {
             </div>
 
             <div className="space-y-3">
-              {sortedItems.map((item) => {
+              {sortedItems.length > 0 ? sortedItems.map((item) => {
                 const madeBy = teamMembers.find((member) => member.id === item.madeById);
                 const postedBy = teamMembers.find((member) => member.id === item.postedById);
 
@@ -225,7 +272,12 @@ export function StoriesPage() {
                     </div>
                   </div>
                 );
-              })}
+              }) : (
+                <EmptyState
+                  title="Nenhum story registrado"
+                  description="Quando houver registros no Supabase, eles aparecem aqui de forma compartilhada."
+                />
+              )}
             </div>
           </GlassPanel>
         </div>
