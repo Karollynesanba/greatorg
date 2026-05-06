@@ -16,8 +16,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { Avatar, cn } from "./ui";
-import { useCurrentTeamMember } from "../data/profiles";
+import { cn } from "./ui";
 import { useThemeMode } from "../theme";
 
 const navigation = [
@@ -37,7 +36,6 @@ export function Sidebar({ onLogout }: { onLogout?: () => void }) {
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
   const { isDark, setTheme } = useThemeMode();
-  const { member } = useCurrentTeamMember();
 
   useEffect(() => {
     setOpen(false);
@@ -82,32 +80,15 @@ export function Sidebar({ onLogout }: { onLogout?: () => void }) {
           </div>
         </div>
 
-        <NavLink
-          to="/profile"
-          aria-label="Meu Perfil"
-          title="Meu Perfil"
-          className="mb-6 flex items-center justify-between rounded-[1.75rem] border border-transparent px-2 py-2 transition hover:border-border/60 hover:bg-card-strong/70 xl:justify-start"
-        >
-          <div className="flex items-center gap-3">
-            <Avatar
-              name={member?.name ?? "G"}
-              color={member?.color ?? "rgb(var(--primary) / 1)"}
-              src={member?.avatarUrl}
-              size="md"
-            />
-            <div>
-              <p className="text-base font-semibold text-foreground">{member?.name ?? "Great Orgânico"}</p>
-              <p className="text-sm text-muted-foreground">{member?.role ?? "Analytics Platform"}</p>
-            </div>
-          </div>
+        <div className="mb-6 flex items-center justify-end xl:hidden">
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-muted text-foreground xl:hidden"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-muted text-foreground"
           >
             <X className="h-4 w-4" />
           </button>
-        </NavLink>
+        </div>
 
         <nav className="flex-1 space-y-1">
           {navigation.map(({ to, label, icon: Icon }) => (
