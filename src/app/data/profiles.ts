@@ -13,6 +13,29 @@ export type EditableTeamMember = TeamMember & {
 
 type TeamProfileRow = Partial<EditableTeamMember> & {
   id?: number | string | null;
+  avatar_url?: string | null;
+  monthly_posts?: EditableTeamMember["monthlyPosts"] | null;
+};
+
+type TeamProfileDbRow = {
+  id: number;
+  name: string;
+  role: string;
+  avatar: string;
+  specialty: string;
+  color: string;
+  stats: EditableTeamMember["stats"];
+  radar: EditableTeamMember["radar"];
+  monthly_posts: EditableTeamMember["monthlyPosts"];
+  email: string;
+  password: string;
+  avatar_url: string;
+  bio: string;
+};
+
+type TeamProfileDbUpsert = Omit<TeamProfileDbRow, "monthly_posts" | "avatar_url"> & {
+  monthly_posts: EditableTeamMember["monthlyPosts"];
+  avatar_url: string;
 };
 
 const teamProfilesTable = "team_profiles";
@@ -103,9 +126,7 @@ export function useTeamProfiles() {
 
     const persistTeamProfiles = async () => {
       const { error } = await supabaseClient.from(teamProfilesTable).upsert(
-        profiles.map((profile) => ({
-          ...profile,
-        })),
+        profiles.map((profile) => toTeamProfileDbRow(profile)),
         { onConflict: "id" },
       );
 
@@ -177,10 +198,28 @@ function normalizeProfileRow(row: TeamProfileRow) {
       punctuality: 0,
     },
     radar: row.radar ?? [],
-    monthlyPosts: row.monthlyPosts ?? [],
+    monthlyPosts: row.monthlyPosts ?? row.monthly_posts ?? [],
     email: row.email ?? "",
     password: row.password ?? "",
-    avatarUrl: row.avatarUrl ?? "",
+    avatarUrl: row.avatarUrl ?? row.avatar_url ?? "",
     bio: row.bio ?? "",
   } satisfies EditableTeamMember;
+}
+
+function toTeamProfileDbRow(profile: EditableTeamMember): TeamProfileDbUpsert {
+  return {
+    id: profile.id,
+    name: profile.name,
+    role: profile.role,
+    avatar: profile.avatar,
+    specialty: profile.specialty,
+    color: profile.color,
+    stats: profile.stats,
+    radar: profile.radar,
+    monthly_posts: profile.monthlyPosts,
+    email: profile.email,
+    password: profile.password,
+    avatar_url: profile.avatarUrl,
+    bio: profile.bio,
+  };
 }

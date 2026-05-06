@@ -31,6 +31,10 @@ export function MetaInsightsPage() {
   const [pendingDelete, setPendingDelete] = useState<{ goalId: number; goalName: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  useEffect(() => {
+    setGoalImages({});
+  }, [setGoalImages]);
+
   const activeGoal = useMemo(
     () => items.find((goal) => goal.id === activeGoalId) ?? null,
     [activeGoalId, items],

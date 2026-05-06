@@ -12,8 +12,9 @@ import {
   YAxis,
 } from "recharts";
 import { useNavigate, useParams } from "react-router-dom";
-import { getGoalResponsibleIds, goals } from "../data/mockData";
+import { getGoalResponsibleIds, type Goal } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
+import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import { useThemeMode } from "../theme";
 import {
   Avatar,
@@ -45,6 +46,7 @@ export function MemberProfilePage() {
   const params = useParams();
   const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
+  const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
   const member = teamMembers.find((item) => String(item.id) === params.id) ?? teamMembers[0];
   const memberGoals = goals.filter((goal) => getGoalResponsibleIds(goal).includes(member.id));
   const panelBackground = isDark

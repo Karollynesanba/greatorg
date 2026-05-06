@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useState } from "react";
 import { useSharedState } from "./sharedState";
 import { isSupabaseConfigured, supabase } from "./supabase";
 
@@ -7,8 +8,6 @@ type RowEnvelope<T> = {
   sort_order: number;
   data: T;
 };
-
-type Updater<T> = T | ((current: T) => T);
 
 function normalizeId(value: unknown) {
   const parsed = typeof value === "string" ? Number(value) : typeof value === "number" ? value : NaN;
@@ -30,6 +29,7 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
 }) {
   const sharedState = useSharedState(options.key, options.fallback);
   const [value, setValue] = sharedState;
+  const [hydrated, setHydrated] = useState(!isSupabaseConfigured());
   const hydratedRef = useRef(false);
   const lastRemoteSnapshotRef = useRef<string | null>(null);
   const supabaseClient = supabase;
@@ -55,6 +55,7 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
       if (error) {
         console.warn(`Supabase ${options.table} load failed:`, error.message);
         hydratedRef.current = true;
+        setHydrated(true);
         return;
       }
 
@@ -66,6 +67,7 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
         lastRemoteSnapshotRef.current = JSON.stringify(remoteItems);
         setValue(remoteItems);
         hydratedRef.current = true;
+        setHydrated(true);
         return;
       }
 
@@ -81,12 +83,14 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
       if (seedError) {
         console.warn(`Supabase ${options.table} seed failed:`, seedError.message);
         hydratedRef.current = true;
+        setHydrated(true);
         return;
       }
 
       lastRemoteSnapshotRef.current = JSON.stringify(options.fallback);
       setValue(options.fallback);
       hydratedRef.current = true;
+      setHydrated(true);
     };
 
     void loadRemote();
@@ -150,5 +154,5 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
     };
   }, [options.table, supabaseClient, value]);
 
-  return sharedState as readonly [T[], (update: Updater<T[]>) => void];
+  return [...sharedState, hydrated] as const;
 }

@@ -27,14 +27,15 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  goals,
   getGoalResponsibleIds,
   insights,
-  posts,
   type ContentType,
+  type Goal,
 } from "../data/mockData";
 import { createStorageKey, useSharedState } from "../data/sharedState";
 import { useTeamProfiles } from "../data/profiles";
+import { usePosts, type Post } from "../data/posts";
+import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import {
   ActionButton,
   GlassPanel,
@@ -215,7 +216,7 @@ function inRange(value: string, start: Date, end: Date) {
   return date >= start && date <= end;
 }
 
-function groupPostsByDate(items: typeof posts) {
+function groupPostsByDate(items: Array<Pick<Post, "date" | "reach" | "engagement">>) {
   const buckets = new Map<string, { reach: number; engagement: number }>();
 
   items.forEach((item) => {
@@ -246,8 +247,14 @@ export function ReportsPage() {
   const [responsibleFilter, setResponsibleFilter] = useState<number | "todos">("todos");
   const [customRange, setCustomRange] = useState({ start: "2026-04-01", end: "2026-04-30" });
   const [teamMembers] = useTeamProfiles();
+  const [posts] = usePosts();
+  const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
   const [savedReports, setSavedReports] = useSharedState<SavedReport[]>(createStorageKey("reports-history"), []);
   const [selectedMetric, setSelectedMetric] = useState<MetricKey>("reach");
+
+  useEffect(() => {
+    setSavedReports([]);
+  }, [setSavedReports]);
 
   const currentRange = useMemo(
     () => rangeFromPeriod(period, anchorDate, customRange),

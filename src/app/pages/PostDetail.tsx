@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
-import { posts } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
+import { usePosts } from "../data/posts";
 import {
   ActionButton,
   ChecklistItem,
@@ -23,7 +23,8 @@ const tabs = ["Checklist", "Comentários", "Arquivos", "Roteiro", "Aprovação"]
 export function PostDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const post = posts.find((item) => String(item.id) === id);
+  const [posts, , hydrated] = usePosts();
+  const post = useMemo(() => posts.find((item) => String(item.id) === id) ?? null, [id, posts]);
   const [teamMembers] = useTeamProfiles();
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("Checklist");
   const [checklist, setChecklist] = useState(post?.checklist ?? []);
@@ -32,12 +33,20 @@ export function PostDetailPage() {
     setChecklist(post?.checklist ?? []);
   }, [post]);
 
+  if (!hydrated) {
+    return (
+      <PageTransition>
+        <EmptyState title="Carregando post" description="Estamos buscando os dados no Supabase." />
+      </PageTransition>
+    );
+  }
+
   if (!post) {
     return (
       <PageTransition>
         <EmptyState
           title="Post não encontrado"
-          description="O item solicitado não existe na base mockada atual."
+          description="O item solicitado ainda não existe na tabela `posts` do Supabase."
         />
       </PageTransition>
     );

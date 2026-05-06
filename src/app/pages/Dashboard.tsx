@@ -16,13 +16,13 @@ import {
   dashboardSummary,
   evolutionData,
   getGoalResponsibleIds,
-  goals,
-  topPosts,
-  worstPosts,
 } from "../data/mockData";
+import { usePosts } from "../data/posts";
 import { useTeamProfiles } from "../data/profiles";
+import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import {
   GlassPanel,
+  EmptyState,
   PageHeader,
   PageTransition,
   SectionTitle,
@@ -30,6 +30,7 @@ import {
   formatLongNumber,
 } from "../components/ui";
 import { useThemeMode } from "../theme";
+import { type Goal } from "../data/mockData";
 
 const metricIcons = [Eye, BarChart3, Sparkles, Rocket];
 
@@ -203,10 +204,15 @@ function SoftMemberChip({ name, role }: { name: string; role?: string }) {
 export function DashboardPage() {
   const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
+  const [posts] = usePosts();
+  const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
   const chartLegend = [
     { label: "Alcance", color: "#833AB4" },
     { label: "Engajamento", color: "#E1306C" },
   ];
+  const topPosts = [...posts].sort((a, b) => b.engagement - a.engagement).slice(0, 5);
+  const worstPosts = [...posts].sort((a, b) => a.engagement - b.engagement).slice(0, 2);
+  const visibleGoals = goals.slice(0, 3);
 
   return (
     <PageTransition>
@@ -280,7 +286,7 @@ export function DashboardPage() {
               description="Os posts que mais puxaram alcance, saves e conversa nas últimas semanas."
             />
             <div className="mt-5 space-y-3">
-              {topPosts.map((post, index) => {
+              {topPosts.length > 0 ? topPosts.map((post, index) => {
                 const member = teamMembers.find((item) => item.id === post.authorId)!;
 
                 return (
@@ -322,7 +328,12 @@ export function DashboardPage() {
                     </div>
                   </Link>
                 );
-              })}
+              }) : (
+                <EmptyState
+                  title="Nenhum post cadastrado"
+                  description="Assim que você inserir conteúdos na tabela `posts`, eles aparecem aqui."
+                />
+              )}
             </div>
           </GlassPanel>
 
@@ -343,7 +354,7 @@ export function DashboardPage() {
               description="Peças que pedem ajuste imediato de gancho, CTA ou proposta editorial."
             />
             <div className="mt-5 grid gap-4">
-              {worstPosts.map((post) => {
+              {worstPosts.length > 0 ? worstPosts.map((post) => {
                 const member = teamMembers.find((item) => item.id === post.authorId)!;
 
                 return (
@@ -379,7 +390,12 @@ export function DashboardPage() {
                     </div>
                   </div>
                 );
-              })}
+              }) : (
+                <EmptyState
+                  title="Sem conteúdo para comparar"
+                  description="Quando houver posts no Supabase, esta área mostra os que precisam de atenção."
+                />
+              )}
             </div>
           </GlassPanel>
         </div>
@@ -402,7 +418,7 @@ export function DashboardPage() {
               description="As três metas mais críticas do ciclo atual."
             />
               <div className="mt-5 space-y-5">
-                {goals.slice(0, 3).map((goal) => {
+                {visibleGoals.length > 0 ? visibleGoals.map((goal) => {
                   const responsibleIds = getGoalResponsibleIds(goal);
                   const member = teamMembers.find((item) => item.id === responsibleIds[0]) ?? teamMembers[0];
                   const progress = (goal.current / goal.target) * 100;
@@ -433,7 +449,12 @@ export function DashboardPage() {
                     </div>
                   </div>
                 );
-              })}
+              }) : (
+                <EmptyState
+                  title="Nenhuma meta cadastrada"
+                  description="Adicione metas no Supabase para ver a comparação por aqui."
+                />
+              )}
             </div>
           </GlassPanel>
 
@@ -462,39 +483,46 @@ export function DashboardPage() {
               ))}
             </div>
             <div className="mt-4 h-[360px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={evolutionData} margin={{ top: 10, right: 18, left: -12, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="reachGradient" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0%" stopColor="#833AB4" stopOpacity={0.32} />
-                      <stop offset="100%" stopColor="#833AB4" stopOpacity={0.03} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke="rgb(var(--border) / 0.5)" strokeDasharray="3 3" vertical={false} />
-                  <XAxis
-                    dataKey="date"
-                    tickLine={false}
-                    axisLine={false}
-                    tick={{ fill: "rgb(var(--muted-foreground) / 1)", fontSize: 12 }}
-                  />
-                  <YAxis tickLine={false} axisLine={false} tick={{ fill: "rgb(var(--muted-foreground) / 1)", fontSize: 12 }} />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: 18,
-                      border: "1px solid rgb(var(--border) / 0.65)",
-                      backgroundColor: "rgb(var(--card) / 0.98)",
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="reach"
-                    stroke="#833AB4"
-                    fill="url(#reachGradient)"
-                    strokeWidth={3}
-                  />
-                  <Line type="monotone" dataKey="engagement" stroke="#E1306C" strokeWidth={2.5} dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
+              {evolutionData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={evolutionData} margin={{ top: 10, right: 18, left: -12, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="reachGradient" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stopColor="#833AB4" stopOpacity={0.32} />
+                        <stop offset="100%" stopColor="#833AB4" stopOpacity={0.03} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid stroke="rgb(var(--border) / 0.5)" strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="date"
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fill: "rgb(var(--muted-foreground) / 1)", fontSize: 12 }}
+                    />
+                    <YAxis tickLine={false} axisLine={false} tick={{ fill: "rgb(var(--muted-foreground) / 1)", fontSize: 12 }} />
+                    <Tooltip
+                      contentStyle={{
+                        borderRadius: 18,
+                        border: "1px solid rgb(var(--border) / 0.65)",
+                        backgroundColor: "rgb(var(--card) / 0.98)",
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="reach"
+                      stroke="#833AB4"
+                      fill="url(#reachGradient)"
+                      strokeWidth={3}
+                    />
+                    <Line type="monotone" dataKey="engagement" stroke="#E1306C" strokeWidth={2.5} dot={false} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <EmptyState
+                  title="Sem evolução registrada"
+                  description="Os gráficos aparecem quando houver posts cadastrados no Supabase."
+                />
+              )}
             </div>
           </GlassPanel>
         </div>
