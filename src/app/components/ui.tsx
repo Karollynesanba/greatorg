@@ -337,7 +337,9 @@ export function RoundedDatePicker({
   label?: string;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
+  const [placement, setPlacement] = useState<"bottom" | "top">("bottom");
   const [cursor, setCursor] = useState(() => parseDateKey(value) ?? new Date());
 
   useEffect(() => {
@@ -360,6 +362,36 @@ export function RoundedDatePicker({
 
     window.addEventListener("mousedown", handlePointerDown);
     return () => window.removeEventListener("mousedown", handlePointerDown);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    const updatePlacement = () => {
+      const rootNode = rootRef.current;
+      const popoverNode = popoverRef.current;
+      if (!rootNode || !popoverNode) {
+        return;
+      }
+
+      const rootRect = rootNode.getBoundingClientRect();
+      const estimatedHeight = popoverNode.offsetHeight || 420;
+      const spaceBelow = window.innerHeight - rootRect.bottom - 16;
+      const spaceAbove = rootRect.top - 16;
+
+      setPlacement(spaceBelow < estimatedHeight && spaceAbove > spaceBelow ? "top" : "bottom");
+    };
+
+    updatePlacement();
+    window.addEventListener("resize", updatePlacement);
+    window.addEventListener("scroll", updatePlacement, true);
+
+    return () => {
+      window.removeEventListener("resize", updatePlacement);
+      window.removeEventListener("scroll", updatePlacement, true);
+    };
   }, [open]);
 
   const todayKey = formatDateKey(new Date());
@@ -387,7 +419,11 @@ export function RoundedDatePicker({
 
       {open ? (
         <div
-          className="absolute right-0 top-full z-50 mt-3 w-[340px] overflow-hidden overscroll-contain rounded-[1.75rem] border border-border/70 bg-background shadow-[0_24px_60px_rgba(15,23,42,0.16)] dark:border-border/60 dark:bg-card dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]"
+          ref={popoverRef}
+          className={cn(
+            "absolute right-0 z-50 w-[340px] overflow-hidden overscroll-contain rounded-[1.75rem] border border-border/70 bg-background shadow-[0_24px_60px_rgba(15,23,42,0.16)] dark:border-border/60 dark:bg-card dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]",
+            placement === "bottom" ? "top-full mt-3" : "bottom-full mb-3",
+          )}
           onWheelCapture={(event) => event.stopPropagation()}
         >
           <div className="flex items-center justify-between border-b border-border/60 px-4 py-4">
