@@ -33,6 +33,7 @@ import {
   MemberChip,
   cn,
 } from "../components/ui";
+import { useThemeMode } from "../theme";
 
 const viewModes = ["Dia", "Semana", "Mês"] as const;
 const dragType = "calendar-event";
@@ -266,6 +267,7 @@ function CalendarSlot({
   onAddAtSlot: (date: string, time: string) => void;
   onDeleteEvent: (event: CalendarEvent) => void;
 }) {
+  const { isDark } = useThemeMode();
   const [{ isOver }, drop] = useDrop(() => ({
     accept: dragType,
     drop: (item: { id: number }) => onDropEvent(item.id, date, time),
@@ -282,7 +284,8 @@ function CalendarSlot({
       ref={attachDropRef}
       onClick={() => onAddAtSlot(date, time)}
       className={cn(
-        "relative min-h-[92px] border-l border-t border-border/45 bg-white/85 p-2 transition dark:bg-card/90 dark:border-border/60",
+        "relative min-h-[92px] border-l border-t p-2 transition",
+        isDark ? "border-border/60 bg-card/90" : "border-border/30 bg-white/95",
         "cursor-pointer hover:bg-primary/5",
         isOver && "bg-primary/5",
       )}
@@ -312,6 +315,7 @@ function ResponsibleMultiPicker({
   teamMembers: { id: number; name: string; color: string }[];
   onChange: (value: number[]) => void;
 }) {
+  const { isDark } = useThemeMode();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
@@ -347,7 +351,10 @@ function ResponsibleMultiPicker({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 bg-background px-4 py-3 text-left text-sm transition hover:border-primary/25 hover:shadow-sm dark:bg-card/90 dark:hover:bg-card"
+        className={cn(
+          "flex w-full items-center justify-between gap-3 rounded-full border border-border/70 px-4 py-3 text-left text-sm transition hover:border-primary/25 hover:shadow-sm",
+          isDark ? "bg-card/90 hover:bg-card" : "bg-white hover:bg-muted/60",
+        )}
       >
         <span className="flex min-w-0 items-center gap-3">
           <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -368,7 +375,10 @@ function ResponsibleMultiPicker({
       {open && popoverPosition ? createPortal(
         <div
           ref={popoverRef}
-          className="z-[9999] overflow-hidden rounded-[1.75rem] border border-border/70 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.16)] dark:border-border/60 dark:bg-card dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]"
+          className={cn(
+            "z-[9999] overflow-hidden rounded-[1.75rem] border shadow-[0_24px_60px_rgba(15,23,42,0.16)]",
+            isDark ? "border-border/60 bg-card dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]" : "border-border/60 bg-white",
+          )}
           style={{
             position: "fixed",
             top: popoverPosition.top,
@@ -398,7 +408,7 @@ function ResponsibleMultiPicker({
 
                       onChange(nextIds.length > 0 ? getUniqueIds(nextIds) : selectedIds);
                     }}
-                    className="flex w-full items-center justify-between rounded-full px-4 py-3 text-left text-sm transition hover:bg-muted"
+                  className="flex w-full items-center justify-between rounded-full px-4 py-3 text-left text-sm transition hover:bg-muted"
                     style={{
                       backgroundColor: selected ? "rgb(var(--muted) / 1)" : undefined,
                       boxShadow: selected ? "inset 0 0 0 1px rgb(var(--border) / 0.7)" : undefined,
@@ -428,7 +438,10 @@ function ResponsibleMultiPicker({
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="rounded-full border border-border/60 bg-background px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:text-foreground dark:bg-card/80"
+              className={cn(
+                "rounded-full border border-border/60 px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:text-foreground",
+                isDark ? "bg-card/80" : "bg-white",
+              )}
             >
               Fechar
             </button>
@@ -441,12 +454,16 @@ function ResponsibleMultiPicker({
 }
 
 function MiniMonth({ date }: { date: Date }) {
+  const { isDark } = useThemeMode();
   const monthCells = buildMonthCells(date);
   const currentMonth = date.getMonth();
   const currentDay = formatDateKey(getTodayDate());
 
   return (
-    <div className="rounded-[1.75rem] border border-border/60 bg-white p-4 shadow-sm dark:bg-card/95 dark:shadow-[0_18px_36px_rgba(0,0,0,0.18)]">
+    <div className={cn(
+      "rounded-[1.75rem] border border-border/60 p-4 shadow-sm",
+      isDark ? "bg-card/95 dark:shadow-[0_18px_36px_rgba(0,0,0,0.18)]" : "bg-white shadow-[0_18px_36px_rgba(15,23,42,0.06)]",
+    )}>
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-foreground">{formatMonthLabel(date)}</h3>
         <span className="text-xs font-medium text-muted-foreground">Abr 2026</span>
@@ -490,10 +507,14 @@ function SideAgenda({
   teamMembers: { id: number; name: string; color: string }[];
   onDelete: (event: CalendarEvent) => void;
 }) {
+  const { isDark } = useThemeMode();
   const orderedEvents = [...events].sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
 
   return (
-    <div className="rounded-[1.75rem] border border-border/60 bg-white p-4 shadow-sm dark:bg-card/95 dark:shadow-[0_18px_36px_rgba(0,0,0,0.18)]">
+    <div className={cn(
+      "rounded-[1.75rem] border border-border/60 p-4 shadow-sm",
+      isDark ? "bg-card/95 dark:shadow-[0_18px_36px_rgba(0,0,0,0.18)]" : "bg-white shadow-[0_18px_36px_rgba(15,23,42,0.06)]",
+    )}>
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-foreground">Agenda rápida</h3>
         <CirclePlus className="h-4 w-4 text-muted-foreground" />
@@ -533,6 +554,7 @@ function SideAgenda({
 }
 
 export function CalendarPage() {
+  const { isDark } = useThemeMode();
   const [view, setView] = useState<(typeof viewModes)[number]>("Semana");
   const [currentDate, setCurrentDate] = useState(() => getTodayDate());
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -574,6 +596,30 @@ export function CalendarPage() {
     () => filteredEvents.filter((event) => event.date.startsWith(`${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}`)),
     [currentDate, filteredEvents],
   );
+  const controlBarClass = isDark
+    ? "overflow-hidden p-4"
+    : "overflow-hidden border border-border/60 bg-white/96 p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)]";
+  const gridPanelClass = isDark
+    ? "overflow-hidden p-0"
+    : "overflow-hidden border border-border/60 bg-white/96 p-0 shadow-[0_18px_48px_rgba(15,23,42,0.06)]";
+  const navButtonClass = isDark
+    ? "inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/70 bg-card/90 text-foreground shadow-sm transition hover:bg-card"
+    : "inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/70 bg-white text-foreground shadow-sm transition hover:bg-muted";
+  const todayButtonClass = isDark
+    ? "rounded-full border border-border/70 bg-card/90 px-4 py-2.5 text-sm font-semibold text-foreground shadow-sm transition hover:bg-card"
+    : "rounded-full border border-border/70 bg-white px-4 py-2.5 text-sm font-semibold text-foreground shadow-sm transition hover:bg-muted";
+  const calendarShellClass = isDark
+    ? "min-w-[980px] rounded-[2rem] bg-card/95"
+    : "min-w-[980px] rounded-[2rem] bg-white";
+  const calendarHeaderClass = isDark
+    ? "sticky top-0 z-10 grid grid-cols-[72px_repeat(7,minmax(0,1fr))] border-b border-border/50 bg-card/95"
+    : "sticky top-0 z-10 grid grid-cols-[72px_repeat(7,minmax(0,1fr))] border-b border-border/50 bg-white/98 backdrop-blur";
+  const monthCellClass = isDark
+    ? "min-h-44 rounded-[1.6rem] border border-border/60 bg-card/95 p-3"
+    : "min-h-44 rounded-[1.6rem] border border-border/60 bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.04)]";
+  const modalClass = isDark
+    ? "w-full max-w-lg overflow-hidden rounded-[2.25rem] border border-border/60 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:border-white/8 dark:bg-card dark:shadow-[0_30px_80px_rgba(0,0,0,0.35)]"
+    : "w-full max-w-lg overflow-hidden rounded-[2.25rem] border border-border/60 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.12)]";
   const handleNavigate = (direction: -1 | 1) => {
     if (view === "Dia") {
       setCurrentDate((previous) => addDays(previous, direction));
@@ -833,12 +879,12 @@ export function CalendarPage() {
         </aside>
 
         <div className="space-y-4">
-          <GlassPanel className="overflow-hidden p-4">
+          <GlassPanel className={controlBarClass}>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/70 bg-white text-foreground shadow-sm transition hover:bg-muted dark:bg-card/90 dark:hover:bg-card"
+                  className={navButtonClass}
                   onClick={() => setIsSidebarCollapsed((value) => !value)}
                   aria-label={isSidebarCollapsed ? "Expandir lateral" : "Recolher lateral"}
                 >
@@ -847,21 +893,21 @@ export function CalendarPage() {
                 <button
                   type="button"
                   onClick={() => handleNavigate(-1)}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/70 bg-white text-foreground shadow-sm transition hover:bg-muted dark:bg-card/90 dark:hover:bg-card"
+                  className={navButtonClass}
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
                 <button
                   type="button"
                   onClick={() => handleNavigate(1)}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/70 bg-white text-foreground shadow-sm transition hover:bg-muted dark:bg-card/90 dark:hover:bg-card"
+                  className={navButtonClass}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>
                 <button
                   type="button"
                   onClick={() => setCurrentDate(getTodayDate())}
-                  className="rounded-full border border-border/70 bg-white px-4 py-2.5 text-sm font-semibold text-foreground shadow-sm transition hover:bg-muted dark:bg-card/90 dark:hover:bg-card"
+                  className={todayButtonClass}
                 >
                   Hoje
                 </button>
@@ -892,11 +938,11 @@ export function CalendarPage() {
             </div>
           </GlassPanel>
 
-          <GlassPanel className="overflow-hidden p-0">
+          <GlassPanel className={gridPanelClass}>
             {view === "Semana" ? (
               <div className="overflow-x-auto">
-                <div className="min-w-[980px] rounded-[2rem] bg-white dark:bg-card/95">
-                  <div className="sticky top-0 z-10 grid grid-cols-[72px_repeat(7,minmax(0,1fr))] border-b border-border/50 bg-white/95 backdrop-blur dark:bg-card/95">
+                <div className={calendarShellClass}>
+                  <div className={calendarHeaderClass}>
                     <div className="px-3 py-4" />
                     {weekDates.map((date, index) => {
                       const isToday = formatDateKey(date) === formatDateKey(getTodayDate());
@@ -998,7 +1044,7 @@ export function CalendarPage() {
                         <div
                           key={dateKey}
                           className={cn(
-                          "min-h-44 rounded-[1.6rem] border border-border/60 bg-white p-3 dark:bg-card/95",
+                          monthCellClass,
                           !isCurrentMonth && "opacity-45",
                         )}
                       >
@@ -1032,7 +1078,7 @@ export function CalendarPage() {
           onClick={() => setSelectedEvent(null)}
         >
           <div
-            className="w-full max-w-lg overflow-hidden rounded-[2.25rem] border border-border/60 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:border-white/8 dark:bg-card dark:shadow-[0_30px_80px_rgba(0,0,0,0.35)]"
+            className={modalClass}
             onWheelCapture={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
           >

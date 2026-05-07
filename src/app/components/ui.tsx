@@ -76,7 +76,7 @@ export function GlassPanel({
       initial="hidden"
       animate="visible"
       className={cn(
-        "rounded-3xl border border-border/70 bg-card/96 p-5 shadow-[var(--shadow-card)] backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)] dark:border-white/6 dark:bg-[linear-gradient(180deg,rgba(19,23,31,0.96),rgba(12,15,21,0.98))] dark:shadow-[0_18px_48px_rgba(0,0,0,0.28)]",
+        "rounded-3xl border border-border/70 bg-white/96 p-5 shadow-[0_18px_48px_rgba(15,23,42,0.06)] backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_60px_rgba(15,23,42,0.08)] dark:border-white/6 dark:bg-[linear-gradient(180deg,rgba(19,23,31,0.96),rgba(12,15,21,0.98))] dark:shadow-[0_18px_48px_rgba(0,0,0,0.28)]",
         className,
       )}
       style={style}
@@ -149,10 +149,10 @@ export function ActionButton({
 }) {
   const variants = {
     primary:
-      "bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90",
+      "bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90 dark:bg-[#ff3b4e] dark:shadow-[0_14px_34px_rgba(255,59,78,0.22)] dark:hover:bg-[#ff5161]",
     secondary:
-      "bg-muted text-foreground hover:bg-muted/80",
-    ghost: "bg-transparent text-foreground hover:bg-muted/70",
+      "bg-muted text-foreground hover:bg-muted/80 dark:bg-[#1a2029] dark:hover:bg-[#222833]",
+    ghost: "bg-transparent text-foreground hover:bg-muted/70 dark:hover:bg-white/6",
   };
 
   return (
@@ -160,7 +160,7 @@ export function ActionButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition duration-200",
+        "inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium transition duration-200",
         variants[variant],
         className,
       )}
@@ -209,7 +209,7 @@ export function RoundedDropdown<T extends string | number>({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 bg-background px-4 py-3 text-sm transition hover:border-primary/25 hover:shadow-sm dark:bg-card/90 dark:hover:bg-card"
+        className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 bg-background px-4 py-3 text-sm transition hover:border-primary/25 hover:shadow-sm dark:border-white/8 dark:bg-[#171c25] dark:text-foreground dark:hover:bg-[#1f2631]"
       >
         <span className="flex items-center gap-3 text-left">
           {selectedOption?.color ? (
@@ -223,7 +223,7 @@ export function RoundedDropdown<T extends string | number>({
       </button>
 
       {open ? (
-        <div className="absolute left-0 top-full z-50 mt-2 w-full rounded-[1.75rem] border border-border/70 bg-background p-2 shadow-[0_24px_60px_rgba(15,23,42,0.14)] dark:border-border/60 dark:bg-card dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]">
+        <div className="absolute left-0 top-full z-50 mt-2 w-full rounded-[1.75rem] border border-border/70 bg-background p-2 shadow-[0_24px_60px_rgba(15,23,42,0.14)] dark:border-white/8 dark:bg-[#121821] dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]">
           <p className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             {label}
           </p>
@@ -239,7 +239,7 @@ export function RoundedDropdown<T extends string | number>({
                     onChange(option.value);
                     setOpen(false);
                   }}
-                  className="flex w-full items-center justify-between rounded-full px-4 py-3 text-left text-sm transition hover:bg-muted"
+                  className="flex w-full items-center justify-between rounded-full px-4 py-3 text-left text-sm transition hover:bg-muted dark:hover:bg-white/6"
                   style={{
                     backgroundColor: selected ? "rgb(var(--muted) / 1)" : undefined,
                     boxShadow: selected ? "inset 0 0 0 1px rgb(var(--border) / 0.7)" : undefined,
@@ -442,7 +442,7 @@ export function RoundedDatePicker({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 bg-background px-4 py-3 text-left text-sm transition hover:border-primary/25 hover:shadow-sm dark:bg-card/90 dark:hover:bg-card"
+        className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 bg-background px-4 py-3 text-left text-sm transition hover:border-primary/25 hover:shadow-sm dark:border-white/8 dark:bg-[#171c25] dark:text-foreground dark:hover:bg-[#1f2631]"
       >
         <span className="flex items-center gap-3">
           <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -459,7 +459,7 @@ export function RoundedDatePicker({
       {open && popoverPosition ? (
             <div
               ref={popoverRef}
-              className="z-[9999] overflow-hidden overscroll-contain rounded-[1.75rem] border border-border/70 bg-background shadow-[0_24px_60px_rgba(15,23,42,0.16)] dark:border-border/60 dark:bg-card dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]"
+              className="z-[9999] overflow-hidden overscroll-contain rounded-[1.75rem] border border-border/70 bg-background shadow-[0_24px_60px_rgba(15,23,42,0.16)] dark:border-white/8 dark:bg-[#121821] dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]"
               style={{
                 position: "fixed",
                 top: popoverPosition.top,
@@ -472,7 +472,7 @@ export function RoundedDatePicker({
             <button
               type="button"
               onClick={() => setCursor((current) => addMonths(current, -1))}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted text-foreground transition hover:bg-muted/80"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted text-foreground transition hover:bg-muted/80 dark:bg-[#1a2029] dark:hover:bg-[#232a37]"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -483,7 +483,7 @@ export function RoundedDatePicker({
             <button
               type="button"
               onClick={() => setCursor((current) => addMonths(current, 1))}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted text-foreground transition hover:bg-muted/80"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted text-foreground transition hover:bg-muted/80 dark:bg-[#1a2029] dark:hover:bg-[#232a37]"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -514,7 +514,7 @@ export function RoundedDatePicker({
                       "flex h-10 items-center justify-center rounded-full text-sm transition",
                       isSelected && "bg-primary text-primary-foreground shadow-lg shadow-primary/20",
                       !isSelected && isToday && "border border-primary/30 bg-primary/8 text-primary",
-                      !isSelected && !isToday && isCurrentMonth && "text-foreground hover:bg-muted",
+                      !isSelected && !isToday && isCurrentMonth && "text-foreground hover:bg-muted dark:text-foreground dark:hover:bg-white/6",
                       !isCurrentMonth && "text-muted-foreground/35",
                     )}
                   >
@@ -533,14 +533,14 @@ export function RoundedDatePicker({
                   setCursor(now);
                   setOpen(false);
                 }}
-                className="rounded-full border border-border/60 bg-muted/40 px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-muted/70"
+                className="rounded-full border border-border/60 bg-muted/40 px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-muted/70 dark:border-white/8 dark:bg-[#1a2029] dark:hover:bg-[#232a37]"
               >
                 Hoje
               </button>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-full border border-border/60 bg-background px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:text-foreground dark:bg-card/80"
+                className="rounded-full border border-border/60 bg-background px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:text-foreground dark:border-white/8 dark:bg-[#121821] dark:hover:bg-[#1a2029]"
               >
                 Fechar
               </button>
@@ -602,7 +602,7 @@ export function RoundedTimePicker({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 bg-background px-4 py-3 text-left text-sm transition hover:border-primary/25 hover:shadow-sm dark:bg-card/90 dark:hover:bg-card"
+        className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 bg-background px-4 py-3 text-left text-sm transition hover:border-primary/25 hover:shadow-sm dark:border-white/8 dark:bg-[#171c25] dark:text-foreground dark:hover:bg-[#1f2631]"
       >
         <span className="flex items-center gap-3">
           <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -620,7 +620,7 @@ export function RoundedTimePicker({
         ? createPortal(
             <div
               ref={popoverRef}
-              className="z-[9999] overflow-hidden overscroll-contain rounded-[1.75rem] border border-border/70 bg-background shadow-[0_24px_60px_rgba(15,23,42,0.16)] dark:border-border/60 dark:bg-card dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]"
+              className="z-[9999] overflow-hidden overscroll-contain rounded-[1.75rem] border border-border/70 bg-background shadow-[0_24px_60px_rgba(15,23,42,0.16)] dark:border-white/8 dark:bg-[#121821] dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]"
               style={{
                 position: "fixed",
                 top: popoverPosition.top,
@@ -644,7 +644,7 @@ export function RoundedTimePicker({
                           key={item}
                           type="button"
                           onClick={() => onChange(`${item}:${selectedMinute}`)}
-                          className="flex w-full items-center justify-between rounded-full px-3 py-2 text-sm transition hover:bg-muted"
+                          className="flex w-full items-center justify-between rounded-full px-3 py-2 text-sm transition hover:bg-muted dark:hover:bg-white/6"
                           style={{
                             backgroundColor: active ? "rgb(var(--muted) / 1)" : undefined,
                           }}
@@ -666,7 +666,7 @@ export function RoundedTimePicker({
                           key={item}
                           type="button"
                           onClick={() => onChange(`${selectedHour}:${item}`)}
-                          className="flex w-full items-center justify-between rounded-full px-3 py-2 text-sm transition hover:bg-muted"
+                          className="flex w-full items-center justify-between rounded-full px-3 py-2 text-sm transition hover:bg-muted dark:hover:bg-white/6"
                           style={{
                             backgroundColor: active ? "rgb(var(--muted) / 1)" : undefined,
                           }}
@@ -683,14 +683,14 @@ export function RoundedTimePicker({
                 <button
                   type="button"
                   onClick={() => onChange("09:00")}
-                  className="rounded-full border border-border/60 bg-muted/40 px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-muted/70"
+                className="rounded-full border border-border/60 bg-muted/40 px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-muted/70 dark:border-white/8 dark:bg-[#1a2029] dark:hover:bg-[#232a37]"
                 >
                   09:00
                 </button>
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="rounded-full border border-border/60 bg-background px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:text-foreground dark:bg-card/80"
+                className="rounded-full border border-border/60 bg-background px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:text-foreground dark:border-white/8 dark:bg-[#121821] dark:hover:bg-[#1a2029]"
                 >
                   Fechar
                 </button>
@@ -720,9 +720,9 @@ export function IconActionButton({
 }) {
   const tones = {
     neutral:
-      "border-border/70 bg-white/95 text-muted-foreground shadow-sm hover:border-primary/25 hover:text-foreground hover:shadow-md dark:border-white/8 dark:bg-card/95 dark:text-muted-foreground dark:hover:bg-card",
+      "border-border/70 bg-white/95 text-muted-foreground shadow-sm hover:border-primary/25 hover:text-foreground hover:shadow-md dark:border-white/8 dark:bg-[#171c25] dark:text-muted-foreground dark:hover:bg-[#1f2631]",
     danger:
-      "border-rose-200 bg-white/95 text-rose-500 shadow-sm hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 hover:shadow-md dark:border-[#ff8da5]/20 dark:bg-card/95 dark:text-[#ff8da5] dark:hover:bg-[#2a171b]",
+      "border-rose-200 bg-white/95 text-rose-500 shadow-sm hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 hover:shadow-md dark:border-[#ff8da5]/20 dark:bg-[#1d171a] dark:text-[#ff8da5] dark:hover:bg-[#2a171b]",
   };
 
   return (
@@ -817,7 +817,9 @@ export function FilterPill({
       onClick={onClick}
       className={cn(
         "rounded-full px-4 py-2 text-sm font-medium transition duration-200",
-        active ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "bg-muted text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+        active
+          ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 dark:bg-[#ff3b4e]"
+          : "bg-muted text-muted-foreground hover:bg-muted/70 hover:text-foreground dark:bg-[#171c25] dark:text-slate-300 dark:hover:bg-[#1f2631] dark:hover:text-white",
       )}
     >
       {label}
@@ -1091,7 +1093,7 @@ export function ChecklistItem({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-3 rounded-2xl bg-muted/50 px-4 py-3 text-left transition hover:bg-muted dark:bg-white/4 dark:hover:bg-white/7"
+      className="flex w-full items-center gap-3 rounded-2xl bg-muted/50 px-4 py-3 text-left transition hover:bg-muted dark:bg-[#151b24] dark:hover:bg-[#1d2430]"
     >
       <span
         className={cn(

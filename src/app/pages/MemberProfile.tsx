@@ -51,7 +51,7 @@ export function MemberProfilePage() {
   const memberGoals = goals.filter((goal) => getGoalResponsibleIds(goal).includes(member.id));
   const panelBackground = isDark
     ? `linear-gradient(180deg, rgba(24,24,26,0.98), ${member.color}12)`
-    : `linear-gradient(180deg, rgba(255,255,255,0.98), ${member.color}08)`;
+    : `linear-gradient(180deg, rgba(255,255,255,0.99), rgba(252,252,253,0.98))`;
 
   return (
     <PageTransition>
@@ -99,7 +99,7 @@ export function MemberProfilePage() {
           </div>
           <div
             className="rounded-3xl px-6 py-5 text-center"
-            style={{ backgroundColor: isDark ? `${member.color}14` : `${member.color}08` }}
+            style={{ backgroundColor: isDark ? `${member.color}14` : "rgba(255,255,255,0.92)" }}
           >
             <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Performance Score</p>
             <p className="mt-2 text-5xl font-semibold text-foreground">{member.stats.performance}</p>
@@ -165,7 +165,7 @@ export function MemberProfilePage() {
             <div
               key={goal.id}
               className="rounded-3xl p-5"
-              style={{ backgroundColor: isDark ? `${member.color}12` : `${member.color}08` }}
+              style={{ backgroundColor: isDark ? `${member.color}12` : "rgba(255,255,255,0.92)" }}
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>

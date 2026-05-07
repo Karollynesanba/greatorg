@@ -87,7 +87,7 @@ function MemberDropdown({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 bg-background px-4 py-3 text-sm transition hover:border-primary/25 hover:shadow-sm"
+        className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 bg-background px-4 py-3 text-sm transition hover:border-primary/25 hover:shadow-sm dark:border-white/8 dark:bg-[#171c25] dark:text-foreground dark:hover:bg-[#1f2631]"
       >
         <span className="flex items-center gap-3 text-left">
           <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: selectedMember.color }} />
@@ -100,7 +100,7 @@ function MemberDropdown({
 
       {open ? (
         <div
-          className="absolute left-0 top-full z-50 mt-2 w-full rounded-[1.75rem] border border-border/70 bg-background p-2 shadow-[0_24px_60px_rgba(15,23,42,0.14)] dark:border-border/60 dark:bg-card dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]"
+          className="absolute left-0 top-full z-50 mt-2 w-full rounded-[1.75rem] border border-border/70 bg-background p-2 shadow-[0_24px_60px_rgba(15,23,42,0.14)] dark:border-white/8 dark:bg-[#121821] dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]"
         >
           <p className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             Responsável
@@ -117,7 +117,7 @@ function MemberDropdown({
                     onChange(member.id);
                     setOpen(false);
                   }}
-                  className="flex w-full items-center justify-between rounded-full px-4 py-3 text-left text-sm transition hover:bg-muted"
+                  className="flex w-full items-center justify-between rounded-full px-4 py-3 text-left text-sm transition hover:bg-muted dark:hover:bg-white/6"
                   style={{
                     backgroundColor: selected ? "rgb(var(--muted) / 1)" : undefined,
                     boxShadow: selected ? "inset 0 0 0 1px rgba(var(--border), 0.6)" : undefined,

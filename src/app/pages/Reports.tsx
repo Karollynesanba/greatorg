@@ -49,6 +49,7 @@ import {
   formatLongNumber,
   formatPercent,
 } from "../components/ui";
+import { useThemeMode } from "../theme";
 const reportPeriods = [
   { label: "7 dias", value: "7" as const },
   { label: "30 dias", value: "30" as const },
@@ -109,7 +110,7 @@ function RoundedDropdown<T extends string | number>({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 bg-background px-5 py-3 text-left text-sm transition hover:border-primary/25 hover:shadow-sm"
+        className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 bg-background px-5 py-3 text-left text-sm transition hover:border-primary/25 hover:shadow-sm dark:border-white/8 dark:bg-[#171c25] dark:text-foreground dark:hover:bg-[#1f2631]"
       >
         <span
           className="truncate font-medium"
@@ -117,12 +118,12 @@ function RoundedDropdown<T extends string | number>({
         >
           {selected?.label ?? label}
         </span>
-        <span
-          className={cn(
-            "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border/60 bg-muted/40 text-muted-foreground transition",
-            open && "rotate-180",
-          )}
-        >
+          <span
+            className={cn(
+              "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border/60 bg-muted/40 text-muted-foreground transition dark:border-white/8 dark:bg-[#1f2631] dark:text-slate-200",
+              open && "rotate-180",
+            )}
+          >
           <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
             <path d="M5 7.5L10 12.5L15 7.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -130,7 +131,7 @@ function RoundedDropdown<T extends string | number>({
       </button>
 
       {open ? (
-        <div className="absolute left-0 top-full z-[90] mt-2 w-full overflow-hidden rounded-[1.75rem] border border-border/70 bg-white p-2 shadow-[0_24px_60px_rgba(15,23,42,0.14)]">
+        <div className="absolute left-0 top-full z-[90] mt-2 w-full overflow-hidden rounded-[1.75rem] border border-border/70 bg-white p-2 shadow-[0_24px_60px_rgba(15,23,42,0.14)] dark:border-white/8 dark:bg-[#121821] dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]">
           <div className="space-y-1">
             {options.map((option) => {
               const active = option.value === value;
@@ -145,7 +146,9 @@ function RoundedDropdown<T extends string | number>({
                   }}
                   className={cn(
                     "flex w-full items-center justify-between rounded-full px-4 py-3 text-left text-sm transition",
-                    active ? "bg-primary text-primary-foreground shadow-sm" : "hover:bg-muted/70",
+                    active
+                      ? "bg-primary text-primary-foreground shadow-sm dark:bg-[#ff3b4e]"
+                      : "hover:bg-muted/70 dark:text-slate-200 dark:hover:bg-white/6",
                   )}
                 >
                   <span
@@ -242,6 +245,7 @@ function downloadText(filename: string, content: string, mimeType: string) {
 }
 
 export function ReportsPage() {
+  const { isDark } = useThemeMode();
   const anchorDate = useMemo(() => new Date("2026-04-30T12:00:00"), []);
   const [period, setPeriod] = useState<ReportPeriod>("30");
   const [typeFilter, setTypeFilter] = useState<ContentType | "todos">("todos");
@@ -257,6 +261,28 @@ export function ReportsPage() {
   useEffect(() => {
     setSavedReports([]);
   }, [setSavedReports]);
+
+  const heroSurfaceClass = isDark
+    ? "overflow-hidden bg-[linear-gradient(135deg,rgba(131,58,180,0.96),rgba(180,97,214,0.9),rgba(225,48,108,0.82))] text-white"
+    : "overflow-hidden bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,250,252,0.98))] text-foreground";
+  const heroStatClass = isDark
+    ? "rounded-3xl bg-white/12 p-5 ring-1 ring-white/10 backdrop-blur"
+    : "rounded-3xl border border-border/60 bg-white/92 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]";
+  const filtersBarClass = isDark
+    ? "mt-5 flex flex-col gap-4 rounded-[2rem] border border-border/60 bg-card/95 p-4 lg:flex-row lg:items-center"
+    : "mt-5 flex flex-col gap-4 rounded-[2rem] border border-border/60 bg-white/98 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.05)] lg:flex-row lg:items-center";
+  const softSectionClass = isDark
+    ? "rounded-[2rem] border border-border/60 bg-muted/35 p-5 dark:bg-card/95"
+    : "rounded-[2rem] border border-border/60 bg-white/95 p-5";
+  const softTileClass = isDark
+    ? "rounded-2xl bg-white/80 p-4 dark:bg-background/80"
+    : "rounded-2xl border border-border/50 bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]";
+  const softCardClass = isDark
+    ? "rounded-3xl border border-border/60 bg-muted/35 p-5 dark:bg-card/95"
+    : "rounded-3xl border border-border/60 bg-white/95 p-5 shadow-[0_14px_32px_rgba(15,23,42,0.05)]";
+  const softCardCompactClass = isDark
+    ? "rounded-3xl bg-muted/35 p-5 dark:bg-card/90"
+    : "rounded-3xl border border-border/60 bg-white/95 p-5 shadow-[0_14px_32px_rgba(15,23,42,0.05)]";
 
   const currentRange = useMemo(
     () => rangeFromPeriod(period, anchorDate, customRange),
@@ -749,15 +775,22 @@ export function ReportsPage() {
 
       <GlassPanel
         index={1}
-        className="overflow-hidden bg-[linear-gradient(135deg,rgba(131,58,180,0.96),rgba(180,97,214,0.9),rgba(225,48,108,0.82))] text-white"
+        className={heroSurfaceClass}
       >
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
-            <p className="inline-flex rounded-full bg-white/14 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/82 ring-1 ring-white/10">
+            <p
+              className={cn(
+                "inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em]",
+                isDark
+                  ? "bg-white/14 text-white/82 ring-1 ring-white/10"
+                  : "border border-border/60 bg-white text-muted-foreground shadow-sm",
+              )}
+            >
               Visão geral
             </p>
             <h2 className="mt-3 text-2xl font-semibold">Resumo executivo</h2>
-            <p className="mt-2 text-sm leading-6 text-white/88">
+            <p className={cn("mt-2 text-sm leading-6", isDark ? "text-white/88" : "text-muted-foreground")}>
               O perfil mantém saúde alta, acelera crescimento de alcance e encontra melhor eficiência quando combina reels educativos com repertório prático de operação.
             </p>
           </div>
@@ -768,8 +801,10 @@ export function ReportsPage() {
               { label: "Engajamento", value: formatLongNumber(currentSummary.engagement) },
               { label: "Publicações", value: String(currentSummary.postsCount) },
             ].map((item) => (
-              <div key={item.label} className="rounded-3xl bg-white/12 p-5 ring-1 ring-white/10 backdrop-blur">
-                <p className="text-xs uppercase tracking-[0.16em] text-white/74">{item.label}</p>
+              <div key={item.label} className={heroStatClass}>
+                <p className={cn("text-xs uppercase tracking-[0.16em]", isDark ? "text-white/74" : "text-muted-foreground")}>
+                  {item.label}
+                </p>
                 <p className="mt-3 text-3xl font-semibold">{item.value}</p>
               </div>
             ))}
@@ -782,7 +817,7 @@ export function ReportsPage() {
           title="Filtros"
           description="Período, tipo de conteúdo e responsável alteram toda a leitura."
         />
-        <div className="mt-5 flex flex-col gap-4 rounded-[2rem] border border-border/60 bg-card/95 p-4 lg:flex-row lg:items-center">
+        <div className={filtersBarClass}>
           <div className="flex flex-wrap gap-2">
             {reportPeriods.map((item) => (
               <FilterPill key={item.value} label={item.label} active={period === item.value} onClick={() => setPeriod(item.value)} />
@@ -906,7 +941,7 @@ export function ReportsPage() {
 
         <GlassPanel index={8}>
           <SectionTitle title="Drill-down" description="Clique em uma métrica para abrir a leitura detalhada." />
-          <div className="mt-6 rounded-[2rem] border border-border/60 bg-muted/35 p-5 dark:bg-card/95">
+          <div className={softSectionClass}>
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">{selectedMetricDetails[selectedMetric].title}</p>
@@ -919,7 +954,7 @@ export function ReportsPage() {
             <p className="mt-4 text-sm leading-6 text-muted-foreground">{selectedMetricCard.detail}</p>
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
               {selectedMetricDetails[selectedMetric].breakdown.map((item) => (
-                <div key={item.label} className="rounded-2xl bg-white/80 p-4 dark:bg-background/80">
+                <div key={item.label} className={softTileClass}>
                   <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{item.label}</p>
                   <p className="mt-2 text-base font-semibold text-foreground">{item.value}</p>
                 </div>
@@ -941,7 +976,7 @@ export function ReportsPage() {
               return (
                 <div
                   key={goal.id}
-                  className="rounded-3xl border border-border/60 bg-muted/35 p-5 dark:bg-card/95"
+                  className={softCardClass}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div>
@@ -953,15 +988,15 @@ export function ReportsPage() {
                     </span>
                   </div>
                   <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
-                    <div className="rounded-2xl bg-white/80 p-3 dark:bg-background/80">
+                    <div className={softTileClass}>
                       <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Atual</p>
                       <p className="mt-2 font-semibold text-foreground">{formatLongNumber(goal.current)}</p>
                     </div>
-                    <div className="rounded-2xl bg-white/80 p-3 dark:bg-background/80">
+                    <div className={softTileClass}>
                       <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Meta</p>
                       <p className="mt-2 font-semibold text-foreground">{formatLongNumber(goal.target)}</p>
                     </div>
-                    <div className="rounded-2xl bg-white/80 p-3 dark:bg-background/80">
+                    <div className={softTileClass}>
                       <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Restante</p>
                       <p className="mt-2 font-semibold text-foreground">{formatLongNumber(remaining)}</p>
                     </div>
@@ -981,7 +1016,10 @@ export function ReportsPage() {
             {alerts.map((alert) => (
               <div
                 key={alert.title}
-                className="flex items-start gap-3 rounded-3xl border border-border/60 bg-muted/30 p-4 dark:bg-card/95"
+                className={cn(
+                  "flex items-start gap-3 rounded-3xl border border-border/60 p-4",
+                  isDark ? "bg-muted/30 dark:bg-card/95" : "bg-white/95 shadow-[0_10px_24px_rgba(15,23,42,0.04)]",
+                )}
               >
                 <div
                   className={`mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-2xl ${
@@ -1005,7 +1043,7 @@ export function ReportsPage() {
           <SectionTitle title="Insights automáticos" description="Leituras geradas com base no recorte filtrado." />
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             {automaticInsights.map((item) => (
-              <div key={item.title} className="rounded-3xl bg-muted/35 p-5 dark:bg-card/90">
+              <div key={item.title} className={softCardCompactClass}>
                 <p className="text-sm text-muted-foreground">{item.title}</p>
                 <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{item.value}</p>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.detail}</p>
@@ -1018,7 +1056,7 @@ export function ReportsPage() {
           <SectionTitle title="Relatório por responsável" description="Desempenho individual e comparação entre usuários." />
           <div className="mt-5 space-y-4">
             {memberPerformance.map((entry) => (
-              <div key={entry.member.id} className="rounded-3xl border border-border/60 bg-muted/35 p-5 dark:bg-card/95">
+              <div key={entry.member.id} className={softCardClass}>
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="font-medium text-foreground">{entry.member.name}</p>
@@ -1030,15 +1068,15 @@ export function ReportsPage() {
                   </div>
                 </div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl bg-white/80 p-4 dark:bg-background/80">
+                  <div className={softTileClass}>
                     <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Publicações</p>
                     <p className="mt-2 text-xl font-semibold text-foreground">{entry.posts}</p>
                   </div>
-                  <div className="rounded-2xl bg-white/80 p-4 dark:bg-background/80">
+                  <div className={softTileClass}>
                     <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Engajamento</p>
                     <p className="mt-2 text-xl font-semibold text-foreground">{formatLongNumber(entry.engagement)}</p>
                   </div>
-                  <div className="rounded-2xl bg-white/80 p-4 dark:bg-background/80">
+                  <div className={softTileClass}>
                     <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Concluído</p>
                     <p className="mt-2 text-xl font-semibold text-foreground">{formatPercent(entry.completionRate * 100, 0)}</p>
                   </div>
@@ -1057,7 +1095,10 @@ export function ReportsPage() {
               savedReports.map((snapshot) => (
                 <div
                   key={snapshot.id}
-                  className="flex flex-col gap-4 rounded-3xl border border-border/60 bg-muted/30 p-4 md:flex-row md:items-center md:justify-between dark:bg-card/95"
+                  className={cn(
+                    "flex flex-col gap-4 rounded-3xl border border-border/60 p-4 md:flex-row md:items-center md:justify-between",
+                    isDark ? "bg-muted/30 dark:bg-card/95" : "bg-white/95 shadow-[0_10px_24px_rgba(15,23,42,0.04)]",
+                  )}
                 >
                   <div>
                     <p className="font-medium text-foreground">{snapshot.label}</p>
@@ -1083,17 +1124,17 @@ export function ReportsPage() {
         <GlassPanel index={14}>
           <SectionTitle title="Resumo das decisões" description="O que o recorte atual está sugerindo." />
           <div className="mt-5 space-y-3">
-            <div className="rounded-3xl bg-muted/35 p-5 dark:bg-card/90">
+            <div className={softCardCompactClass}>
               <p className="text-sm text-muted-foreground">Melhor horário</p>
               <p className="mt-2 text-2xl font-semibold text-foreground">
                 {insights.bestTime.day}, {insights.bestTime.hour}
               </p>
             </div>
-            <div className="rounded-3xl bg-muted/35 p-5 dark:bg-card/90">
+            <div className={softCardCompactClass}>
               <p className="text-sm text-muted-foreground">Melhor conteúdo</p>
               <p className="mt-2 text-2xl font-semibold text-foreground">{automaticInsights[1].value}</p>
             </div>
-            <div className="rounded-3xl bg-muted/35 p-5 dark:bg-card/90">
+            <div className={softCardCompactClass}>
               <p className="text-sm text-muted-foreground">Tendência</p>
               <p className="mt-2 text-2xl font-semibold text-foreground">
                 {comparison.reach >= 0 ? "Crescimento consistente" : "Pressão de queda"}

@@ -65,10 +65,8 @@ export function Sidebar({ onLogout }: { onLogout?: () => void }) {
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-[300px] -translate-x-full flex-col px-5 py-6 backdrop-blur-2xl transition-transform duration-300 xl:left-0 xl:top-0 xl:bottom-0 xl:flex xl:w-[286px] xl:translate-x-0 xl:rounded-none",
-          isDark
-            ? "border-r border-white/6 bg-[linear-gradient(180deg,rgba(14,18,26,0.98),rgba(10,13,20,0.96))] shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
-            : "border-r border-black/5 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,247,250,0.96))] shadow-[0_24px_70px_rgba(15,23,42,0.08)]",
+          "fixed inset-y-0 left-0 z-40 flex w-[300px] -translate-x-full flex-col px-5 py-6 transition-transform duration-300 xl:left-0 xl:top-0 xl:bottom-0 xl:flex xl:w-[286px] xl:translate-x-0 xl:rounded-none",
+          "bg-transparent shadow-none backdrop-blur-0 border-r-0",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >

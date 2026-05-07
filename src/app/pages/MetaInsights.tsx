@@ -217,6 +217,21 @@ export function MetaInsightsPage() {
       };
 
   const hasData = status === "ready" && data.connected;
+  const shellClass = isDark
+    ? "space-y-5 p-6"
+    : "space-y-5 p-6 bg-white/96 border border-border/60 shadow-[0_18px_48px_rgba(15,23,42,0.06)]";
+  const softPanelClass = isDark
+    ? "grid gap-3 rounded-[1.75rem] bg-muted/35 p-5 text-sm text-muted-foreground"
+    : "grid gap-3 rounded-[1.75rem] border border-border/60 bg-white/96 p-5 text-sm text-muted-foreground shadow-[0_12px_28px_rgba(15,23,42,0.05)]";
+  const statGridClass = isDark
+    ? "grid gap-3 rounded-[1.75rem] bg-muted/35 p-4 sm:grid-cols-2 lg:w-[420px]"
+    : "grid gap-3 rounded-[1.75rem] border border-border/60 bg-white/96 p-4 sm:grid-cols-2 lg:w-[420px] shadow-[0_12px_28px_rgba(15,23,42,0.05)]";
+  const summaryTileClass = isDark
+    ? "rounded-2xl bg-muted/45 p-4"
+    : "rounded-2xl border border-border/50 bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]";
+  const mediaTileClass = isDark
+    ? "rounded-2xl bg-muted/45 p-3"
+    : "rounded-2xl border border-border/50 bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.04)]";
 
   return (
     <PageTransition>
@@ -252,7 +267,7 @@ export function MetaInsightsPage() {
       {status === "loading" ? <LoadingState /> : null}
 
       {status === "error" ? (
-        <GlassPanel className="space-y-4 p-6">
+        <GlassPanel className={shellClass}>
           <div className="flex items-start gap-4">
             <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               <Sparkles className="h-5 w-5" />
@@ -263,7 +278,7 @@ export function MetaInsightsPage() {
             </div>
           </div>
 
-          <div className="grid gap-3 rounded-[1.75rem] bg-muted/35 p-5 text-sm text-muted-foreground">
+          <div className={softPanelClass}>
             <p>Confira se estas variáveis estão configuradas no ambiente:</p>
             <ul className="space-y-1">
               <li>
@@ -287,7 +302,7 @@ export function MetaInsightsPage() {
 
       {hasData ? (
         <div className="space-y-6">
-          <GlassPanel className="space-y-5 p-6">
+          <GlassPanel className={shellClass}>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="space-y-3">
                 <div className="inline-flex items-center gap-2 rounded-full bg-success/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-success">
@@ -308,7 +323,7 @@ export function MetaInsightsPage() {
                 </p>
               </div>
 
-              <div className="grid gap-3 rounded-[1.75rem] bg-muted/35 p-4 sm:grid-cols-2 lg:w-[420px]">
+              <div className={statGridClass}>
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Atualizado em</p>
                   <p className="mt-1 text-sm font-medium text-foreground">{formatDateTime(data.updatedAt)}</p>
@@ -356,7 +371,7 @@ export function MetaInsightsPage() {
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
-            <GlassPanel className="h-[420px] p-6">
+            <GlassPanel className={isDark ? "h-[420px] p-6" : "h-[420px] p-6 bg-white/96 border border-border/60 shadow-[0_18px_48px_rgba(15,23,42,0.06)]"}>
               <SectionTitle
                 title="Evolução do período"
                 description="Acompanhamento diário de alcance, views e visitas ao perfil."
@@ -409,7 +424,7 @@ export function MetaInsightsPage() {
               </div>
             </GlassPanel>
 
-            <GlassPanel className="space-y-5 p-6">
+            <GlassPanel className={shellClass}>
               <SectionTitle
                 title="Resumo da conta"
                 description="Últimas leituras agregadas pela Meta."
@@ -421,7 +436,7 @@ export function MetaInsightsPage() {
                   { label: "Views", value: data.summary.views },
                   { label: "Alcance", value: data.summary.reach },
                 ].map((item) => (
-                  <div key={item.label} className="rounded-2xl bg-muted/45 p-4">
+                  <div key={item.label} className={summaryTileClass}>
                     <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{item.label}</p>
                     <p className="mt-2 text-2xl font-semibold text-foreground">{formatCompactNumber(item.value)}</p>
                   </div>
@@ -431,7 +446,7 @@ export function MetaInsightsPage() {
           </div>
 
           <div className="grid gap-6 xl:grid-cols-3">
-            <GlassPanel className="space-y-4 p-6">
+            <GlassPanel className={shellClass}>
               <SectionTitle title="Países" description="Principais regiões da audiência." />
               <div className="space-y-3">
                 {topCountries.length > 0 ? (
@@ -450,7 +465,7 @@ export function MetaInsightsPage() {
               </div>
             </GlassPanel>
 
-            <GlassPanel className="space-y-4 p-6">
+            <GlassPanel className={shellClass}>
               <SectionTitle title="Cidades" description="Top localidades da audiência." />
               <div className="space-y-3">
                 {topCities.length > 0 ? (
@@ -469,7 +484,7 @@ export function MetaInsightsPage() {
               </div>
             </GlassPanel>
 
-            <GlassPanel className="space-y-4 p-6">
+            <GlassPanel className={shellClass}>
               <SectionTitle title="Faixa etária / gênero" description="Distribuição resumida da audiência." />
               <div className="space-y-3">
                 {topGenderAge.length > 0 ? (
@@ -489,7 +504,7 @@ export function MetaInsightsPage() {
             </GlassPanel>
           </div>
 
-          <GlassPanel className="space-y-5 p-6">
+          <GlassPanel className={shellClass}>
             <SectionTitle
               title="Conteúdos recentes"
               description="Os posts mais recentes com engajamento e alcance extraídos da conta."
@@ -503,7 +518,10 @@ export function MetaInsightsPage() {
                     href={item.permalink}
                     target="_blank"
                     rel="noreferrer"
-                    className="group overflow-hidden rounded-[1.75rem] border border-border/60 bg-background/90 transition hover:-translate-y-1 hover:shadow-[0_24px_50px_rgba(15,23,42,0.14)]"
+                    className={cn(
+                      "group overflow-hidden rounded-[1.75rem] border border-border/60 transition hover:-translate-y-1 hover:shadow-[0_24px_50px_rgba(15,23,42,0.14)]",
+                      isDark ? "bg-background/90" : "bg-white/96 shadow-[0_14px_32px_rgba(15,23,42,0.05)]",
+                    )}
                   >
                     <div className="relative aspect-[4/3] overflow-hidden bg-muted/50">
                       {item.thumbnailUrl ? (
@@ -525,19 +543,19 @@ export function MetaInsightsPage() {
                     <div className="space-y-4 p-5">
                       <p className="line-clamp-3 text-sm leading-6 text-foreground">{item.caption}</p>
                       <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div className="rounded-2xl bg-muted/45 p-3">
+                        <div className={mediaTileClass}>
                           <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Likes</p>
                           <p className="mt-2 font-semibold text-foreground">{formatCompactNumber(item.likeCount)}</p>
                         </div>
-                        <div className="rounded-2xl bg-muted/45 p-3">
+                        <div className={mediaTileClass}>
                           <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Comentários</p>
                           <p className="mt-2 font-semibold text-foreground">{formatCompactNumber(item.commentsCount)}</p>
                         </div>
-                        <div className="rounded-2xl bg-muted/45 p-3">
+                        <div className={mediaTileClass}>
                           <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Views</p>
                           <p className="mt-2 font-semibold text-foreground">{formatCompactNumber(item.views)}</p>
                         </div>
-                        <div className="rounded-2xl bg-muted/45 p-3">
+                        <div className={mediaTileClass}>
                           <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Alcance</p>
                           <p className="mt-2 font-semibold text-foreground">{formatCompactNumber(item.reach)}</p>
                         </div>

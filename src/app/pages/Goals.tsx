@@ -663,25 +663,80 @@ export function GoalsPage() {
         />
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <GlassPanel className="p-5">
+          <GlassPanel
+            className="p-5"
+            style={
+              isDark
+                ? undefined
+                : {
+                    background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(251,251,253,0.96))",
+                    borderColor: "rgba(229,231,238,0.82)",
+                    boxShadow: "0 18px 48px rgba(15,23,42,0.08)",
+                  }
+            }
+          >
             <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Total de metas</p>
             <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{stats.total}</p>
           </GlassPanel>
-          <GlassPanel className="p-5">
+          <GlassPanel
+            className="p-5"
+            style={
+              isDark
+                ? undefined
+                : {
+                    background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(251,251,253,0.96))",
+                    borderColor: "rgba(229,231,238,0.82)",
+                    boxShadow: "0 18px 48px rgba(15,23,42,0.08)",
+                  }
+            }
+          >
             <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Metas em grupo</p>
             <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{stats.groupGoals}</p>
           </GlassPanel>
-          <GlassPanel className="p-5">
+          <GlassPanel
+            className="p-5"
+            style={
+              isDark
+                ? undefined
+                : {
+                    background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(251,251,253,0.96))",
+                    borderColor: "rgba(229,231,238,0.82)",
+                    boxShadow: "0 18px 48px rgba(15,23,42,0.08)",
+                  }
+            }
+          >
             <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Pessoas envolvidas</p>
             <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{stats.coverage}</p>
           </GlassPanel>
-          <GlassPanel className="p-5">
+          <GlassPanel
+            className="p-5"
+            style={
+              isDark
+                ? undefined
+                : {
+                    background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(251,251,253,0.96))",
+                    borderColor: "rgba(229,231,238,0.82)",
+                    boxShadow: "0 18px 48px rgba(15,23,42,0.08)",
+                  }
+            }
+          >
             <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Progresso médio</p>
             <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{stats.avgProgress.toFixed(0)}%</p>
           </GlassPanel>
         </div>
 
-        <GlassPanel className="border-primary/10 bg-white/80 p-4 shadow-[0_14px_40px_rgba(15,23,42,0.06)]">
+        <GlassPanel
+          className="border-primary/10 bg-white/80 p-4 shadow-[0_14px_40px_rgba(15,23,42,0.06)]"
+          style={
+            isDark
+              ? undefined
+              : {
+                  background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(251,251,253,0.96))",
+                  borderColor: "rgba(229,231,238,0.82)",
+                  boxShadow: "0 16px 42px rgba(15,23,42,0.08)",
+                }
+          }
+        >
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Tipos de metas</p>
@@ -753,8 +808,10 @@ export function GoalsPage() {
                     background: isDark
                       ? "linear-gradient(180deg, rgba(24,24,26,0.98), rgba(16,16,18,0.96))"
                       : "linear-gradient(180deg, rgba(255,255,255,0.99), rgba(250,250,250,0.96))",
-                    borderColor: `${primaryMember?.color ?? "#e50914"}22`,
-                    boxShadow: `0 14px 28px ${primaryMember?.color ?? "#e50914"}0d`,
+                    borderColor: isDark ? `${primaryMember?.color ?? "#e50914"}22` : "rgba(229,231,238,0.82)",
+                    boxShadow: isDark
+                      ? `0 14px 28px ${primaryMember?.color ?? "#e50914"}0d`
+                      : "0 18px 48px rgba(15,23,42,0.08)",
                     borderLeftWidth: "4px",
                     borderLeftColor: primaryMember?.color ?? "#e50914",
                   }}
@@ -860,7 +917,7 @@ export function GoalsPage() {
             onClick={closeModal}
           >
             <div
-              className="w-full max-w-[min(94vw,920px)] max-h-[calc(100vh-24px)] overflow-y-auto overscroll-contain rounded-[2.5rem] border border-border/60 bg-white shadow-[0_34px_110px_rgba(15,23,42,0.24)] dark:border-white/8 dark:bg-card/98 sm:max-h-[calc(100vh-32px)] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            className="w-full max-w-[min(94vw,920px)] max-h-[calc(100vh-24px)] overflow-y-auto overscroll-contain rounded-[2.5rem] border border-border/60 bg-white shadow-[0_34px_110px_rgba(15,23,42,0.24)] dark:border-white/8 dark:bg-card/98 sm:max-h-[calc(100vh-32px)] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
               onClick={(event) => event.stopPropagation()}
             >
               <div className="block">

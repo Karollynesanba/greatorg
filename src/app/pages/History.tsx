@@ -131,6 +131,21 @@ export function HistoryPage() {
   const [personFilter, setPersonFilter] = useState<number | "todos">("todos");
   const [typeFilter, setTypeFilter] = useState<"todos" | "post" | "goal" | "schedule">("todos");
   const [pendingDelete, setPendingDelete] = useState<{ historyId: number; historyTitle: string } | null>(null);
+  const actionGroupClass = isDark
+    ? "flex flex-wrap gap-2 rounded-full border border-border/60 bg-muted/35 p-1.5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]"
+    : "flex flex-wrap gap-2 rounded-full border border-border/60 bg-white/96 p-1.5 shadow-[0_10px_24px_rgba(15,23,42,0.06)]";
+  const filterShellClass = isDark
+    ? "flex flex-col gap-4 rounded-[2rem] border border-border/60 bg-card/95 p-4 shadow-[var(--shadow-card)] lg:flex-row lg:items-center"
+    : "flex flex-col gap-4 rounded-[2rem] border border-border/60 bg-white/96 p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] lg:flex-row lg:items-center";
+  const timelineCardStyle = (color: string) => ({
+    background: isDark
+      ? "linear-gradient(180deg, rgba(24,24,26,0.98), rgba(16,16,18,0.96))"
+      : "linear-gradient(180deg, rgba(255,255,255,0.99), rgba(249,249,251,0.96))",
+    borderColor: `${color}28`,
+    boxShadow: `0 18px 36px ${color}10`,
+    borderLeftWidth: "4px",
+    borderLeftColor: color,
+  });
 
   const items = itemsState.filter((item) => {
     const matchesPerson = personFilter === "todos" || item.authorId === personFilter;
@@ -172,7 +187,7 @@ export function HistoryPage() {
         title="Histórico completo da operação"
         description="Acompanhe publicações, metas e movimentações do calendário em ordem cronológica ou em formato de tabela."
         actions={
-          <div className="flex flex-wrap gap-2 rounded-full border border-border/60 bg-muted/35 p-1.5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+          <div className={actionGroupClass}>
             {(["Timeline", "Tabela"] as const).map((item) => (
               <FilterPill
                 key={item}
@@ -187,7 +202,7 @@ export function HistoryPage() {
 
       <GlassPanel index={1} className="relative z-30 overflow-visible">
         <div
-          className="flex flex-col gap-4 rounded-[2rem] border border-border/60 p-4 shadow-[var(--shadow-card)] lg:flex-row lg:items-center"
+          className={filterShellClass}
           style={{
             backgroundColor: isDark ? "rgb(var(--card) / 0.96)" : "rgb(var(--card) / 0.95)",
           }}
@@ -251,16 +266,8 @@ export function HistoryPage() {
                 key={item.id}
                 index={index + 2}
                 className="group relative"
-                style={{
-                  background: isDark
-                    ? "linear-gradient(180deg, rgba(24,24,26,0.98), rgba(16,16,18,0.96))"
-                    : "linear-gradient(180deg, rgba(255,255,255,0.99), rgba(249,249,251,0.96))",
-                  borderColor: `${member.color}28`,
-                  boxShadow: `0 18px 36px ${member.color}10`,
-                  borderLeftWidth: "4px",
-                  borderLeftColor: member.color,
-                }}
-              >
+                  style={timelineCardStyle(member.color)}
+                >
                 <div className="absolute right-4 top-4 z-10 opacity-0 transition group-hover:opacity-100">
                   <DeleteIconButton onClick={() => setPendingDelete({ historyId: item.id, historyTitle: item.title })} />
                 </div>

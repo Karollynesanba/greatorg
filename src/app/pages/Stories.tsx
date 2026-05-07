@@ -17,6 +17,7 @@ import {
   RoundedDropdown,
   RoundedTimePicker,
 } from "../components/ui";
+import { useThemeMode } from "../theme";
 
 type StoryMediaType = "video" | "photo";
 
@@ -75,6 +76,7 @@ function emptyForm(teamMembers: Array<{ id: number }>): StoryFormState {
 }
 
 export function StoriesPage() {
+  const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
   const [items, setItems] = useSupabaseSyncedListState<StoryLog>({
     key: "story-logs",
@@ -169,6 +171,19 @@ export function StoriesPage() {
     toast.success("Registro removido.");
   };
 
+  const cardClass = isDark
+    ? "rounded-[2rem] border border-border/60 bg-background/90 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.08)]"
+    : "rounded-[2rem] border border-border/60 bg-white/96 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.06)]";
+  const summaryBoxClass = isDark
+    ? "space-y-3 rounded-2xl border border-border/60 bg-muted/20 p-4"
+    : "space-y-3 rounded-2xl border border-border/60 bg-white/96 p-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]";
+  const modalClass = isDark
+    ? "w-full max-w-4xl overflow-hidden rounded-[2rem] border border-border/60 bg-white shadow-[0_28px_90px_rgba(15,23,42,0.22)] dark:border-white/8 dark:bg-card/98"
+    : "w-full max-w-4xl overflow-hidden rounded-[2rem] border border-border/60 bg-white shadow-[0_28px_90px_rgba(15,23,42,0.14)]";
+  const previewClass = isDark
+    ? "rounded-2xl border border-border/60 bg-background p-4"
+    : "rounded-2xl border border-border/60 bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]";
+
   return (
     <PageTransition>
       <PageHeader
@@ -240,7 +255,7 @@ export function StoriesPage() {
                 const postedBy = teamMembers.find((member) => member.id === item.postedById);
 
                 return (
-                  <div key={item.id} className="rounded-2xl border border-border/60 bg-muted/20 p-4">
+                  <div key={item.id} className={cardClass}>
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                       <div className="space-y-2">
                         <div className="flex flex-wrap items-center gap-2">
@@ -293,7 +308,7 @@ export function StoriesPage() {
             </div>
           </div>
 
-          <div className="space-y-3 rounded-2xl border border-border/60 bg-muted/20 p-4">
+          <div className={summaryBoxClass}>
             <div className="flex items-center justify-between gap-3">
               <span className="text-sm text-muted-foreground">Total</span>
               <strong className="text-sm text-foreground">
@@ -314,7 +329,7 @@ export function StoriesPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-border/60 bg-background p-4">
+          <div className={previewClass}>
             <p className="text-sm text-muted-foreground">Faltam</p>
             <p className="mt-1 text-2xl font-semibold text-foreground">{stats.remainingTotal} stories</p>
           </div>
@@ -327,7 +342,7 @@ export function StoriesPage() {
           onClick={closeModal}
         >
           <div
-            className="w-full max-w-4xl overflow-hidden rounded-[2rem] border border-border/60 bg-white shadow-[0_28px_90px_rgba(15,23,42,0.22)] dark:border-white/8 dark:bg-card/98"
+            className={modalClass}
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4 border-b border-border/60 p-5 sm:p-6">
@@ -434,7 +449,7 @@ export function StoriesPage() {
               </div>
 
               <div className="border-t border-border/60 bg-muted/20 p-5 sm:p-6 lg:border-l lg:border-t-0">
-                <div className="rounded-2xl border border-border/60 bg-background p-4">
+                <div className={previewClass}>
                   <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Prévia</p>
                   <div className="mt-4 space-y-3">
                     <div className="flex items-center justify-between gap-3">
