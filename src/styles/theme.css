@@ -63,6 +63,43 @@
   --shadow-card: 0 12px 30px rgb(var(--shadow) / 0.08);
 }
 
+/* Theme safety net:
+   - keep light mode white/bright
+   - force white-ish utility surfaces to become dark surfaces in dark mode
+   This preserves layout while removing mixed theme surfaces. */
+.dark [class*="bg-white"] {
+  background-color: rgb(var(--card) / 0.98) !important;
+}
+
+.dark [class*="bg-slate-50"],
+.dark [class*="bg-slate-100"],
+.dark [class*="bg-gray-50"],
+.dark [class*="bg-gray-100"] {
+  background-color: rgb(var(--card) / 0.96) !important;
+}
+
+.dark [class*="bg-background"] {
+  background-color: rgb(var(--card) / 0.98) !important;
+}
+
+.dark [class*="bg-muted"] {
+  background-color: rgb(var(--muted) / 1) !important;
+}
+
+.dark [class*="border-white"] {
+  border-color: rgb(var(--border) / 0.5) !important;
+}
+
+html:not(.dark) [class*="bg-black"],
+html:not(.dark) [class*="bg-slate-900"],
+html:not(.dark) [class*="bg-slate-800"],
+html:not(.dark) [class*="bg-gray-900"],
+html:not(.dark) [class*="bg-gray-800"],
+html:not(.dark) [class*="bg-zinc-900"],
+html:not(.dark) [class*="bg-zinc-800"] {
+  background-color: rgb(var(--card) / 0.98) !important;
+}
+
 @media print {
   .print\:hidden {
     display: none !important;
