@@ -168,63 +168,125 @@ export type HistoryEvent = {
   metrics?: string;
 };
 
+function pad(number: number) {
+  return String(number).padStart(2, "0");
+}
+
+function formatDateKey(date: Date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function addDays(date: Date, amount: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  next.setHours(12, 0, 0, 0);
+  return next;
+}
+
+function createRadarSeries(entries: Array<[string, number]>) {
+  return entries.map(([subject, value]) => ({ subject, value }));
+}
+
+function createMonthlyPostsSeries(entries: Array<[string, number]>) {
+  return entries.map(([month, posts]) => ({ month, posts }));
+}
+
 export const teamMembers: TeamMember[] = [
   {
     id: 1,
     name: "Brenda",
-    role: "Vídeo Maker",
+    role: "Video Maker",
     avatar: "B",
-    specialty: "Gravação, edição e reels",
+    specialty: "Gravacao, edicao e reels",
     color: "#833AB4",
     stats: {
-      postsCreated: 0,
-      avgEngagement: 0,
-      goalsCompleted: 0,
-      performance: 0,
-      punctuality: 0,
+      postsCreated: 28,
+      avgEngagement: 7.4,
+      goalsCompleted: 9,
+      performance: 76,
+      punctuality: 68,
     },
-    radar: [],
-    monthlyPosts: [],
+    radar: createRadarSeries([
+      ["Execucao", 88],
+      ["Criatividade", 92],
+      ["Agilidade", 74],
+      ["Qualidade", 85],
+      ["Consistencia", 68],
+    ]),
+    monthlyPosts: createMonthlyPostsSeries([
+      ["Jan", 7],
+      ["Fev", 6],
+      ["Mar", 8],
+      ["Abr", 7],
+      ["Mai", 9],
+      ["Jun", 10],
+    ]),
   },
   {
     id: 2,
     name: "Hannah",
     role: "Designer de Social",
     avatar: "H",
-    specialty: "Artes estáticas e stories",
+    specialty: "Artes estatica e stories",
     color: "#E1306C",
     stats: {
-      postsCreated: 0,
-      avgEngagement: 0,
-      goalsCompleted: 0,
-      performance: 0,
-      punctuality: 0,
+      postsCreated: 32,
+      avgEngagement: 8.1,
+      goalsCompleted: 11,
+      performance: 81,
+      punctuality: 91,
     },
-    radar: [],
-    monthlyPosts: [],
+    radar: createRadarSeries([
+      ["Direcao de arte", 90],
+      ["Velocidade", 78],
+      ["Consistencia", 86],
+      ["Detalhe", 94],
+      ["Colaboracao", 82],
+    ]),
+    monthlyPosts: createMonthlyPostsSeries([
+      ["Jan", 8],
+      ["Fev", 9],
+      ["Mar", 7],
+      ["Abr", 10],
+      ["Mai", 11],
+      ["Jun", 12],
+    ]),
   },
   {
     id: 3,
     name: "Thiago",
     role: "Designer Editorial",
     avatar: "T",
-    specialty: "Carrosséis e capas",
+    specialty: "Carrosseis e capas",
     color: "#3B82F6",
     stats: {
-      postsCreated: 0,
-      avgEngagement: 0,
-      goalsCompleted: 0,
-      performance: 0,
-      punctuality: 0,
+      postsCreated: 24,
+      avgEngagement: 6.8,
+      goalsCompleted: 8,
+      performance: 73,
+      punctuality: 84,
     },
-    radar: [],
-    monthlyPosts: [],
+    radar: createRadarSeries([
+      ["Layout", 89],
+      ["Narrativa", 84],
+      ["Rapidez", 71],
+      ["Acabamento", 93],
+      ["Consistencia", 77],
+    ]),
+    monthlyPosts: createMonthlyPostsSeries([
+      ["Jan", 5],
+      ["Fev", 6],
+      ["Mar", 7],
+      ["Abr", 6],
+      ["Mai", 8],
+      ["Jun", 9],
+    ]),
   },
 ];
 
 export const dashboardMetrics: DashboardMetric[] = [
   { id: "reach", label: "Alcance", value: "0", change: 0, highlight: "Sem dados cadastrados." },
-  { id: "impressions", label: "Impressões", value: "0", change: 0, highlight: "Sem dados cadastrados." },
+  { id: "impressions", label: "Impressoes", value: "0", change: 0, highlight: "Sem dados cadastrados." },
   { id: "engagement", label: "Engajamento", value: "0", change: 0, highlight: "Sem dados cadastrados." },
   { id: "growth", label: "Crescimento", value: "0", change: 0, highlight: "Sem dados cadastrados." },
 ];
@@ -233,7 +295,86 @@ export const posts: Post[] = [];
 export const topPosts = posts.slice(0, 5);
 export const worstPosts = posts.slice(5, 7);
 
-export const goals: Goal[] = [];
+export const goals: Goal[] = (() => {
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  const yesterday = addDays(today, -1);
+  const tomorrow = addDays(today, 1);
+  const nextWeek = addDays(today, 7);
+
+  return [
+    {
+      id: 1,
+      name: "Entrega de reels da campanha",
+      category: "Reels",
+      responsibleId: 1,
+      target: 4,
+      current: 2,
+      period: "Dia",
+      deadline: formatDateKey(today),
+      deadlineTime: "08:00",
+      description: "Fechar a entrega dos reels do ciclo atual. A meta ja passou do prazo e precisa de ajuste imediato.",
+      checklist: [
+        { id: "goal-1-1", label: "Finalizar cortes", done: true },
+        { id: "goal-1-2", label: "Ajustar legenda", done: false },
+        { id: "goal-1-3", label: "Exportar e subir no drive", done: false },
+      ],
+    },
+    {
+      id: 2,
+      name: "Pacote de stories da semana",
+      category: "Stories",
+      responsibleId: 2,
+      target: 12,
+      current: 9,
+      period: "Semana",
+      deadline: formatDateKey(tomorrow),
+      deadlineTime: "18:00",
+      description: "Manter a cadencia de stories com layout consistente e revisao antes do envio.",
+      checklist: [
+        { id: "goal-2-1", label: "Fechar os 3 primeiros layouts", done: true },
+        { id: "goal-2-2", label: "Revisar tipografia", done: true },
+        { id: "goal-2-3", label: "Preparar versao final", done: false },
+      ],
+    },
+    {
+      id: 3,
+      name: "Carrossel editorial do ciclo",
+      category: "Carrossel",
+      responsibleId: 3,
+      target: 6,
+      current: 6,
+      period: "Semana",
+      deadline: formatDateKey(yesterday),
+      deadlineTime: "15:00",
+      description: "Meta concluida com antecedencia para manter a fila do calendario editorial em dia.",
+      checklist: [
+        { id: "goal-3-1", label: "Rascunho aprovado", done: true },
+        { id: "goal-3-2", label: "Arte finalizada", done: true },
+        { id: "goal-3-3", label: "Publicacao agendada", done: true },
+      ],
+    },
+    {
+      id: 4,
+      name: "Pacote de ajustes para a proxima semana",
+      category: "Feed",
+      responsibleId: 1,
+      responsibleIds: [1, 2, 3],
+      target: 3,
+      current: 1,
+      period: "Semana",
+      deadline: formatDateKey(nextWeek),
+      deadlineTime: "10:00",
+      description: "Reunir os materiais pendentes e redistribuir as entregas para o proximo ciclo.",
+      checklist: [
+        { id: "goal-4-1", label: "Separar referencias", done: true },
+        { id: "goal-4-2", label: "Conferir responsaveis", done: false },
+        { id: "goal-4-3", label: "Atualizar briefing", done: false },
+      ],
+    },
+  ];
+})();
+
 export const calendarEvents: CalendarEvent[] = [];
 export const storyLogs: StoryLog[] = [];
 export const ideas: Idea[] = [];
@@ -258,7 +399,7 @@ export const insights = {
   growthTrend: {
     direction: "Sem dados",
     rate: "0%",
-    prediction: "Nenhuma informação disponível ainda.",
+    prediction: "Nenhuma informacao disponivel ainda.",
   },
   recommendations: [],
 };
@@ -308,5 +449,5 @@ export const timelineTypeColors: Record<TimelineType, string> = {
   schedule: "#007AFF",
 };
 
-export const daysOfWeek = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+export const daysOfWeek = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"];
 export const calendarHours = Array.from({ length: 13 }, (_, index) => `${String(index + 8).padStart(2, "0")}:00`);

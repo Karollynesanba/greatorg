@@ -29,6 +29,7 @@ import {
 import { toast } from "sonner";
 import {
   getGoalResponsibleIds,
+  goals as seedGoals,
   insights,
   type ContentType,
   type Goal,
@@ -482,7 +483,7 @@ export function ReportsPage() {
   const [customEndDate, setCustomEndDate] = useState(() => formatDateKey(anchorDate));
   const [teamMembers] = useTeamProfiles();
   const [posts] = usePosts();
-  const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
+  const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: seedGoals });
   const [teamScope] = useTeamScope();
   const [savedReports, setSavedReports] = useSharedState<SavedReport[]>(createStorageKey("reports-history"), []);
   const [selectedMetric, setSelectedMetric] = useState<MetricKey>("reach");

@@ -63,6 +63,10 @@ export function useTeamProfiles() {
   const [profiles, setProfiles] = sharedState;
   const hydratedRef = useRef(false);
   const supabaseClient = supabase;
+  const normalizedProfiles = useMemo(
+    () => profiles.map((profile, index) => mergeTeamMember(profile, baseTeamMembers[index] ?? baseTeamMembers[0])),
+    [profiles],
+  );
 
   useEffect(() => {
     if (!isSupabaseConfigured() || !supabaseClient) {
@@ -126,7 +130,7 @@ export function useTeamProfiles() {
 
     const persistTeamProfiles = async () => {
       const { error } = await supabaseClient.from(teamProfilesTable).upsert(
-        profiles.map((profile) => toTeamProfileDbRow(profile)),
+        normalizedProfiles.map((profile) => toTeamProfileDbRow(profile)),
         { onConflict: "id" },
       );
 
@@ -144,9 +148,17 @@ export function useTeamProfiles() {
     return () => {
       cancelled = true;
     };
-  }, [profiles, supabaseClient]);
+  }, [normalizedProfiles, supabaseClient]);
 
-  return sharedState;
+  useEffect(() => {
+    if (JSON.stringify(profiles) === JSON.stringify(normalizedProfiles)) {
+      return;
+    }
+
+    setProfiles(normalizedProfiles);
+  }, [normalizedProfiles, profiles, setProfiles]);
+
+  return [normalizedProfiles, setProfiles] as const;
 }
 
 export function useCurrentTeamMember() {
@@ -204,6 +216,24 @@ function normalizeProfileRow(row: TeamProfileRow) {
     avatarUrl: row.avatarUrl ?? row.avatar_url ?? "",
     bio: row.bio ?? "",
   } satisfies EditableTeamMember;
+}
+
+function mergeTeamMember(profile: EditableTeamMember, fallback: TeamMember) {
+  const radar = profile.radar ?? [];
+  const monthlyPosts = profile.monthlyPosts ?? [];
+
+  return {
+    ...fallback,
+    ...profile,
+    stats: {
+      ...fallback.stats,
+      ...profile.stats,
+    },
+    radar: radar.length > 0 ? radar : fallback.radar,
+    monthlyPosts: monthlyPosts.length > 0 ? monthlyPosts : fallback.monthlyPosts,
+    avatarUrl: profile.avatarUrl || "",
+    bio: profile.bio || fallback.specialty,
+  };
 }
 
 function toTeamProfileDbRow(profile: EditableTeamMember): TeamProfileDbUpsert {

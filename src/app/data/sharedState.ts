@@ -8,6 +8,10 @@ function canUseStorage() {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 }
 
+function isEmptyArrayValue(value: unknown) {
+  return Array.isArray(value) && value.length === 0;
+}
+
 function readStoredValue<T>(key: string, fallback: T) {
   if (!canUseStorage()) {
     return fallback;
@@ -15,7 +19,17 @@ function readStoredValue<T>(key: string, fallback: T) {
 
   try {
     const raw = window.localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
+    if (!raw) {
+      return fallback;
+    }
+
+    const parsed = JSON.parse(raw) as T;
+
+    if (isEmptyArrayValue(parsed) && Array.isArray(fallback) && fallback.length > 0) {
+      return fallback;
+    }
+
+    return parsed;
   } catch {
     return fallback;
   }

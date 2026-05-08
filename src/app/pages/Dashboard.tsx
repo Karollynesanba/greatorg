@@ -11,7 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { BarChart3, Eye, Rocket, Sparkles, type LucideIcon } from "lucide-react";
-import { getGoalResponsibleIds } from "../data/mockData";
+import { goals as seedGoals, getGoalResponsibleIds } from "../data/mockData";
 import { usePosts } from "../data/posts";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
@@ -223,7 +223,7 @@ export function DashboardPage() {
   const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
   const [posts] = usePosts();
-  const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
+  const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: seedGoals });
   const [teamScope] = useTeamScope();
   const chartLegend = [
     { label: "Alcance", color: "#833AB4" },

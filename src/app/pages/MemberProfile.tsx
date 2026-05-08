@@ -12,7 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import { useNavigate, useParams } from "react-router-dom";
-import { getGoalResponsibleIds, type Goal } from "../data/mockData";
+import { goals as seedGoals, getGoalResponsibleIds, type Goal } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import { useThemeMode } from "../theme";
@@ -54,7 +54,22 @@ function formatGoalDeadlineLabel(goal: { deadline: string; deadlineTime?: string
     year: "numeric",
   }).format(date);
 
-  return goal.deadlineTime ? `${dateLabel} • ${goal.deadlineTime}` : dateLabel;
+  return goal.deadlineTime ? `${dateLabel} - ${goal.deadlineTime}` : dateLabel;
+}
+
+function getGoalStatus(goal: Goal) {
+  const deadline = goal.deadline ? new Date(`${goal.deadline}T${goal.deadlineTime ?? "23:59"}:00`) : null;
+  const now = new Date();
+
+  if (goal.current >= goal.target) {
+    return { label: "Concluida", tone: "success" as const };
+  }
+
+  if (deadline && deadline.getTime() < now.getTime()) {
+    return { label: "Atrasada", tone: "danger" as const };
+  }
+
+  return { label: "Em andamento", tone: "neutral" as const };
 }
 
 export function MemberProfilePage() {
@@ -62,9 +77,10 @@ export function MemberProfilePage() {
   const params = useParams();
   const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
-  const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
+  const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: seedGoals });
   const member = teamMembers.find((item) => String(item.id) === params.id) ?? teamMembers[0];
   const memberGoals = goals.filter((goal) => getGoalResponsibleIds(goal).includes(member.id));
+  const overdueGoals = memberGoals.filter((goal) => getGoalStatus(goal).tone === "danger");
   const panelBackground = isDark
     ? `linear-gradient(180deg, rgba(24,24,26,0.98), ${member.color}12)`
     : `linear-gradient(180deg, rgba(255,255,255,0.99), rgba(252,252,253,0.98))`;
@@ -76,7 +92,7 @@ export function MemberProfilePage() {
       <PageHeader
         eyebrow="Team"
         title="Performance individual do time criativo"
-        description="Visualize especialidades, produção recente e evolução de qualidade para cada membro da operação."
+        description="Visualize especialidades, producao recente e evolucao de qualidade para cada membro da operacao."
         actions={
           <div className="flex flex-wrap gap-2">
             {teamMembers.map((item) => (
@@ -127,7 +143,7 @@ export function MemberProfilePage() {
           <DetailGrid
             items={[
               { label: "Posts Criados", value: String(member.stats.postsCreated) },
-              { label: "Engajamento Médio", value: `${member.stats.avgEngagement}%` },
+              { label: "Engajamento Medio", value: `${member.stats.avgEngagement}%` },
               { label: "Metas Completadas", value: String(member.stats.goalsCompleted) },
               { label: "Pontualidade", value: `${member.stats.punctuality}%` },
             ]}
@@ -137,10 +153,7 @@ export function MemberProfilePage() {
 
       <div className="grid gap-6 2xl:grid-cols-2">
         <GlassPanel index={2} style={{ background: panelBackground, borderColor: `${member.color}18` }}>
-          <SectionTitle
-            title="Performance geral"
-            description="Leitura de capacidade criativa, execução e consistência."
-          />
+          <SectionTitle title="Performance geral" description="Leitura de capacidade criativa, execucao e consistencia." />
           <div className="mt-6 h-[320px]">
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart data={member.radar}>
@@ -155,14 +168,16 @@ export function MemberProfilePage() {
         </GlassPanel>
 
         <GlassPanel index={3} style={{ background: panelBackground, borderColor: `${member.color}18` }}>
-          <SectionTitle
-            title="Posts por mês"
-            description="Volume recente de entregas por ciclo."
-          />
+          <SectionTitle title="Posts por mes" description="Volume recente de entregas por ciclo." />
           <div className="mt-6 h-[320px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={member.monthlyPosts} margin={{ top: 10, right: 12, left: -16, bottom: 0 }}>
-                <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "rgb(var(--muted-foreground) / 1)", fontSize: 12 }} />
+                <XAxis
+                  dataKey="month"
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fill: "rgb(var(--muted-foreground) / 1)", fontSize: 12 }}
+                />
                 <YAxis tickLine={false} axisLine={false} tick={{ fill: "rgb(var(--muted-foreground) / 1)", fontSize: 12 }} />
                 <Tooltip />
                 <Bar dataKey="posts" radius={[12, 12, 4, 4]} fill={member.color} />
@@ -173,32 +188,68 @@ export function MemberProfilePage() {
       </div>
 
       <GlassPanel index={4}>
-        <SectionTitle
-          title="Metas atribuídas"
-          description="Panorama das metas sob responsabilidade deste membro."
-        />
-          <div className="mt-5 grid gap-4">
-            {memberGoals.map((goal) => (
-            <div
-              key={goal.id}
-              className={`rounded-3xl p-5 ${isDark ? darkCardClass : lightCardClass}`}
-              style={{ backgroundColor: isDark ? `${member.color}12` : undefined }}
-            >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-foreground">{goal.name}</h3>
-                  <p className="text-sm text-muted-foreground">Prazo: {formatGoalDeadlineLabel(goal)}</p>
+        <SectionTitle title="Metas atribuidas" description="Panorama das metas sob responsabilidade deste membro." />
+        <div className="mt-5 grid gap-4">
+          {memberGoals.length > 0 ? (
+            memberGoals.map((goal) => {
+              const status = getGoalStatus(goal);
+
+              return (
+                <div
+                  key={goal.id}
+                  className={`rounded-3xl p-5 ${isDark ? darkCardClass : lightCardClass}`}
+                  style={{ backgroundColor: isDark ? `${member.color}12` : undefined }}
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-lg font-semibold text-foreground">{goal.name}</h3>
+                        <span
+                          className="rounded-full px-3 py-1 text-xs font-semibold"
+                          style={{
+                            backgroundColor:
+                              status.tone === "danger"
+                                ? "rgba(239,68,68,0.12)"
+                                : status.tone === "success"
+                                  ? "rgba(34,197,94,0.12)"
+                                  : "rgb(var(--muted) / 1)",
+                            color:
+                              status.tone === "danger"
+                                ? "#dc2626"
+                                : status.tone === "success"
+                                  ? "#16a34a"
+                                  : "rgb(var(--muted-foreground) / 1)",
+                          }}
+                        >
+                          {status.label}
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">Prazo: {formatGoalDeadlineLabel(goal)}</p>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Atual {goal.current} / Meta {goal.target}
+                    </p>
+                  </div>
+                  <div className="mt-4">
+                    <MemberProgressBar value={goal.current} max={goal.target} color={member.color} />
+                  </div>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Atual {goal.current} / Meta {goal.target}
-                </p>
-              </div>
-              <div className="mt-4">
-                <MemberProgressBar value={goal.current} max={goal.target} color={member.color} />
-              </div>
+              );
+            })
+          ) : (
+            <div className={`rounded-3xl p-5 ${isDark ? darkCardClass : lightCardClass}`}>
+              <p className="text-base font-medium text-foreground">Nenhuma meta atribuida para este membro.</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Quando houver metas vinculadas, elas vao aparecer aqui com prazo, progresso e status.
+              </p>
             </div>
-          ))}
+          )}
         </div>
+        {overdueGoals.length > 0 ? (
+          <div className="mt-4 rounded-3xl border border-red-500/15 bg-red-500/8 px-4 py-3 text-sm text-red-700 dark:text-red-200">
+            {overdueGoals.length} meta{overdueGoals.length > 1 ? "s" : ""} em atraso neste perfil.
+          </div>
+        ) : null}
       </GlassPanel>
     </PageTransition>
   );
