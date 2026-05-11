@@ -209,7 +209,12 @@ values
       "responsibleIds": [1, 2, 3],
       "status": "Agendado",
       "date": "2026-04-30",
-      "time": "09:00"
+      "time": "09:00",
+      "checklist": [
+        { "id": "calendar-1-1", "label": "Definir pauta", "done": true },
+        { "id": "calendar-1-2", "label": "Separar responsaveis", "done": false },
+        { "id": "calendar-1-3", "label": "Confirmar horario", "done": false }
+      ]
     }'::jsonb
   ),
   (
@@ -224,7 +229,12 @@ values
       "responsibleIds": [1],
       "status": "Em producao",
       "date": "2026-05-01",
-      "time": "10:00"
+      "time": "10:00",
+      "checklist": [
+        { "id": "calendar-2-1", "label": "Gravar abertura", "done": true },
+        { "id": "calendar-2-2", "label": "Gravar cenas de apoio", "done": false },
+        { "id": "calendar-2-3", "label": "Salvar backups", "done": false }
+      ]
     }'::jsonb
   ),
   (
@@ -239,7 +249,12 @@ values
       "responsibleIds": [2, 3],
       "status": "Aprovado",
       "date": "2026-05-01",
-      "time": "14:00"
+      "time": "14:00",
+      "checklist": [
+        { "id": "calendar-3-1", "label": "Revisar copy", "done": true },
+        { "id": "calendar-3-2", "label": "Checar arte final", "done": true },
+        { "id": "calendar-3-3", "label": "Liberar agendamento", "done": false }
+      ]
     }'::jsonb
   ),
   (
@@ -254,7 +269,12 @@ values
       "responsibleIds": [2],
       "status": "Publicado",
       "date": "2026-05-02",
-      "time": "08:30"
+      "time": "08:30",
+      "checklist": [
+        { "id": "calendar-4-1", "label": "Validar legenda", "done": true },
+        { "id": "calendar-4-2", "label": "Subir stories", "done": true },
+        { "id": "calendar-4-3", "label": "Monitorar respostas", "done": false }
+      ]
     }'::jsonb
   ),
   (
@@ -269,7 +289,12 @@ values
       "responsibleIds": [1, 3],
       "status": "Agendado",
       "date": "2026-05-03",
-      "time": "16:00"
+      "time": "16:00",
+      "checklist": [
+        { "id": "calendar-5-1", "label": "Fechar pendencias", "done": true },
+        { "id": "calendar-5-2", "label": "Revisar entregas", "done": false },
+        { "id": "calendar-5-3", "label": "Agendar proximos passos", "done": false }
+      ]
     }'::jsonb
   );
 

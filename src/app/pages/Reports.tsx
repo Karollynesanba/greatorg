@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   BarChart3,
@@ -475,6 +476,7 @@ function DateRangePicker({
 
 export function ReportsPage() {
   const { isDark } = useThemeMode();
+  const navigate = useNavigate();
   const anchorDate = useMemo(() => new Date("2026-04-30T12:00:00"), []);
   const [period, setPeriod] = useState<ReportPeriod>("30");
   const [typeFilter, setTypeFilter] = useState<ContentType | "todos">("todos");
@@ -513,6 +515,19 @@ export function ReportsPage() {
   const softCardCompactClass = isDark
     ? "rounded-3xl bg-muted/35 p-5 dark:bg-card/90"
     : "rounded-3xl border border-border/60 bg-card/95 p-5 shadow-[0_14px_32px_rgba(15,23,42,0.05)]";
+  const previewSearch = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set("period", period);
+    params.set("type", typeFilter);
+    params.set("responsible", String(responsibleFilter));
+
+    if (period === "custom") {
+      params.set("start", customStartDate);
+      params.set("end", customEndDate);
+    }
+
+    return params.toString();
+  }, [customEndDate, customStartDate, period, responsibleFilter, typeFilter]);
 
   const currentRange = useMemo(() => {
     if (period === "custom") {
@@ -997,6 +1012,10 @@ export function ReportsPage() {
         description="Filtre o período, compare com a janela anterior, desça para os detalhes e salve versões antigas sem sair da tela."
         actions={
           <div className="flex flex-wrap gap-2">
+            <ActionButton variant="secondary" onClick={() => navigate(`/reports/preview?${previewSearch}`)}>
+              <Eye className="h-4 w-4" />
+              Pré-visualização
+            </ActionButton>
             <ActionButton variant="secondary" onClick={handleSaveReport}>
               <FileDown className="h-4 w-4" />
               Salvar relatório

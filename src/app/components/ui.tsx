@@ -747,12 +747,22 @@ export function IconActionButton({
   tone?: "neutral" | "danger";
   title?: string;
 }) {
+  const { isDark } = useThemeMode();
   const tones = {
     neutral:
-      "border-border/70 bg-white/95 text-muted-foreground shadow-sm hover:border-primary/25 hover:text-foreground hover:shadow-md dark:border-white/8 dark:bg-[#171c25] dark:hover:bg-[#1f2631]",
+      "border-border/70 text-muted-foreground shadow-sm hover:border-primary/25 hover:text-foreground hover:shadow-md dark:border-white/8 dark:hover:bg-[#1f2631]",
     danger:
-      "border-rose-200 bg-card/95 text-rose-500 shadow-sm hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 hover:shadow-md dark:border-[#ff8da5]/20 dark:bg-[#1d171a] dark:text-[#ff8da5] dark:hover:bg-[#2a171b]",
+      "border-rose-200 text-rose-500 shadow-sm hover:border-rose-300 hover:text-rose-600 hover:shadow-md dark:border-[#ff8da5]/20 dark:bg-[#1d171a] dark:text-[#ff8da5] dark:hover:bg-[#2a171b]",
   };
+
+  const toneStyle =
+    tone === "danger"
+      ? isDark
+        ? { backgroundColor: "rgb(29 23 26 / 1)" }
+        : { backgroundColor: "#ffffff" }
+      : isDark
+        ? { backgroundColor: "rgb(23 28 37 / 1)" }
+        : { backgroundColor: "#ffffff" };
 
   return (
     <button
@@ -765,6 +775,7 @@ export function IconActionButton({
         tones[tone],
         className,
       )}
+      style={toneStyle}
     >
       <Icon className="h-4 w-4" />
     </button>

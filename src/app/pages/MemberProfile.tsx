@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   Bar,
   BarChart,
@@ -12,7 +13,15 @@ import {
   YAxis,
 } from "recharts";
 import { useNavigate, useParams } from "react-router-dom";
-import { goals as seedGoals, getGoalResponsibleIds, type Goal } from "../data/mockData";
+import {
+  calendarEvents as seedCalendarEvents,
+  goals as seedGoals,
+  getGoalResponsibleIds,
+  historyTimeline,
+  type HistoryEvent,
+  type CalendarEvent,
+  type Goal,
+} from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import { useThemeMode } from "../theme";
@@ -23,7 +32,35 @@ import {
   PageHeader,
   PageTransition,
   SectionTitle,
+  cn,
 } from "../components/ui";
+import {
+  applyCalendarCompletionState,
+  buildCalendarCompletionHistoryEvent,
+  getCalendarCompletionHistoryId,
+  getCalendarResponsibleIds,
+  isCalendarTaskCompleted,
+} from "../data/calendarWorkflow";
+
+type CalendarChecklistItem = NonNullable<CalendarEvent["checklist"]>[number];
+
+function getEventResponsibleIds(event: CalendarEvent) {
+  return getCalendarResponsibleIds(event);
+}
+
+function formatDayLabel(date: string) {
+  const parsedDate = new Date(`${date}T12:00:00`);
+  return new Intl.DateTimeFormat("pt-BR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "short",
+  }).format(parsedDate);
+}
+
+function getChecklistProgress(items: CalendarChecklistItem[]) {
+  const completed = items.filter((item) => item.done).length;
+  return { completed, total: items.length };
+}
 
 function MemberProgressBar({ value, max, color }: { value: number; max: number; color: string }) {
   const progress = max === 0 ? 0 : (value / max) * 100;
@@ -78,14 +115,92 @@ export function MemberProfilePage() {
   const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
   const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: seedGoals });
+  const [calendarEvents, setCalendarEvents] = useSupabaseSyncedListState<CalendarEvent>({
+    key: "calendar-events",
+    table: "calendar_events",
+    fallback: seedCalendarEvents,
+  });
+  const [, setHistoryEvents] = useSupabaseSyncedListState<HistoryEvent>({
+    key: "history",
+    table: "history_events",
+    fallback: historyTimeline,
+  });
   const member = teamMembers.find((item) => String(item.id) === params.id) ?? teamMembers[0];
   const memberGoals = goals.filter((goal) => getGoalResponsibleIds(goal).includes(member.id));
+  const memberCalendarEvents = useMemo(
+    () =>
+      calendarEvents
+        .filter((event) => getEventResponsibleIds(event).includes(member.id))
+        .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)),
+    [calendarEvents, member.id],
+  );
+  const calendarChecklistByDay = useMemo(() => {
+    const grouped = new Map<string, typeof memberCalendarEvents>();
+
+    memberCalendarEvents.forEach((event) => {
+      const current = grouped.get(event.date) ?? [];
+      grouped.set(event.date, [...current, event]);
+    });
+
+    return Array.from(grouped.entries())
+      .sort(([leftDate], [rightDate]) => leftDate.localeCompare(rightDate))
+      .map(([date, events]) => ({
+        date,
+        events: events.sort((a, b) => a.time.localeCompare(b.time)),
+      }));
+  }, [memberCalendarEvents]);
+  const checklistSummary = useMemo(() => {
+    const total = memberCalendarEvents.reduce((sum, event) => sum + (event.checklist?.length ?? 0), 0);
+    const completed = memberCalendarEvents.reduce((sum, event) => sum + (event.checklist?.filter((item) => item.done).length ?? 0), 0);
+    return {
+      total,
+      completed,
+      progress: total > 0 ? Math.round((completed / total) * 100) : 0,
+    };
+  }, [memberCalendarEvents]);
   const overdueGoals = memberGoals.filter((goal) => getGoalStatus(goal).tone === "danger");
   const panelBackground = isDark
     ? `linear-gradient(180deg, rgba(24,24,26,0.98), ${member.color}12)`
     : `linear-gradient(180deg, rgba(255,255,255,0.99), rgba(252,252,253,0.98))`;
   const lightCardClass = "rounded-3xl border border-border/60 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.04)]";
   const darkCardClass = "rounded-3xl border border-border/60 bg-[#171c25]";
+
+  const toggleChecklistItem = (eventId: number, checklistItemId: string) => {
+    const previousEvent = calendarEvents.find((event) => event.id === eventId);
+
+    if (!previousEvent) {
+      return;
+    }
+
+    const nextEvent = applyCalendarCompletionState(
+      {
+        ...previousEvent,
+        checklist: (previousEvent.checklist ?? []).map((item) =>
+          item.id === checklistItemId ? { ...item, done: !item.done } : item,
+        ),
+      },
+      { id: member.id, name: member.name },
+    );
+
+    setCalendarEvents((previous) => previous.map((event) => (event.id === eventId ? nextEvent : event)));
+    setHistoryEvents((previous) => {
+      const historyId = getCalendarCompletionHistoryId(eventId);
+      const nextComplete = isCalendarTaskCompleted(nextEvent);
+
+      if (!nextComplete) {
+        return previous.filter((item) => item.id !== historyId);
+      }
+
+      const historyItem = buildCalendarCompletionHistoryEvent(nextEvent, { id: member.id, name: member.name });
+      const existing = previous.some((item) => item.id === historyId);
+
+      if (!existing) {
+        return [historyItem, ...previous];
+      }
+
+      return previous.map((item) => (item.id === historyId ? historyItem : item));
+    });
+  };
 
   return (
     <PageTransition>
@@ -250,6 +365,109 @@ export function MemberProfilePage() {
             {overdueGoals.length} meta{overdueGoals.length > 1 ? "s" : ""} em atraso neste perfil.
           </div>
         ) : null}
+      </GlassPanel>
+
+      <GlassPanel index={5}>
+        <SectionTitle
+          title="Checklist diário"
+          description="Tudo que este membro está executando na agenda, agrupado por dia e com o horário ao lado."
+        />
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <div className={cn("rounded-3xl border border-border/60 p-4", isDark ? "bg-card/90" : "bg-white")}>
+            <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Itens totais</p>
+            <p className="mt-2 text-3xl font-semibold text-foreground">{checklistSummary.total}</p>
+          </div>
+          <div className={cn("rounded-3xl border border-border/60 p-4", isDark ? "bg-card/90" : "bg-white")}>
+            <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Concluídos</p>
+            <p className="mt-2 text-3xl font-semibold text-foreground">{checklistSummary.completed}</p>
+          </div>
+          <div className={cn("rounded-3xl border border-border/60 p-4", isDark ? "bg-card/90" : "bg-white")}>
+            <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Progresso</p>
+            <p className="mt-2 text-3xl font-semibold text-foreground">{checklistSummary.progress}%</p>
+          </div>
+        </div>
+
+        <div className="mt-6 space-y-4">
+          {calendarChecklistByDay.length > 0 ? (
+            calendarChecklistByDay.map((dayGroup) => (
+              <div key={dayGroup.date} className={cn("rounded-3xl border border-border/60 p-4", isDark ? "bg-card/90" : "bg-white")}>
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold capitalize text-foreground">{formatDayLabel(dayGroup.date)}</h3>
+                  <span className="text-xs text-muted-foreground">{dayGroup.events.length} tarefa{dayGroup.events.length > 1 ? "s" : ""}</span>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {dayGroup.events.map((event) => {
+                    const checklist = event.checklist ?? [];
+                    const progress = getChecklistProgress(checklist);
+
+                    return (
+                      <div key={event.id} className="rounded-2xl border border-border/60 bg-background/70 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">{event.title}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">{event.description}</p>
+                          </div>
+                          <span className="shrink-0 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                            {event.time}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 flex items-center justify-between gap-3">
+                          <span className="text-xs font-medium text-muted-foreground">
+                            {progress.completed}/{progress.total} itens
+                          </span>
+                          <span className="text-xs font-semibold text-muted-foreground">{event.status}</span>
+                        </div>
+
+                        <div className="mt-3 space-y-2">
+                          {checklist.length > 0 ? (
+                            checklist.map((item) => (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => toggleChecklistItem(event.id, item.id)}
+                                className={cn(
+                                  "flex w-full items-center gap-3 rounded-2xl border px-3 py-2 text-left text-sm transition",
+                                  item.done
+                                    ? "border-primary/20 bg-primary/5 text-foreground"
+                                    : "border-border/60 bg-white hover:bg-muted/60",
+                                )}
+                              >
+                                <span
+                                  className={cn(
+                                    "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold",
+                                    item.done
+                                      ? "border-primary bg-primary text-primary-foreground"
+                                      : "border-border/60 bg-background text-transparent",
+                                  )}
+                                >
+                                  ✓
+                                </span>
+                                <span className={cn("flex-1", item.done && "text-muted-foreground line-through")}>
+                                  {item.label}
+                                </span>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="rounded-2xl border border-dashed border-border/60 bg-background/60 px-3 py-3 text-sm text-muted-foreground">
+                              Sem checklist nesta tarefa.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="rounded-3xl border border-border/60 bg-background/70 p-5 text-sm text-muted-foreground">
+              Nenhuma tarefa do calendário para este membro ainda.
+            </div>
+          )}
+        </div>
       </GlassPanel>
     </PageTransition>
   );

@@ -14,13 +14,23 @@ import {
   calendarEvents,
   calendarHours,
   daysOfWeek,
+  historyTimeline,
   weekLabel,
+  type HistoryEvent,
   type CalendarEvent,
 } from "../data/mockData";
+import { createStorageKey, useSharedState } from "../data/sharedState";
 import { useTeamProfiles } from "../data/profiles";
 import { useCurrentTeamMember } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
+import {
+  applyCalendarCompletionState,
+  buildCalendarCompletionHistoryEvent,
+  getCalendarCompletionHistoryId,
+  getCalendarResponsibleIds,
+  isCalendarTaskCompleted,
+} from "../data/calendarWorkflow";
 import {
   ActionButton,
   ConfirmDialog,
@@ -228,12 +238,7 @@ function useFloatingPopoverPosition({
 }
 
 function getEventResponsibleIds(event: CalendarEvent) {
-  const ids = getUniqueIds(event.responsibleIds ?? []);
-  if (ids.length > 0) {
-    return ids;
-  }
-
-  return event.responsibleId ? [event.responsibleId] : [];
+  return getCalendarResponsibleIds(event);
 }
 
 type CalendarEventFormState = {
@@ -246,7 +251,43 @@ type CalendarEventFormState = {
   responsibleId: number;
   responsibleIds: number[];
   addedById?: number;
+  checklist: CalendarChecklistItem[];
 };
+
+type CalendarChecklistItem = {
+  id: string;
+  label: string;
+  done: boolean;
+};
+
+function createChecklistItem(label: string): CalendarChecklistItem {
+  return {
+    id: `calendar-check-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    label,
+    done: false,
+  };
+}
+
+function addChecklistItem(items: CalendarChecklistItem[], label: string) {
+  const normalizedLabel = label.trim();
+  if (!normalizedLabel) {
+    return items;
+  }
+
+  return [...items, createChecklistItem(normalizedLabel)];
+}
+
+function updateChecklistItem(items: CalendarChecklistItem[], itemId: string, nextLabel: string) {
+  return items.map((item) => (item.id === itemId ? { ...item, label: nextLabel } : item));
+}
+
+function toggleChecklistItem(items: CalendarChecklistItem[], itemId: string) {
+  return items.map((item) => (item.id === itemId ? { ...item, done: !item.done } : item));
+}
+
+function removeChecklistItem(items: CalendarChecklistItem[], itemId: string) {
+  return items.filter((item) => item.id !== itemId);
+}
 
 function CalendarSlot({
   date,
@@ -453,6 +494,210 @@ function ResponsibleMultiPicker({
   );
 }
 
+function ChecklistEditor({
+  title,
+  items,
+  draft,
+  onDraftChange,
+  onAddItem,
+  onToggleItem,
+  onUpdateItem,
+  onRemoveItem,
+}: {
+  title: string;
+  items: CalendarChecklistItem[];
+  draft: string;
+  onDraftChange: (value: string) => void;
+  onAddItem: (label: string) => void;
+  onToggleItem: (itemId: string) => void;
+  onUpdateItem: (itemId: string, nextLabel: string) => void;
+  onRemoveItem: (itemId: string) => void;
+}) {
+  const completedCount = items.filter((item) => item.done).length;
+
+  return (
+    <div className="grid gap-3 md:col-span-2">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <span className="text-sm font-medium text-foreground">{title}</span>
+        </div>
+        <span className="rounded-full bg-muted/50 px-3 py-1 text-xs font-semibold text-muted-foreground">
+          {completedCount}/{items.length || 0} concluidas
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-2 rounded-[1.5rem] border border-border/70 bg-background p-3 sm:flex-row">
+        <input
+          value={draft}
+          onChange={(event) => onDraftChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              onAddItem(draft);
+              onDraftChange("");
+            }
+          }}
+          placeholder="Ex.: Revisar pauta, separar arquivos, confirmar horario"
+          className="min-w-0 flex-1 rounded-2xl border border-border/70 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:bg-white/5"
+        />
+        <button
+          type="button"
+          onClick={() => {
+            onAddItem(draft);
+            onDraftChange("");
+          }}
+          className="inline-flex items-center justify-center rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90"
+        >
+          Adicionar item
+        </button>
+      </div>
+
+      {items.length > 0 ? (
+        <div className="space-y-2">
+          {items.map((item) => (
+            <div
+              key={item.id}
+              className="flex items-center gap-3 rounded-[1.35rem] border border-border/60 bg-white p-3 shadow-sm dark:bg-card/80"
+            >
+              <button
+                type="button"
+                onClick={() => onToggleItem(item.id)}
+                className={cn(
+                  "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition",
+                  item.done
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border/60 bg-background text-transparent hover:border-primary/30",
+                )}
+                aria-label={item.done ? "Desmarcar item" : "Marcar item"}
+              >
+                ✓
+              </button>
+              <input
+                value={item.label}
+                onChange={(event) => onUpdateItem(item.id, event.target.value)}
+                className={cn(
+                  "min-w-0 flex-1 bg-transparent text-sm outline-none",
+                  item.done && "text-muted-foreground line-through",
+                )}
+              />
+              <button
+                type="button"
+                onClick={() => onRemoveItem(item.id)}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                aria-label="Remover item"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-[1.35rem] border border-dashed border-border/60 bg-background/50 p-4 text-sm text-muted-foreground">
+          Nenhum item ainda. Adicione a primeira etapa desta tarefa.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AgendaVisibilityPanel({
+  teamMembers,
+  currentMemberId,
+  scope,
+  visibleAgendaIds,
+  onScopeChange,
+  onVisibleAgendaIdsChange,
+}: {
+  teamMembers: { id: number; name: string; role: string; color: string }[];
+  currentMemberId?: number | null;
+  scope: number | "todos";
+  visibleAgendaIds: number[];
+  onScopeChange: (scope: number | "todos") => void;
+  onVisibleAgendaIdsChange: (ids: number[]) => void;
+}) {
+  const { isDark } = useThemeMode();
+  const activeVisibleIds = visibleAgendaIds.length > 0 ? visibleAgendaIds : teamMembers.map((member) => member.id);
+  const activeIds = scope === "todos" ? activeVisibleIds : currentMemberId ? [currentMemberId] : activeVisibleIds;
+
+  return (
+    <div
+      className={cn(
+        "rounded-[1.75rem] border border-border/60 p-3 shadow-sm",
+        isDark ? "bg-card/95 dark:shadow-[0_18px_36px_rgba(0,0,0,0.18)]" : "bg-white shadow-[0_18px_36px_rgba(15,23,42,0.06)]",
+      )}
+    >
+      <div className="grid grid-cols-2 gap-2 rounded-[1.5rem] bg-muted/35 p-1">
+        <button
+          type="button"
+          onClick={() => onScopeChange(currentMemberId ?? "todos")}
+          className={cn(
+            "rounded-[1.2rem] px-3 py-2 text-sm font-semibold transition",
+            scope === "todos" ? "text-muted-foreground hover:text-foreground" : "bg-primary text-primary-foreground shadow-sm",
+          )}
+        >
+          Meu
+        </button>
+        <button
+          type="button"
+          onClick={() => onScopeChange("todos")}
+          className={cn(
+            "rounded-[1.2rem] px-3 py-2 text-sm font-semibold transition",
+            scope === "todos" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          Todos
+        </button>
+      </div>
+
+      <div className="mt-3 space-y-2">
+          {teamMembers.map((member) => {
+            const selected = activeIds.includes(member.id);
+            const locked = scope !== "todos" && currentMemberId === member.id;
+            const disabled = scope !== "todos" && !locked;
+
+            return (
+              <button
+                key={member.id}
+                type="button"
+                onClick={() => {
+                  if (disabled) {
+                    return;
+                  }
+
+                  if (scope !== "todos" && locked) {
+                    onScopeChange("todos");
+                    return;
+                  }
+
+                  const nextIds = selected
+                    ? activeVisibleIds.filter((id) => id !== member.id)
+                    : [...activeVisibleIds, member.id];
+
+                  onVisibleAgendaIdsChange(nextIds.length > 0 ? getUniqueIds(nextIds) : activeVisibleIds);
+                }}
+                className={cn(
+                  "flex w-full items-center justify-between rounded-[1.2rem] border px-3 py-2.5 text-left text-sm transition",
+                  selected
+                    ? "border-primary/25 bg-primary/5 shadow-sm"
+                    : "border-border/60 bg-background/40 hover:bg-muted/60",
+                  disabled && "cursor-not-allowed opacity-50",
+                )}
+              >
+                <span className="flex items-center gap-3">
+                  <span className="inline-flex h-4 w-4 items-center justify-center rounded-sm border border-border/70 bg-white">
+                    {selected ? <span className="h-2.5 w-2.5 rounded-[3px]" style={{ backgroundColor: member.color }} /> : null}
+                  </span>
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: member.color }} />
+                  <span className="font-medium text-foreground">{member.name}</span>
+                </span>
+              </button>
+            );
+          })}
+      </div>
+    </div>
+  );
+}
+
 function MiniMonth({ date }: { date: Date }) {
   const { isDark } = useThemeMode();
   const monthCells = buildMonthCells(date);
@@ -560,17 +805,28 @@ export function CalendarPage() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [teamMembers] = useTeamProfiles();
   const { member: currentMember } = useCurrentTeamMember();
-  const [teamScope] = useTeamScope();
+  const [teamScope, setTeamScope] = useTeamScope();
+  const [visibleAgendaIds, setVisibleAgendaIds] = useSharedState(
+    createStorageKey("calendar-visible-agendas"),
+    teamMembers.map((member) => member.id),
+  );
   const [events, setEvents] = useSupabaseSyncedListState({
     key: "calendar-events",
     table: "calendar_events",
     fallback: calendarEvents,
   });
+  const [, setHistoryEvents] = useSupabaseSyncedListState<HistoryEvent>({
+    key: "history",
+    table: "history_events",
+    fallback: historyTimeline,
+  });
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [eventForm, setEventForm] = useState<CalendarEventFormState | null>(null);
+  const [eventChecklistDraft, setEventChecklistDraft] = useState("");
   const [pendingDelete, setPendingDelete] = useState<CalendarEvent | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [createForm, setCreateForm] = useState({
+  const [createChecklistDraft, setCreateChecklistDraft] = useState("");
+  const [createForm, setCreateForm] = useState<CalendarEventFormState>({
     title: "",
     description: "",
     type: "Reels" as CalendarEvent["type"],
@@ -580,17 +836,31 @@ export function CalendarPage() {
     responsibleId: teamMembers[0]?.id ?? 1,
     responsibleIds: [teamMembers[0]?.id ?? 1],
     addedById: currentMember?.id ?? teamMembers[0]?.id ?? 1,
+    checklist: [],
   });
 
   const weekDates = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(startOfWeek(currentDate), index)), [currentDate]);
   const monthCells = useMemo(() => buildMonthCells(currentDate), [currentDate]);
+  const activeAgendaIds = useMemo(() => {
+    const normalizedVisibleAgendaIds = getUniqueIds(visibleAgendaIds).filter((id) => teamMembers.some((member) => member.id === id));
+
+    if (teamScope !== "todos") {
+      return [teamScope];
+    }
+
+    if (normalizedVisibleAgendaIds.length > 0) {
+      return normalizedVisibleAgendaIds;
+    }
+
+    return teamMembers.map((member) => member.id);
+  }, [teamMembers, teamScope, visibleAgendaIds]);
   const filteredEvents = useMemo(
     () =>
       events.filter((event) => {
         const responsibleIds = event.responsibleIds?.length ? event.responsibleIds : [event.responsibleId];
-        return responsibleIds.some((id) => matchesTeamScope(id, teamScope));
+        return responsibleIds.some((id) => matchesTeamScope(id, teamScope)) && responsibleIds.some((id) => activeAgendaIds.includes(id));
       }),
-    [events, teamScope],
+    [activeAgendaIds, events, teamScope],
   );
   const currentMonthEvents = useMemo(
     () => filteredEvents.filter((event) => event.date.startsWith(`${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}`)),
@@ -598,10 +868,10 @@ export function CalendarPage() {
   );
   const controlBarClass = isDark
     ? "overflow-hidden p-4"
-    : "overflow-hidden border border-border/60 bg-white/96 p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)]";
+    : "overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,250,252,0.96))] p-5 shadow-[0_14px_32px_rgba(15,23,42,0.05)]";
   const gridPanelClass = isDark
     ? "overflow-hidden p-0"
-    : "overflow-hidden border border-border/60 bg-white/96 p-0 shadow-[0_18px_48px_rgba(15,23,42,0.06)]";
+    : "overflow-hidden border border-border/60 bg-white/98 p-0 shadow-[0_14px_32px_rgba(15,23,42,0.05)]";
   const navButtonClass = isDark
     ? "inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/70 bg-card/90 text-foreground shadow-sm transition hover:bg-card"
     : "inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/70 bg-white text-foreground shadow-sm transition hover:bg-muted";
@@ -610,16 +880,30 @@ export function CalendarPage() {
     : "rounded-full border border-border/70 bg-white px-4 py-2.5 text-sm font-semibold text-foreground shadow-sm transition hover:bg-muted";
   const calendarShellClass = isDark
     ? "min-w-[980px] rounded-[2rem] bg-card/95"
-    : "min-w-[980px] rounded-[2rem] bg-white";
+    : "min-w-[980px] rounded-[2rem] bg-white ring-1 ring-border/40";
   const calendarHeaderClass = isDark
     ? "sticky top-0 z-10 grid grid-cols-[72px_repeat(7,minmax(0,1fr))] border-b border-border/50 bg-card/95"
-    : "sticky top-0 z-10 grid grid-cols-[72px_repeat(7,minmax(0,1fr))] border-b border-border/50 bg-white/98 backdrop-blur";
+    : "sticky top-0 z-10 grid grid-cols-[72px_repeat(7,minmax(0,1fr))] border-b border-border/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(247,248,250,0.96))] backdrop-blur";
   const monthCellClass = isDark
     ? "min-h-44 rounded-[1.6rem] border border-border/60 bg-card/95 p-3"
-    : "min-h-44 rounded-[1.6rem] border border-border/60 bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.04)]";
+    : "min-h-44 rounded-[1.6rem] border border-border/50 bg-white p-3 shadow-[0_6px_14px_rgba(15,23,42,0.03)]";
   const modalClass = isDark
     ? "w-full max-w-lg overflow-hidden rounded-[2.25rem] border border-border/60 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:border-white/8 dark:bg-card dark:shadow-[0_30px_80px_rgba(0,0,0,0.35)]"
     : "w-full max-w-lg overflow-hidden rounded-[2.25rem] border border-border/60 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.12)]";
+
+  useEffect(() => {
+    if (teamScope !== "todos") {
+      return;
+    }
+
+    const normalizedVisibleAgendaIds = getUniqueIds(visibleAgendaIds).filter((id) => teamMembers.some((member) => member.id === id));
+    const nextVisibleAgendaIds = normalizedVisibleAgendaIds.length > 0 ? normalizedVisibleAgendaIds : teamMembers.map((member) => member.id);
+
+    if (nextVisibleAgendaIds.length !== visibleAgendaIds.length || nextVisibleAgendaIds.some((id, index) => id !== visibleAgendaIds[index])) {
+      setVisibleAgendaIds(nextVisibleAgendaIds);
+    }
+  }, [teamMembers, teamScope, visibleAgendaIds, setVisibleAgendaIds]);
+
   const handleNavigate = (direction: -1 | 1) => {
     if (view === "Dia") {
       setCurrentDate((previous) => addDays(previous, direction));
@@ -643,6 +927,38 @@ export function CalendarPage() {
     toast.success("Post reagendado com sucesso.");
   };
 
+  const handleEventChecklistAdd = (label: string) => {
+    setEventForm((previous) => (previous ? { ...previous, checklist: addChecklistItem(previous.checklist, label) } : previous));
+  };
+
+  const handleEventChecklistUpdate = (itemId: string, nextLabel: string) => {
+    setEventForm((previous) => (previous ? { ...previous, checklist: updateChecklistItem(previous.checklist, itemId, nextLabel) } : previous));
+  };
+
+  const handleEventChecklistToggle = (itemId: string) => {
+    setEventForm((previous) => (previous ? { ...previous, checklist: toggleChecklistItem(previous.checklist, itemId) } : previous));
+  };
+
+  const handleEventChecklistRemove = (itemId: string) => {
+    setEventForm((previous) => (previous ? { ...previous, checklist: removeChecklistItem(previous.checklist, itemId) } : previous));
+  };
+
+  const handleCreateChecklistAdd = (label: string) => {
+    setCreateForm((previous) => ({ ...previous, checklist: addChecklistItem(previous.checklist, label) }));
+  };
+
+  const handleCreateChecklistUpdate = (itemId: string, nextLabel: string) => {
+    setCreateForm((previous) => ({ ...previous, checklist: updateChecklistItem(previous.checklist, itemId, nextLabel) }));
+  };
+
+  const handleCreateChecklistToggle = (itemId: string) => {
+    setCreateForm((previous) => ({ ...previous, checklist: toggleChecklistItem(previous.checklist, itemId) }));
+  };
+
+  const handleCreateChecklistRemove = (itemId: string) => {
+    setCreateForm((previous) => ({ ...previous, checklist: removeChecklistItem(previous.checklist, itemId) }));
+  };
+
   const handleOpenCreateModal = () => {
     setCreateForm((previous) => ({
       ...previous,
@@ -655,7 +971,9 @@ export function CalendarPage() {
       responsibleId: teamMembers[0]?.id ?? previous.responsibleId,
       responsibleIds: [teamMembers[0]?.id ?? previous.responsibleId],
       addedById: currentMember?.id ?? teamMembers[0]?.id ?? previous.addedById,
+      checklist: [],
     }));
+    setCreateChecklistDraft("");
     setIsCreateOpen(true);
   };
 
@@ -671,6 +989,9 @@ export function CalendarPage() {
       id: nextId,
       responsibleId: responsibleIds[0] ?? selectedEvent.responsibleId,
       responsibleIds,
+      checklist: selectedEvent.checklist ?? [],
+      completedAt: undefined,
+      completedById: undefined,
     };
 
     setEvents((previous) => [...previous, duplicatedEvent]);
@@ -702,20 +1023,24 @@ export function CalendarPage() {
       responsibleId: nextResponsibleIds[0] ?? eventForm.responsibleId,
       responsibleIds: nextResponsibleIds,
       addedById: eventForm.addedById,
+      checklist: eventForm.checklist,
     };
+    const normalizedEvent = applyCalendarCompletionState(updatedEvent, currentMember ? { id: currentMember.id, name: currentMember.name } : undefined);
 
-    setEvents((previous) => previous.map((event) => (event.id === selectedEvent.id ? updatedEvent : event)));
-    setSelectedEvent(updatedEvent);
+    setEvents((previous) => previous.map((event) => (event.id === selectedEvent.id ? normalizedEvent : event)));
+    syncCompletionHistory(normalizedEvent, selectedEvent);
+    setSelectedEvent(normalizedEvent);
     setEventForm({
-      title: updatedEvent.title,
-      description: updatedEvent.description,
-      type: updatedEvent.type,
-      status: updatedEvent.status,
-      date: updatedEvent.date,
-      time: updatedEvent.time,
-      responsibleId: updatedEvent.responsibleId,
-      responsibleIds: updatedEvent.responsibleIds?.length ? updatedEvent.responsibleIds : [updatedEvent.responsibleId],
-      addedById: updatedEvent.addedById,
+      title: normalizedEvent.title,
+      description: normalizedEvent.description,
+      type: normalizedEvent.type,
+      status: normalizedEvent.status,
+      date: normalizedEvent.date,
+      time: normalizedEvent.time,
+      responsibleId: normalizedEvent.responsibleId,
+      responsibleIds: normalizedEvent.responsibleIds?.length ? normalizedEvent.responsibleIds : [normalizedEvent.responsibleId],
+      addedById: normalizedEvent.addedById,
+      checklist: normalizedEvent.checklist ?? [],
     });
     toast.success("Tarefa atualizada com sucesso.");
   };
@@ -728,6 +1053,7 @@ export function CalendarPage() {
     }
 
     setEvents((previous) => previous.filter((event) => event.id !== eventId));
+    setHistoryEvents((previous) => previous.filter((item) => item.id !== getCalendarCompletionHistoryId(eventId)));
     setSelectedEvent((current) => (current?.id === eventId ? null : current));
     setPendingDelete(null);
     toast.success("Evento apagado com sucesso.", {
@@ -746,6 +1072,31 @@ export function CalendarPage() {
     });
   };
 
+  const syncCompletionHistory = (nextEvent: CalendarEvent, previousEvent?: CalendarEvent) => {
+    const historyId = getCalendarCompletionHistoryId(nextEvent.id);
+    const nextComplete = isCalendarTaskCompleted(nextEvent);
+    const previousComplete = previousEvent ? isCalendarTaskCompleted(previousEvent) : false;
+
+    if (nextComplete) {
+      const historyItem = buildCalendarCompletionHistoryEvent(nextEvent, currentMember ? { id: currentMember.id, name: currentMember.name } : undefined);
+
+      setHistoryEvents((previous) => {
+        const existing = previous.some((item) => item.id === historyId);
+
+        if (!existing) {
+          return [historyItem, ...previous];
+        }
+
+        return previous.map((item) => (item.id === historyId ? historyItem : item));
+      });
+      return;
+    }
+
+    if (previousComplete || nextComplete === false) {
+      setHistoryEvents((previous) => previous.filter((item) => item.id !== historyId));
+    }
+  };
+
   const handleOpenQuickCreate = (date: string, time: string) => {
     setCreateForm((previous) => ({
       ...previous,
@@ -756,7 +1107,9 @@ export function CalendarPage() {
       responsibleId: teamMembers[0]?.id ?? previous.responsibleId,
       responsibleIds: [teamMembers[0]?.id ?? previous.responsibleId],
       addedById: currentMember?.id ?? previous.addedById,
+      checklist: [],
     }));
+    setCreateChecklistDraft("");
     setIsCreateOpen(true);
   };
 
@@ -767,23 +1120,25 @@ export function CalendarPage() {
     }
 
     const nextId = Math.max(...events.map((event) => event.id), 0) + 1;
-    setEvents((previous) => [
-      ...previous,
-        {
-          id: nextId,
-          title: createForm.title.trim(),
-          description: createForm.description.trim(),
-          type: createForm.type,
-          responsibleId: createForm.responsibleIds[0] ?? createForm.responsibleId,
-          responsibleIds: getUniqueIds(
-            createForm.responsibleIds.length > 0 ? createForm.responsibleIds : [createForm.responsibleId],
-          ),
-          addedById: createForm.addedById,
-          status: createForm.status,
-          date: createForm.date,
-          time: createForm.time,
-        },
-    ]);
+    const createdEvent: CalendarEvent = {
+      id: nextId,
+      title: createForm.title.trim(),
+      description: createForm.description.trim(),
+      type: createForm.type,
+      responsibleId: createForm.responsibleIds[0] ?? createForm.responsibleId,
+      responsibleIds: getUniqueIds(
+        createForm.responsibleIds.length > 0 ? createForm.responsibleIds : [createForm.responsibleId],
+      ),
+      addedById: createForm.addedById,
+      status: createForm.status,
+      date: createForm.date,
+      time: createForm.time,
+      checklist: createForm.checklist,
+    };
+    const normalizedCreatedEvent = applyCalendarCompletionState(createdEvent, currentMember ? { id: currentMember.id, name: currentMember.name } : undefined);
+
+    setEvents((previous) => [...previous, normalizedCreatedEvent]);
+    syncCompletionHistory(normalizedCreatedEvent);
     setIsCreateOpen(false);
     toast.success("Novo post criado com sucesso.");
   };
@@ -804,7 +1159,9 @@ export function CalendarPage() {
       responsibleId: selectedEvent.responsibleId,
       responsibleIds: selectedEvent.responsibleIds?.length ? selectedEvent.responsibleIds : [selectedEvent.responsibleId],
       addedById: selectedEvent.addedById ?? currentMember?.id ?? teamMembers[0]?.id,
+      checklist: selectedEvent.checklist ?? [],
     });
+    setEventChecklistDraft("");
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -868,6 +1225,19 @@ export function CalendarPage() {
         <aside className="flex flex-col gap-4">
           {!isSidebarCollapsed ? (
             <>
+              <AgendaVisibilityPanel
+                teamMembers={teamMembers}
+                currentMemberId={currentMember?.id ?? null}
+                scope={teamScope}
+                visibleAgendaIds={visibleAgendaIds}
+                onScopeChange={(scope) => {
+                  setTeamScope(scope);
+                  if (scope !== "todos") {
+                    setVisibleAgendaIds([scope]);
+                  }
+                }}
+                onVisibleAgendaIdsChange={setVisibleAgendaIds}
+              />
               <MiniMonth date={currentDate} />
               <SideAgenda
                 events={currentMonthEvents}
@@ -1073,7 +1443,7 @@ export function CalendarPage() {
 
       {selectedEvent ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-background/82 p-4 backdrop-blur-[2px]"
           onWheelCapture={(event) => event.stopPropagation()}
           onClick={() => setSelectedEvent(null)}
         >
@@ -1082,7 +1452,7 @@ export function CalendarPage() {
             onWheelCapture={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="max-h-[88vh] overflow-y-auto overscroll-contain p-6">
+            <div className="max-h-[88vh] overflow-y-auto overscroll-contain p-6 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               {(() => {
                 const responsibleIds = getEventResponsibleIds(selectedEvent);
                 const members = responsibleIds
@@ -1157,6 +1527,19 @@ export function CalendarPage() {
                         {selectedEvent.type}
                       </span>
                       <span className="text-sm text-muted-foreground">{selectedEvent.description}</span>
+                    </div>
+
+                    <div className="mt-6 rounded-3xl border border-border/60 bg-muted/20 p-4">
+                      <ChecklistEditor
+                        title="Checklist da tarefa"
+                        items={eventForm?.checklist ?? selectedEvent.checklist ?? []}
+                        draft={eventChecklistDraft}
+                        onDraftChange={setEventChecklistDraft}
+                        onAddItem={handleEventChecklistAdd}
+                        onToggleItem={handleEventChecklistToggle}
+                        onUpdateItem={handleEventChecklistUpdate}
+                        onRemoveItem={handleEventChecklistRemove}
+                      />
                     </div>
 
                     <div className="mt-6 rounded-3xl border border-border/60 bg-muted/20 p-4">
@@ -1311,7 +1694,7 @@ export function CalendarPage() {
 
       {isCreateOpen ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 sm:p-6"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-background/82 p-4 backdrop-blur-[2px] sm:p-6"
           onClick={() => setIsCreateOpen(false)}
           onWheelCapture={(event) => {
             if (event.target === event.currentTarget) {
@@ -1344,7 +1727,7 @@ export function CalendarPage() {
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible overscroll-contain px-6 py-6 sm:px-8">
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible overscroll-contain px-6 py-6 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:px-8">
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="grid gap-2 md:col-span-2">
                   <span className="text-sm font-medium text-foreground">Título</span>
@@ -1425,6 +1808,17 @@ export function CalendarPage() {
                     }
                   />
                 </label>
+
+                <ChecklistEditor
+                  title="Checklist da tarefa"
+                  items={createForm.checklist}
+                  draft={createChecklistDraft}
+                  onDraftChange={setCreateChecklistDraft}
+                  onAddItem={handleCreateChecklistAdd}
+                  onToggleItem={handleCreateChecklistToggle}
+                  onUpdateItem={handleCreateChecklistUpdate}
+                  onRemoveItem={handleCreateChecklistRemove}
+                />
 
                 <div className="md:col-span-2 rounded-2xl border border-border/60 bg-muted/20 p-4">
                   <p className="text-sm font-medium text-foreground">Quem adicionou</p>

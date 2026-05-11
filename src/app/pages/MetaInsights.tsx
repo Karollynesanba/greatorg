@@ -219,19 +219,19 @@ export function MetaInsightsPage() {
   const hasData = status === "ready" && data.connected;
   const shellClass = isDark
     ? "space-y-5 p-6"
-    : "space-y-5 p-6 bg-white/96 border border-border/60 shadow-[0_18px_48px_rgba(15,23,42,0.06)]";
+    : "space-y-5 p-6 bg-[linear-gradient(180deg,rgba(245,247,255,0.98),rgba(255,255,255,0.98))] border border-indigo-100/90 shadow-[0_18px_48px_rgba(79,70,229,0.06)]";
   const softPanelClass = isDark
     ? "grid gap-3 rounded-[1.75rem] bg-muted/35 p-5 text-sm text-muted-foreground"
-    : "grid gap-3 rounded-[1.75rem] border border-border/60 bg-white/96 p-5 text-sm text-muted-foreground shadow-[0_12px_28px_rgba(15,23,42,0.05)]";
+    : "grid gap-3 rounded-[1.75rem] border border-indigo-100/80 bg-white/96 p-5 text-sm text-muted-foreground shadow-[0_12px_28px_rgba(79,70,229,0.05)]";
   const statGridClass = isDark
     ? "grid gap-3 rounded-[1.75rem] bg-muted/35 p-4 sm:grid-cols-2 lg:w-[420px]"
-    : "grid gap-3 rounded-[1.75rem] border border-border/60 bg-white/96 p-4 sm:grid-cols-2 lg:w-[420px] shadow-[0_12px_28px_rgba(15,23,42,0.05)]";
+    : "grid gap-3 rounded-[1.75rem] border border-indigo-100/80 bg-white/96 p-4 sm:grid-cols-2 lg:w-[420px] shadow-[0_12px_28px_rgba(79,70,229,0.05)]";
   const summaryTileClass = isDark
     ? "rounded-2xl bg-muted/45 p-4"
-    : "rounded-2xl border border-border/50 bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]";
+    : "rounded-2xl border border-indigo-100/80 bg-white p-4 shadow-[0_10px_24px_rgba(79,70,229,0.04)]";
   const mediaTileClass = isDark
     ? "rounded-2xl bg-muted/45 p-3"
-    : "rounded-2xl border border-border/50 bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.04)]";
+    : "rounded-2xl border border-amber-100/80 bg-white p-3 shadow-[0_10px_24px_rgba(79,70,229,0.04)]";
 
   return (
     <PageTransition>

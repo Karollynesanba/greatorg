@@ -4,6 +4,7 @@ import {
   Calendar,
   Camera,
   CheckCircle2,
+  ClipboardList,
   FileText,
   History,
   LayoutDashboard,
@@ -21,13 +22,14 @@ import { useThemeMode } from "../theme";
 const navigation = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/meta-insights", label: "Meta Insights", icon: Target },
-  { to: "/calendar", label: "Calendário", icon: Calendar },
+  { to: "/calendar", label: "CalendÃ¡rio", icon: Calendar },
   { to: "/goals", label: "Metas", icon: CheckCircle2 },
   { to: "/stories", label: "Stories", icon: Camera },
   { to: "/ideas", label: "Ideias", icon: Lightbulb },
-  { to: "/member/1", label: "Equipe", icon: Users },
-  { to: "/history", label: "Histórico", icon: History },
-  { to: "/reports", label: "Relatórios", icon: FileText },
+  { to: "/team", label: "Equipe", icon: Users },
+  { to: "/history", label: "HistÃ³rico", icon: History },
+  { to: "/reports", label: "RelatÃ³rios", icon: FileText },
+  { to: "/checklist", label: "Checklist", icon: ClipboardList },
 ];
 
 export function Sidebar({ onLogout }: { onLogout?: () => void }) {

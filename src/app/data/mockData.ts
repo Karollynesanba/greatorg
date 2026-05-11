@@ -109,6 +109,12 @@ export type GoalChecklistItem = {
   done: boolean;
 };
 
+export type CalendarChecklistItem = {
+  id: string;
+  label: string;
+  done: boolean;
+};
+
 export function getGoalResponsibleIds(goal: Goal) {
   const ids = goal.responsibleIds?.filter((value, index, array) => array.indexOf(value) === index) ?? [];
   return ids.length > 0 ? ids : goal.responsibleId ? [goal.responsibleId] : [];
@@ -129,6 +135,9 @@ export type CalendarEvent = {
   status: PostStatus;
   date: string;
   time: string;
+  checklist?: CalendarChecklistItem[];
+  completedAt?: string;
+  completedById?: number;
 };
 
 export type StoryLog = {
@@ -166,6 +175,12 @@ export type HistoryEvent = {
   date: string;
   result: string;
   metrics?: string;
+  completedAt?: string;
+  source?: {
+    kind: "calendar_event";
+    eventId: number;
+    memberId?: number;
+  };
 };
 
 function pad(number: number) {
@@ -375,7 +390,88 @@ export const goals: Goal[] = (() => {
   ];
 })();
 
-export const calendarEvents: CalendarEvent[] = [];
+export const calendarEvents: CalendarEvent[] = [
+  {
+    id: 1,
+    title: "Alinhamento de stories do mes",
+    description: "Brenda, Hannah e Thiago fecham o plano para bater 168 stories no periodo.",
+    type: "Stories",
+    responsibleId: 1,
+    responsibleIds: [1, 2, 3],
+    status: "Agendado",
+    date: "2026-04-30",
+    time: "09:00",
+    checklist: [
+      { id: "calendar-1-1", label: "Definir pauta", done: true },
+      { id: "calendar-1-2", label: "Separar responsaveis", done: false },
+      { id: "calendar-1-3", label: "Confirmar horario", done: false },
+    ],
+  },
+  {
+    id: 2,
+    title: "Gravacao de reels",
+    description: "Rodada de captação para os reels de conversao da semana.",
+    type: "Reels",
+    responsibleId: 1,
+    responsibleIds: [1],
+    status: "Em produção",
+    date: "2026-05-01",
+    time: "10:00",
+    checklist: [
+      { id: "calendar-2-1", label: "Gravar abertura", done: true },
+      { id: "calendar-2-2", label: "Gravar cenas de apoio", done: false },
+      { id: "calendar-2-3", label: "Salvar backups", done: false },
+    ],
+  },
+  {
+    id: 3,
+    title: "Revisao do carrossel",
+    description: "Hannah e Thiago validam a arte e a narrativa antes de publicar.",
+    type: "Carrossel",
+    responsibleId: 3,
+    responsibleIds: [2, 3],
+    status: "Aprovado",
+    date: "2026-05-01",
+    time: "14:00",
+    checklist: [
+      { id: "calendar-3-1", label: "Revisar copy", done: true },
+      { id: "calendar-3-2", label: "Checar arte final", done: true },
+      { id: "calendar-3-3", label: "Liberar agendamento", done: false },
+    ],
+  },
+  {
+    id: 4,
+    title: "Stories de conversao",
+    description: "Sequencia curta para aquecer audiencia e gerar resposta direta.",
+    type: "Stories",
+    responsibleId: 2,
+    responsibleIds: [2],
+    status: "Publicado",
+    date: "2026-05-02",
+    time: "08:30",
+    checklist: [
+      { id: "calendar-4-1", label: "Validar legenda", done: true },
+      { id: "calendar-4-2", label: "Subir stories", done: true },
+      { id: "calendar-4-3", label: "Monitorar respostas", done: false },
+    ],
+  },
+  {
+    id: 5,
+    title: "Fechamento do ciclo",
+    description: "Revisao final das entregas e pendencias para a proxima semana.",
+    type: "Feed",
+    responsibleId: 3,
+    responsibleIds: [1, 3],
+    status: "Agendado",
+    date: "2026-05-03",
+    time: "16:00",
+    checklist: [
+      { id: "calendar-5-1", label: "Fechar pendencias", done: true },
+      { id: "calendar-5-2", label: "Revisar entregas", done: false },
+      { id: "calendar-5-3", label: "Agendar proximos passos", done: false },
+    ],
+  },
+];
 export const storyLogs: StoryLog[] = [];
 export const ideas: Idea[] = [];
 export const historyTimeline: HistoryEvent[] = [

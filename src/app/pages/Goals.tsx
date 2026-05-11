@@ -703,9 +703,9 @@ export function GoalsPage() {
               isDark
                 ? undefined
                 : {
-                    background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(251,251,253,0.96))",
-                    borderColor: "rgba(229,231,238,0.82)",
-                    boxShadow: "0 18px 48px rgba(15,23,42,0.08)",
+                    background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246,252,245,0.96))",
+                    borderColor: "rgba(209,233,204,0.82)",
+                    boxShadow: "0 18px 48px rgba(34,197,94,0.06)",
                   }
             }
           >
@@ -718,9 +718,9 @@ export function GoalsPage() {
               isDark
                 ? undefined
                 : {
-                    background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(251,251,253,0.96))",
-                    borderColor: "rgba(229,231,238,0.82)",
-                    boxShadow: "0 18px 48px rgba(15,23,42,0.08)",
+                    background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246,252,245,0.96))",
+                    borderColor: "rgba(209,233,204,0.82)",
+                    boxShadow: "0 18px 48px rgba(34,197,94,0.06)",
                   }
             }
           >
@@ -733,9 +733,9 @@ export function GoalsPage() {
               isDark
                 ? undefined
                 : {
-                    background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(251,251,253,0.96))",
-                    borderColor: "rgba(229,231,238,0.82)",
-                    boxShadow: "0 18px 48px rgba(15,23,42,0.08)",
+                    background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246,252,245,0.96))",
+                    borderColor: "rgba(209,233,204,0.82)",
+                    boxShadow: "0 18px 48px rgba(34,197,94,0.06)",
                   }
             }
           >
@@ -760,14 +760,14 @@ export function GoalsPage() {
         </div>
 
         <GlassPanel
-          className="border-primary/10 bg-white/80 p-4 shadow-[0_14px_40px_rgba(15,23,42,0.06)]"
+          className="border-emerald-200/60 bg-white/80 p-4 shadow-[0_14px_40px_rgba(34,197,94,0.06)]"
           style={
             isDark
               ? undefined
               : {
-                  background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(251,251,253,0.96))",
-                  borderColor: "rgba(229,231,238,0.82)",
-                  boxShadow: "0 16px 42px rgba(15,23,42,0.08)",
+                  background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246,252,245,0.96))",
+                  borderColor: "rgba(209,233,204,0.82)",
+                  boxShadow: "0 16px 42px rgba(34,197,94,0.06)",
                 }
           }
         >

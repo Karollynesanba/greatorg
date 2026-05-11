@@ -11,11 +11,16 @@ import {
   YAxis,
 } from "recharts";
 import { BarChart3, Eye, Rocket, Sparkles, type LucideIcon } from "lucide-react";
-import { goals as seedGoals, getGoalResponsibleIds } from "../data/mockData";
+import { calendarEvents as seedCalendarEvents, goals as seedGoals, getGoalResponsibleIds, type CalendarEvent } from "../data/mockData";
 import { usePosts } from "../data/posts";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
+import {
+  getCalendarChecklistProgress,
+  getCalendarResponsibleIds,
+  isCalendarTaskCompleted,
+} from "../data/calendarWorkflow";
 import {
   GlassPanel,
   EmptyState,
@@ -224,6 +229,11 @@ export function DashboardPage() {
   const [teamMembers] = useTeamProfiles();
   const [posts] = usePosts();
   const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: seedGoals });
+  const [calendarEvents] = useSupabaseSyncedListState<CalendarEvent>({
+    key: "calendar-events",
+    table: "calendar_events",
+    fallback: seedCalendarEvents,
+  });
   const [teamScope] = useTeamScope();
   const chartLegend = [
     { label: "Alcance", color: "#833AB4" },
@@ -231,18 +241,33 @@ export function DashboardPage() {
   ];
   const visiblePosts = posts.filter((post) => matchesTeamScope(post.authorId, teamScope));
   const visibleGoals = goals.filter((goal) => getGoalResponsibleIds(goal).some((id) => matchesTeamScope(id, teamScope)));
+  const visibleCalendarEvents = calendarEvents.filter((event) =>
+    getCalendarResponsibleIds(event).some((id) => matchesTeamScope(id, teamScope)),
+  );
   const topPosts = [...visiblePosts].sort((a, b) => b.engagement - a.engagement).slice(0, 5);
   const worstPosts = [...visiblePosts].sort((a, b) => a.engagement - b.engagement).slice(0, 2);
   const dashboardGoals = visibleGoals.slice(0, 3);
   const totalReach = visiblePosts.reduce((sum, post) => sum + post.reach, 0);
   const totalEngagement = visiblePosts.reduce((sum, post) => sum + post.engagement, 0);
   const completedGoals = visibleGoals.filter((goal) => goal.current >= goal.target).length;
+  const calendarChecklistTotals = visibleCalendarEvents.reduce(
+    (acc, event) => {
+      const progress = getCalendarChecklistProgress(event);
+      return {
+        items: acc.items + progress.total,
+        done: acc.done + progress.completed,
+        completedTasks: acc.completedTasks + (isCalendarTaskCompleted(event) ? 1 : 0),
+      };
+    },
+    { items: 0, done: 0, completedTasks: 0 },
+  );
   const healthScore = visibleGoals.length > 0 ? Math.round((completedGoals / visibleGoals.length) * 100) : 0;
   const dashboardSummary = {
     healthScore,
     completedGoals,
     totalReach,
     totalEngagement,
+    calendarChecklistTotals,
   };
   const dashboardMetrics = [
     {
@@ -272,6 +297,24 @@ export function DashboardPage() {
       value: `${completedGoals}/${visibleGoals.length}`,
       change: 0,
       highlight: visibleGoals.length > 0 ? "Metas concluídas dentro do recorte selecionado." : "Nenhuma meta encontrada no recorte.",
+    },
+    {
+      id: "calendar",
+      label: "Tarefas concluídas",
+      value: String(calendarChecklistTotals.completedTasks),
+      change: 0,
+      highlight: visibleCalendarEvents.length > 0
+        ? "Tarefas do calendário finalizadas com checklist completo."
+        : "Nenhuma tarefa de calendário encontrada no recorte.",
+    },
+    {
+      id: "checklist",
+      label: "Checklist concluído",
+      value: `${calendarChecklistTotals.done}/${calendarChecklistTotals.items}`,
+      change: 0,
+      highlight: calendarChecklistTotals.items > 0
+        ? "Itens marcados no calendário alimentam este número."
+        : "Nenhum item de checklist encontrado no recorte.",
     },
   ] as const;
   const evolutionBuckets = visiblePosts.reduce<Map<string, { date: string; reach: number; engagement: number }>>(
