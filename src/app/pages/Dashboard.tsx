@@ -34,6 +34,7 @@ import { useThemeMode } from "../theme";
 import { type Goal } from "../data/mockData";
 
 const metricIcons = [Eye, BarChart3, Sparkles, Rocket];
+const fallbackMetricIcon = BarChart3;
 
 const instagramThemeLight = {
   ["--primary" as never]: "131 58 180",
@@ -370,7 +371,7 @@ export function DashboardPage() {
 
           <div className="grid gap-6 md:grid-cols-2">
             {dashboardMetrics.map((metric, index) => {
-              const Icon = metricIcons[index];
+              const Icon = metricIcons[index] ?? fallbackMetricIcon;
 
               return (
                 <DashboardMetricCard
