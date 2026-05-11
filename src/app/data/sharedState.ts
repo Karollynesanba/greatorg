@@ -40,8 +40,12 @@ function writeStoredValue<T>(key: string, value: T) {
     return;
   }
 
-  window.localStorage.setItem(key, JSON.stringify(value));
-  window.dispatchEvent(new CustomEvent(sharedStateEvent, { detail: key }));
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+    window.dispatchEvent(new CustomEvent(sharedStateEvent, { detail: key }));
+  } catch {
+    // Ignore storage failures and keep the in-memory state functional.
+  }
 }
 
 export function useSharedState<T>(key: string, fallback: T) {

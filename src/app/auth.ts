@@ -6,21 +6,37 @@ export function isAuthenticated() {
     return false;
   }
 
-  return window.localStorage.getItem(authStorageKey) === "true";
+  try {
+    return window.localStorage.getItem(authStorageKey) === "true";
+  } catch {
+    return false;
+  }
 }
 
 export function signIn() {
-  window.localStorage.setItem(authStorageKey, "true");
+  try {
+    window.localStorage.setItem(authStorageKey, "true");
+  } catch {
+    // Ignore storage failures; session will stay in memory only.
+  }
 }
 
 export function signInAsMember(memberId: number) {
-  window.localStorage.setItem(authStorageKey, "true");
-  window.localStorage.setItem(authMemberIdKey, String(memberId));
+  try {
+    window.localStorage.setItem(authStorageKey, "true");
+    window.localStorage.setItem(authMemberIdKey, String(memberId));
+  } catch {
+    // Ignore storage failures; session will stay in memory only.
+  }
 }
 
 export function signOut() {
-  window.localStorage.removeItem(authStorageKey);
-  window.localStorage.removeItem(authMemberIdKey);
+  try {
+    window.localStorage.removeItem(authStorageKey);
+    window.localStorage.removeItem(authMemberIdKey);
+  } catch {
+    // Ignore storage failures.
+  }
 }
 
 export function getAuthenticatedMemberId() {
@@ -28,7 +44,11 @@ export function getAuthenticatedMemberId() {
     return null;
   }
 
-  const raw = window.localStorage.getItem(authMemberIdKey);
-  const parsed = raw ? Number(raw) : Number.NaN;
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  try {
+    const raw = window.localStorage.getItem(authMemberIdKey);
+    const parsed = raw ? Number(raw) : Number.NaN;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  } catch {
+    return null;
+  }
 }

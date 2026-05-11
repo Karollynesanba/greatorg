@@ -15,11 +15,14 @@ function readInitialTheme(): ThemeMode {
     return "light";
   }
 
-  const storedTheme = window.localStorage.getItem("organico-theme");
-  if (storedTheme === "light" || storedTheme === "dark") {
-    return storedTheme;
+  try {
+    const storedTheme = window.localStorage.getItem("organico-theme");
+    if (storedTheme === "light" || storedTheme === "dark") {
+      return storedTheme;
+    }
+  } catch {
+    return "light";
   }
-
   return "light";
 }
 
@@ -30,7 +33,11 @@ export function ThemeModeProvider({ children }: PropsWithChildren) {
     const root = document.documentElement;
     root.classList.toggle("dark", theme === "dark");
     root.style.colorScheme = theme;
-    window.localStorage.setItem("organico-theme", theme);
+    try {
+      window.localStorage.setItem("organico-theme", theme);
+    } catch {
+      // Ignore storage failures and keep the theme in memory.
+    }
   }, [theme]);
 
   const value = useMemo(
