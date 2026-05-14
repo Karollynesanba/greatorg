@@ -85,8 +85,10 @@ export async function signInOrBootstrapDemoAccount(email: string, password: stri
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     const isInvalidLogin = message.toLowerCase().includes("invalid login credentials");
+    const isNotConfirmed = message.toLowerCase().includes("email not confirmed");
+    const canBootstrap = bootstrapAccounts.has(email.trim().toLowerCase());
 
-    if (!isInvalidLogin || !bootstrapAccounts.has(email.trim().toLowerCase())) {
+    if ((!isInvalidLogin && !isNotConfirmed) || !canBootstrap) {
       throw error;
     }
 
@@ -95,33 +97,40 @@ export async function signInOrBootstrapDemoAccount(email: string, password: stri
       throw error;
     }
 
-    const { data: signUpData, error: signUpError } = await client.auth.signUp({
-      email: email.trim(),
-      password,
+    const { error: bootstrapError } = await client.rpc("bootstrap_demo_account", {
+      demo_email: email.trim(),
+      demo_password: password,
     });
 
-    if (signUpError) {
-      throw signUpError;
-    }
-
-    if (!signUpData.session) {
-      const retry = await client.auth.signInWithPassword({
+    if (bootstrapError) {
+      const { data: signUpData, error: signUpError } = await client.auth.signUp({
         email: email.trim(),
         password,
       });
 
-      if (retry.error) {
-        throw retry.error;
+      if (signUpError) {
+        throw bootstrapError ?? signUpError;
       }
 
-      if (!retry.data.session) {
-        throw new Error("Não foi possível iniciar a sessão.");
+      if (signUpData.session) {
+        return signUpData.session;
       }
-
-      return retry.data.session;
     }
 
-    return signUpData.session;
+    const retry = await client.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+
+    if (retry.error) {
+      throw retry.error;
+    }
+
+    if (!retry.data.session) {
+      throw new Error("Não foi possível iniciar a sessão.");
+    }
+
+    return retry.data.session;
   }
 }
 

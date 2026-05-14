@@ -64,6 +64,68 @@ create table if not exists public.app_preferences (
   primary key (user_id, key)
 );
 
+create or replace function public.bootstrap_demo_account(demo_email text, demo_password text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, auth, pg_temp
+as $$
+declare
+  normalized_email text := lower(trim(demo_email));
+  allowed_password text := 'Great2026!';
+begin
+  if normalized_email not in (
+    'brendarayssa2706@gmail.com',
+    'hannahleticia13@gmail.com',
+    'thiagomarquesdev23@hotmail.com'
+  ) then
+    raise exception 'Demo account not allowed';
+  end if;
+
+  if demo_password <> allowed_password then
+    raise exception 'Invalid demo password';
+  end if;
+
+  insert into auth.users (
+    id,
+    aud,
+    role,
+    email,
+    encrypted_password,
+    email_confirmed_at,
+    raw_app_meta_data,
+    raw_user_meta_data,
+    created_at,
+    updated_at
+  )
+  values (
+    case normalized_email
+      when 'brendarayssa2706@gmail.com' then '4b8a4d0f-6f9e-4c3d-9a1d-2e1f4d58d101'
+      when 'hannahleticia13@gmail.com' then '2c1b7d5f-88a4-4b7b-8cb5-7d8a6f5c2b02'
+      else '7d8a2c11-0f4e-4e7b-b0a9-3f9d77a1c303'
+    end,
+    'authenticated',
+    'authenticated',
+    normalized_email,
+    crypt(demo_password, gen_salt('bf')),
+    now(),
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    '{}'::jsonb,
+    now(),
+    now()
+  )
+  on conflict (email) do update
+  set
+    encrypted_password = excluded.encrypted_password,
+    email_confirmed_at = now(),
+    updated_at = now();
+
+  return true;
+end;
+$$;
+
+grant execute on function public.bootstrap_demo_account(text, text) to anon, authenticated;
+
 alter table public.team_profiles enable row level security;
 alter table public.goals enable row level security;
 alter table public.ideas enable row level security;
