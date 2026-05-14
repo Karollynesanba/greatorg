@@ -397,7 +397,7 @@ export function GoalsPage() {
   const [pendingDelete, setPendingDelete] = useState<{ goalId: number; goalName: string } | null>(null);
   const [form, setForm] = useState<GoalFormState>(() => createInitialGoalForm(teamMembers));
   const [checklistDraft, setChecklistDraft] = useState("");
-  const migratedGoalsRef = useRef(false);
+  const goalSeedMigrationAppliedRef = useRef(false);
 
   const teamCards = teamMembers as TeamMemberCard[];
   const editingGoal = useMemo(() => items.find((goal) => goal.id === editingGoalId) ?? null, [editingGoalId, items]);
@@ -464,12 +464,12 @@ export function GoalsPage() {
   }, [editingGoal, isCreateOpen]);
 
   useEffect(() => {
-    if (migratedGoalsRef.current || teamCards.length < 2 || items.length === 0) {
+    if (goalSeedMigrationAppliedRef.current || teamCards.length < 2 || items.length === 0) {
       return;
     }
 
     if (items.some((goal) => getGoalView(goal) === "group")) {
-      migratedGoalsRef.current = true;
+      goalSeedMigrationAppliedRef.current = true;
       return;
     }
 
@@ -501,7 +501,7 @@ export function GoalsPage() {
       return goal;
     });
 
-    migratedGoalsRef.current = true;
+    goalSeedMigrationAppliedRef.current = true;
     setItems(nextItems);
   }, [items, setItems, teamCards]);
 
@@ -612,6 +612,7 @@ export function GoalsPage() {
     const target = Number(form.target);
     const current = Number(form.current);
     const selectedResponsibleIds = form.responsibleIds.length > 0 ? form.responsibleIds : teamCards[0] ? [teamCards[0].id] : [];
+    const uniqueResponsibleIds = selectedResponsibleIds.filter((value, index, array) => array.indexOf(value) === index);
 
     if (
       !form.name.trim() ||
@@ -620,17 +621,21 @@ export function GoalsPage() {
       !form.deadlineTime.trim() ||
       Number.isNaN(target) ||
       Number.isNaN(current) ||
-      selectedResponsibleIds.length === 0
+      !Number.isInteger(target) ||
+      !Number.isInteger(current) ||
+      target <= 0 ||
+      current < 0 ||
+      uniqueResponsibleIds.length === 0
     ) {
-      toast.error("Preencha nome, responsáveis, descrição, data, horário, meta e atual.");
+      toast.error("Preencha nome, responsáveis, descrição, data, horário, meta e atual com valores válidos.");
       return;
     }
 
     const goalPayload: Omit<Goal, "id"> = {
       name: form.name.trim(),
       category: form.category,
-      responsibleId: selectedResponsibleIds[0],
-      responsibleIds: selectedResponsibleIds,
+      responsibleId: uniqueResponsibleIds[0],
+      responsibleIds: uniqueResponsibleIds,
       target,
       current,
       period: form.period,
@@ -1100,7 +1105,7 @@ export function GoalsPage() {
                       <input
                         value={form.target}
                         onChange={(event) => setForm((previous) => ({ ...previous, target: event.target.value }))}
-                        inputMode="decimal"
+                        inputMode="numeric"
                         placeholder="Ex.: 120000"
                         className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:bg-white/5"
                       />
@@ -1111,7 +1116,7 @@ export function GoalsPage() {
                       <input
                         value={form.current}
                         onChange={(event) => setForm((previous) => ({ ...previous, current: event.target.value }))}
-                        inputMode="decimal"
+                        inputMode="numeric"
                         placeholder="Ex.: 84500"
                         className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:bg-white/5"
                       />

@@ -17,10 +17,10 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { goals as seedGoals, type ContentType, type Goal } from "../data/mockData";
-import { createStorageKey, useSharedState } from "../data/sharedState";
 import { useTeamProfiles } from "../data/profiles";
 import { usePosts, type Post } from "../data/posts";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
+import { useSupabasePreference } from "../data/userPreferences";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import {
   ActionButton,
@@ -678,12 +678,14 @@ export function ReportPreviewPage() {
   const location = useLocation();
   const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const anchorDate = useMemo(() => new Date("2026-04-30T12:00:00"), []);
+  const defaultPreviewState = useMemo(() => createDefaultPreviewState(anchorDate), [anchorDate]);
   const [teamMembers] = useTeamProfiles();
   const [posts] = usePosts();
   const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: seedGoals });
   const [teamScope] = useTeamScope();
-  const [state, setState] = useSharedState<PreviewState>(createStorageKey("report-preview-state"), createDefaultPreviewState(anchorDate));
-  const [manualBlocks, setManualBlocks] = useSharedState<ManualBlock[]>(createStorageKey("report-preview-blocks"), []);
+  const [state, setState] = useSupabasePreference<PreviewState>("report-preview-state", defaultPreviewState);
+  const emptyManualBlocks = useMemo<ManualBlock[]>(() => [], []);
+  const [manualBlocks, setManualBlocks] = useSupabasePreference<ManualBlock[]>("report-preview-blocks", emptyManualBlocks);
   const [draft, setDraft] = useState<ManualBlock>(emptyManualBlock(state.selectedPage));
   const [imageCaptionDraft, setImageCaptionDraft] = useState("");
   const appliedQueryRef = useRef(false);

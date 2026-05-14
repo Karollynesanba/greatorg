@@ -1,6 +1,4 @@
-import { useEffect, useRef } from "react";
-import { useState } from "react";
-import { useSharedState } from "./sharedState";
+import { useEffect, useRef, useState } from "react";
 import { isSupabaseConfigured, supabase } from "./supabase";
 
 type RowEnvelope<T> = {
@@ -27,11 +25,11 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
   table: string;
   fallback: T[];
 }) {
-  const sharedState = useSharedState(options.key, options.fallback);
-  const [value, setValue] = sharedState;
+  const [value, setValue] = useState<T[]>(options.fallback);
   const [hydrated, setHydrated] = useState(!isSupabaseConfigured());
   const hydratedRef = useRef(false);
   const lastRemoteSnapshotRef = useRef<string | null>(null);
+  const lastRemoteIdsRef = useRef<number[]>([]);
   const supabaseClient = supabase;
 
   useEffect(() => {
@@ -65,6 +63,7 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
 
       if (remoteItems.length > 0) {
         lastRemoteSnapshotRef.current = JSON.stringify(remoteItems);
+        lastRemoteIdsRef.current = remoteItems.map((item) => item.id);
         setValue(remoteItems);
         hydratedRef.current = true;
         setHydrated(true);
@@ -88,6 +87,7 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
       }
 
       lastRemoteSnapshotRef.current = JSON.stringify(options.fallback);
+      lastRemoteIdsRef.current = options.fallback.map((item) => item.id);
       setValue(options.fallback);
       hydratedRef.current = true;
       setHydrated(true);
@@ -129,15 +129,10 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
         return;
       }
 
-      if (currentIds.length === 0) {
-        const { error: deleteError } = await supabaseClient.from(options.table).delete().neq("id", 0);
+      const removedIds = lastRemoteIdsRef.current.filter((id) => !currentIds.includes(id));
 
-        if (!cancelled && deleteError) {
-          console.warn(`Supabase ${options.table} cleanup failed:`, deleteError.message);
-        }
-      } else {
-        const idList = `(${currentIds.join(",")})`;
-        const { error: deleteError } = await supabaseClient.from(options.table).delete().not("id", "in", idList);
+      if (removedIds.length > 0) {
+        const { error: deleteError } = await supabaseClient.from(options.table).delete().in("id", removedIds);
 
         if (!cancelled && deleteError) {
           console.warn(`Supabase ${options.table} cleanup failed:`, deleteError.message);
@@ -145,6 +140,7 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
       }
 
       lastRemoteSnapshotRef.current = snapshot;
+      lastRemoteIdsRef.current = currentIds;
     };
 
     void persistRemote();
@@ -154,5 +150,5 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
     };
   }, [options.table, supabaseClient, value]);
 
-  return [...sharedState, hydrated] as const;
+  return [value, setValue, hydrated] as const;
 }

@@ -1,61 +1,35 @@
+import { Suspense, lazy } from "react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
-import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
 import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
-import { CalendarPage } from "./pages/Calendar";
-import { DashboardPage } from "./pages/Dashboard";
-import { GoalsPage } from "./pages/Goals";
-import { HistoryPage } from "./pages/History";
-import { IdeasPage } from "./pages/Ideas";
-import { MemberProfilePage } from "./pages/MemberProfile";
-import { MetaInsightsPage } from "./pages/MetaInsights";
-import { MyProfilePage } from "./pages/MyProfile";
-import { LoginPage } from "./pages/Login";
-import { PostDetailPage } from "./pages/PostDetail";
-import { ReportPreviewPage } from "./pages/ReportPreview";
-import { ReportsPage } from "./pages/Reports";
-import { SettingsPage } from "./pages/Settings";
-import { StoriesPage } from "./pages/Stories";
-import { TeamPage } from "./pages/Team";
-import { isAuthenticated, signOut } from "./auth";
+import { useAuthSession, signOut } from "./auth";
 import { ThemeModeProvider, useThemeMode } from "./theme";
 
+const CalendarPage = lazy(() => import("./pages/Calendar").then((module) => ({ default: module.CalendarPage })));
+const DashboardPage = lazy(() => import("./pages/Dashboard").then((module) => ({ default: module.DashboardPage })));
+const GoalsPage = lazy(() => import("./pages/Goals").then((module) => ({ default: module.GoalsPage })));
+const HistoryPage = lazy(() => import("./pages/History").then((module) => ({ default: module.HistoryPage })));
+const IdeasPage = lazy(() => import("./pages/Ideas").then((module) => ({ default: module.IdeasPage })));
+const MemberProfilePage = lazy(() => import("./pages/MemberProfile").then((module) => ({ default: module.MemberProfilePage })));
+const MetaInsightsPage = lazy(() => import("./pages/MetaInsights").then((module) => ({ default: module.MetaInsightsPage })));
+const MyProfilePage = lazy(() => import("./pages/MyProfile").then((module) => ({ default: module.MyProfilePage })));
+const LoginPage = lazy(() => import("./pages/Login").then((module) => ({ default: module.LoginPage })));
+const PostDetailPage = lazy(() => import("./pages/PostDetail").then((module) => ({ default: module.PostDetailPage })));
+const ReportPreviewPage = lazy(() => import("./pages/ReportPreview").then((module) => ({ default: module.ReportPreviewPage })));
+const ReportsPage = lazy(() => import("./pages/Reports").then((module) => ({ default: module.ReportsPage })));
+const SettingsPage = lazy(() => import("./pages/Settings").then((module) => ({ default: module.SettingsPage })));
+const StoriesPage = lazy(() => import("./pages/Stories").then((module) => ({ default: module.StoriesPage })));
+const TeamPage = lazy(() => import("./pages/Team").then((module) => ({ default: module.TeamPage })));
+
 export default function App() {
-  const [authenticated, setAuthenticated] = useState(() => isAuthenticated());
-
-  useEffect(() => {
-    setAuthenticated(isAuthenticated());
-  }, []);
-
   return (
     <ThemeModeProvider>
       <DndProvider backend={HTML5Backend}>
         <BrowserRouter>
-          {authenticated ? (
-            <AppShell
-              onLogout={() => {
-                signOut();
-                setAuthenticated(false);
-              }}
-            />
-          ) : (
-            <Routes>
-              <Route
-                path="/login"
-                element={
-                  <LoginPage
-                    onLogin={() => {
-                      setAuthenticated(true);
-                    }}
-                  />
-                }
-              />
-              <Route path="*" element={<Navigate to="/login" replace />} />
-            </Routes>
-          )}
+          <AppRouter />
         </BrowserRouter>
         <AppToaster />
       </DndProvider>
@@ -63,7 +37,28 @@ export default function App() {
   );
 }
 
-function AppShell({ onLogout }: { onLogout: () => void }) {
+function AppRouter() {
+  const { session, ready } = useAuthSession();
+
+  if (!ready) {
+    return null;
+  }
+
+  if (!session) {
+    return (
+      <Suspense fallback={<RouteLoading />}>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </Suspense>
+    );
+  }
+
+  return <AppShell />;
+}
+
+function AppShell() {
   const { isDark } = useThemeMode();
 
   return (
@@ -75,7 +70,11 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
           : "linear-gradient(180deg, rgb(252,253,255) 0%, rgb(247,248,250) 100%)",
       }}
     >
-      <Sidebar onLogout={onLogout} />
+      <Sidebar
+        onLogout={() => {
+          void signOut();
+        }}
+      />
       <div className="flex min-h-screen w-full flex-col xl:pl-[304px] xl:pr-5 xl:py-5">
         <div
           className="flex min-h-screen flex-1 flex-col overflow-hidden xl:min-h-0 xl:rounded-[36px]"
@@ -89,30 +88,36 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
         >
           <TopBar />
           <main className="relative min-h-0 flex-1 p-4 sm:p-6 xl:p-7" tabIndex={0}>
-            <Routes>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/login" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/meta-insights" element={<MetaInsightsPage />} />
-              <Route path="/calendar" element={<CalendarPage />} />
-              <Route path="/post/:id" element={<PostDetailPage />} />
-              <Route path="/goals" element={<GoalsPage />} />
-              <Route path="/stories" element={<StoriesPage />} />
-              <Route path="/ideas" element={<IdeasPage />} />
-              <Route path="/team" element={<TeamPage />} />
-              <Route path="/member/:id" element={<MemberProfilePage />} />
-              <Route path="/history" element={<HistoryPage />} />
-              <Route path="/reports" element={<ReportsPage />} />
-              <Route path="/reports/preview" element={<ReportPreviewPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/profile" element={<MyProfilePage />} />
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
+            <Suspense fallback={<RouteLoading />}>
+              <Routes>
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/login" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/meta-insights" element={<MetaInsightsPage />} />
+                <Route path="/calendar" element={<CalendarPage />} />
+                <Route path="/post/:id" element={<PostDetailPage />} />
+                <Route path="/goals" element={<GoalsPage />} />
+                <Route path="/stories" element={<StoriesPage />} />
+                <Route path="/ideas" element={<IdeasPage />} />
+                <Route path="/team" element={<TeamPage />} />
+                <Route path="/member/:id" element={<MemberProfilePage />} />
+                <Route path="/history" element={<HistoryPage />} />
+                <Route path="/reports" element={<ReportsPage />} />
+                <Route path="/reports/preview" element={<ReportPreviewPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/profile" element={<MyProfilePage />} />
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              </Routes>
+            </Suspense>
           </main>
         </div>
       </div>
     </div>
   );
+}
+
+function RouteLoading() {
+  return <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted-foreground">Carregando...</div>;
 }
 
 function AppToaster() {

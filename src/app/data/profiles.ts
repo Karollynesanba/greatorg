@@ -1,24 +1,26 @@
-import { useEffect, useMemo, useRef } from "react";
-import { getAuthenticatedMemberId } from "../auth";
-import { createStorageKey, useSharedState } from "./sharedState";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useAuthSession } from "../auth";
 import { isSupabaseConfigured, supabase } from "./supabase";
 import { teamMembers as baseTeamMembers, type TeamMember } from "./mockData";
 
 export type EditableTeamMember = TeamMember & {
+  userId: string;
   email: string;
-  password: string;
+  password?: string;
   avatarUrl: string;
   bio: string;
 };
 
 type TeamProfileRow = Partial<EditableTeamMember> & {
   id?: number | string | null;
+  user_id?: string | null;
   avatar_url?: string | null;
   monthly_posts?: EditableTeamMember["monthlyPosts"] | null;
 };
 
 type TeamProfileDbRow = {
   id: number;
+  user_id: string;
   name: string;
   role: string;
   avatar: string;
@@ -28,26 +30,22 @@ type TeamProfileDbRow = {
   radar: EditableTeamMember["radar"];
   monthly_posts: EditableTeamMember["monthlyPosts"];
   email: string;
-  password: string;
   avatar_url: string;
   bio: string;
 };
 
-type TeamProfileDbUpsert = Omit<TeamProfileDbRow, "monthly_posts" | "avatar_url"> & {
-  monthly_posts: EditableTeamMember["monthlyPosts"];
-  avatar_url: string;
-};
+type TeamProfileDbUpsert = TeamProfileDbRow;
 
 const teamProfilesTable = "team_profiles";
 
 const seedAccounts: EditableTeamMember[] = baseTeamMembers.map((member, index) => {
   const credentials = [
-    { email: "brendarayssa2706@gmail.com", password: "Great2026!" },
-    { email: "hannahleticia13@gmail.com", password: "Great2026!" },
-    { email: "thiagomarquesdev23@hotmail.com", password: "Great2026!" },
+    { userId: "4b8a4d0f-6f9e-4c3d-9a1d-2e1f4d58d101", email: "brendarayssa2706@gmail.com" },
+    { userId: "2c1b7d5f-88a4-4b7b-8cb5-7d8a6f5c2b02", email: "hannahleticia13@gmail.com" },
+    { userId: "7d8a2c11-0f4e-4e7b-b0a9-3f9d77a1c303", email: "thiagomarquesdev23@hotmail.com" },
   ][index] ?? {
+    userId: `00000000-0000-0000-0000-${String(index + 1).padStart(12, "0")}`,
     email: `membro${index + 1}@greatorganico.com`,
-    password: "Great2026!",
   };
 
   return {
@@ -59,10 +57,11 @@ const seedAccounts: EditableTeamMember[] = baseTeamMembers.map((member, index) =
 });
 
 export function useTeamProfiles() {
-  const sharedState = useSharedState(createStorageKey("team-profiles"), seedAccounts);
-  const [profiles, setProfiles] = sharedState;
+  const [profiles, setProfiles] = useState<EditableTeamMember[]>(seedAccounts);
   const hydratedRef = useRef(false);
+  const { session } = useAuthSession();
   const supabaseClient = supabase;
+  const currentUserId = session?.user.id ?? null;
   const normalizedProfiles = useMemo(
     () => profiles.map((profile, index) => mergeTeamMember(profile, baseTeamMembers[index] ?? baseTeamMembers[0])),
     [profiles],
@@ -122,17 +121,26 @@ export function useTeamProfiles() {
   }, [setProfiles, supabaseClient]);
 
   useEffect(() => {
-    if (!hydratedRef.current || !isSupabaseConfigured() || !supabaseClient) {
+    if (!hydratedRef.current || !isSupabaseConfigured() || !supabaseClient || !currentUserId) {
       return;
     }
 
     let cancelled = false;
 
     const persistTeamProfiles = async () => {
-      const { error } = await supabaseClient.from(teamProfilesTable).upsert(
-        normalizedProfiles.map((profile) => toTeamProfileDbRow(profile)),
-        { onConflict: "id" },
-      );
+      const currentProfile =
+        normalizedProfiles.find((profile) => profile.userId === currentUserId) ??
+        normalizedProfiles.find((profile) => profile.email.toLowerCase() === (session?.user.email ?? "").toLowerCase());
+
+      if (!currentProfile) {
+        return;
+      }
+
+      const row = await toTeamProfileDbRow({
+        ...currentProfile,
+        userId: currentUserId,
+      });
+      const { error } = await supabaseClient.from(teamProfilesTable).upsert(row, { onConflict: "user_id" });
 
       if (cancelled) {
         return;
@@ -148,7 +156,7 @@ export function useTeamProfiles() {
     return () => {
       cancelled = true;
     };
-  }, [normalizedProfiles, supabaseClient]);
+  }, [normalizedProfiles, currentUserId, session?.user.email, supabaseClient]);
 
   useEffect(() => {
     if (JSON.stringify(profiles) === JSON.stringify(normalizedProfiles)) {
@@ -163,15 +171,20 @@ export function useTeamProfiles() {
 
 export function useCurrentTeamMember() {
   const [profiles, setProfiles] = useTeamProfiles();
-  const memberId = getAuthenticatedMemberId() ?? profiles[0]?.id ?? null;
+  const { session } = useAuthSession();
+  const memberId = session?.user.id ?? null;
+  const memberEmail = session?.user.email?.toLowerCase() ?? null;
 
   const member = useMemo(() => {
-    if (memberId === null) {
+    if (!memberId && !memberEmail) {
       return null;
     }
 
-    return profiles.find((item) => item.id === memberId) ?? null;
-  }, [memberId, profiles]);
+    return (
+      profiles.find((item) => item.userId === memberId) ??
+      (memberEmail ? profiles.find((item) => item.email.toLowerCase() === memberEmail) ?? null : null)
+    );
+  }, [memberEmail, memberId, profiles]);
 
   const updateMember = (memberIdToUpdate: number, updater: (current: EditableTeamMember) => EditableTeamMember) => {
     setProfiles((previous) =>
@@ -181,7 +194,7 @@ export function useCurrentTeamMember() {
 
   return {
     member,
-    memberId,
+    memberId: member?.id ?? null,
     profiles,
     setProfiles,
     updateMember,
@@ -197,6 +210,7 @@ function normalizeProfileRow(row: TeamProfileRow) {
 
   return {
     id: Number.isFinite(id) ? id : 0,
+    userId: row.userId ?? row.user_id ?? "",
     name: row.name ?? "",
     role: row.role ?? "",
     avatar: row.avatar ?? "",
@@ -212,7 +226,6 @@ function normalizeProfileRow(row: TeamProfileRow) {
     radar: row.radar ?? [],
     monthlyPosts: row.monthlyPosts ?? row.monthly_posts ?? [],
     email: row.email ?? "",
-    password: row.password ?? "",
     avatarUrl: row.avatarUrl ?? row.avatar_url ?? "",
     bio: row.bio ?? "",
   } satisfies EditableTeamMember;
@@ -236,9 +249,10 @@ function mergeTeamMember(profile: EditableTeamMember, fallback: TeamMember) {
   };
 }
 
-function toTeamProfileDbRow(profile: EditableTeamMember): TeamProfileDbUpsert {
+async function toTeamProfileDbRow(profile: EditableTeamMember): Promise<TeamProfileDbUpsert> {
   return {
     id: profile.id,
+    user_id: profile.userId,
     name: profile.name,
     role: profile.role,
     avatar: profile.avatar,
@@ -248,7 +262,6 @@ function toTeamProfileDbRow(profile: EditableTeamMember): TeamProfileDbUpsert {
     radar: profile.radar,
     monthly_posts: profile.monthlyPosts,
     email: profile.email,
-    password: profile.password,
     avatar_url: profile.avatarUrl,
     bio: profile.bio,
   };

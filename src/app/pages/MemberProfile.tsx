@@ -125,7 +125,20 @@ export function MemberProfilePage() {
     table: "history_events",
     fallback: historyTimeline,
   });
-  const member = teamMembers.find((item) => String(item.id) === params.id) ?? teamMembers[0];
+  const member = teamMembers.find((item) => String(item.id) === params.id) ?? null;
+
+  if (!member) {
+    return (
+      <PageTransition>
+        <PageHeader
+          eyebrow="Team"
+          title="Membro não encontrado"
+          description="Não foi possível localizar um perfil compatível com esta rota."
+        />
+      </PageTransition>
+    );
+  }
+
   const memberGoals = goals.filter((goal) => getGoalResponsibleIds(goal).includes(member.id));
   const memberCalendarEvents = useMemo(
     () =>

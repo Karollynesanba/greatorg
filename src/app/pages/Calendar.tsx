@@ -19,10 +19,10 @@ import {
   type HistoryEvent,
   type CalendarEvent,
 } from "../data/mockData";
-import { createStorageKey, useSharedState } from "../data/sharedState";
 import { useTeamProfiles } from "../data/profiles";
 import { useCurrentTeamMember } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
+import { useSupabasePreference } from "../data/userPreferences";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import {
   applyCalendarCompletionState,
@@ -806,9 +806,10 @@ export function CalendarPage() {
   const [teamMembers] = useTeamProfiles();
   const { member: currentMember } = useCurrentTeamMember();
   const [teamScope, setTeamScope] = useTeamScope();
-  const [visibleAgendaIds, setVisibleAgendaIds] = useSharedState(
-    createStorageKey("calendar-visible-agendas"),
-    teamMembers.map((member) => member.id),
+  const defaultVisibleAgendaIds = useMemo(() => teamMembers.map((member) => member.id), [teamMembers]);
+  const [visibleAgendaIds, setVisibleAgendaIds] = useSupabasePreference<number[]>(
+    "calendar-visible-agendas",
+    defaultVisibleAgendaIds,
   );
   const [events, setEvents] = useSupabaseSyncedListState({
     key: "calendar-events",

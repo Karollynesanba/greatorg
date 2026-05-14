@@ -3,8 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { CalendarDays, ChartColumnBig, Eye, EyeOff, LockKeyhole, Mail, PieChart, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "../components/ui";
-import { signInAsMember } from "../auth";
-import { useTeamProfiles } from "../data/profiles";
+import { signInWithPassword } from "../auth";
+
+const DEMO_PASSWORD = "Great2026!";
+const quickAccessMembers = [
+  { id: 1, name: "Brenda", role: "Video Maker", email: "brendarayssa2706@gmail.com", color: "#833AB4" },
+  { id: 2, name: "Hannah", role: "Designer de Social", email: "hannahleticia13@gmail.com", color: "#E1306C" },
+  { id: 3, name: "Thiago", role: "Designer Editorial", email: "thiagomarquesdev23@hotmail.com", color: "#FCAF45" },
+] as const;
 
 function Feature({
   icon: Icon,
@@ -42,35 +48,27 @@ function GreatOrganicoMark({ className }: { className?: string }) {
 
 export function LoginPage({ onLogin }: { onLogin?: () => void }) {
   const navigate = useNavigate();
-  const [profiles] = useTeamProfiles();
   const [email, setEmail] = useState("brendarayssa2706@gmail.com");
   const [password, setPassword] = useState("Great2026!");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const signInMember = (memberId: number) => {
-    signInAsMember(memberId);
-    onLogin?.();
-    navigate("/dashboard", { replace: true });
-  };
-
-  const quickAccessMembers = profiles.slice(0, 3);
-
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
-    const matchedMember = profiles.find(
-      (member) => member.email.toLowerCase() === email.trim().toLowerCase() && member.password === password,
-    );
+    try {
+      const session = await signInWithPassword(email, password);
 
-    if (!matchedMember) {
-      toast.error("Email ou senha inválidos.");
+      if (!session) {
+        toast.error("Não foi possível iniciar a sessão.");
+        return;
+      }
+
+      onLogin?.();
+      navigate("/dashboard", { replace: true });
+    } finally {
       setLoading(false);
-      return;
     }
-
-    signInMember(matchedMember.id);
-    setLoading(false);
   };
 
   return (
@@ -153,10 +151,24 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                         <button
                           key={member.id}
                           type="button"
-                          onClick={() => {
+                          onClick={async () => {
                             setEmail(member.email);
-                            setPassword(member.password);
-                            signInMember(member.id);
+                            setPassword(DEMO_PASSWORD);
+                            setLoading(true);
+                            try {
+                              const session = await signInWithPassword(member.email, DEMO_PASSWORD);
+                              if (!session) {
+                                toast.error("Não foi possível acessar esta conta.");
+                                return;
+                              }
+
+                              onLogin?.();
+                              navigate("/dashboard", { replace: true });
+                            } catch {
+                              toast.error("Email ou senha inválidos.");
+                            } finally {
+                              setLoading(false);
+                            }
                           }}
                           className="flex flex-col items-start gap-3 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-4 text-left shadow-[0_2px_8px_rgba(15,23,42,0.03)] transition hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_12px_30px_rgba(15,23,42,0.08)]"
                         >

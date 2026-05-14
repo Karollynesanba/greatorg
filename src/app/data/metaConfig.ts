@@ -1,4 +1,4 @@
-import { createStorageKey, useSharedState } from "./sharedState";
+import { useSupabasePreference } from "./userPreferences";
 
 export type MetaConfig = {
   pageId: string;
@@ -10,8 +10,6 @@ export const defaultMetaConfig: MetaConfig = {
   instagramUserId: "",
 };
 
-const metaConfigStorageKey = createStorageKey("meta-config");
-
 export function useMetaConfig() {
-  return useSharedState<MetaConfig>(metaConfigStorageKey, defaultMetaConfig);
+  return useSupabasePreference<MetaConfig>("meta-config", defaultMetaConfig);
 }

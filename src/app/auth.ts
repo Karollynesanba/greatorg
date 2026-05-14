@@ -1,54 +1,83 @@
-export const authStorageKey = "great-organico-authenticated";
-export const authMemberIdKey = "great-organico-authenticated-member-id";
+import { useEffect, useState } from "react";
+import type { Session } from "@supabase/supabase-js";
+import { supabase } from "./data/supabase";
 
-export function isAuthenticated() {
-  if (typeof window === "undefined") {
-    return false;
-  }
+export type AuthState = {
+  session: Session | null;
+  ready: boolean;
+};
 
-  try {
-    return window.localStorage.getItem(authStorageKey) === "true";
-  } catch {
-    return false;
-  }
+function getAuthClient() {
+  return supabase;
 }
 
-export function signIn() {
-  try {
-    window.localStorage.setItem(authStorageKey, "true");
-  } catch {
-    // Ignore storage failures; session will stay in memory only.
-  }
+export function useAuthSession() {
+  const [state, setState] = useState<AuthState>({
+    session: null,
+    ready: false,
+  });
+
+  useEffect(() => {
+    const client = getAuthClient();
+    if (!client) {
+      setState({ session: null, ready: true });
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const loadSession = async () => {
+      const { data } = await client.auth.getSession();
+
+      if (!cancelled) {
+        setState({ session: data.session, ready: true });
+      }
+    };
+
+    const {
+      data: { subscription },
+    } = client.auth.onAuthStateChange((_event, session) => {
+      setState({ session, ready: true });
+    });
+
+    void loadSession();
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  return state;
 }
 
-export function signInAsMember(memberId: number) {
-  try {
-    window.localStorage.setItem(authStorageKey, "true");
-    window.localStorage.setItem(authMemberIdKey, String(memberId));
-  } catch {
-    // Ignore storage failures; session will stay in memory only.
+export async function signInWithPassword(email: string, password: string) {
+  const client = getAuthClient();
+  if (!client) {
+    throw new Error("Supabase not configured.");
   }
+
+  const { data, error } = await client.auth.signInWithPassword({
+    email: email.trim(),
+    password,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data.session) {
+    throw new Error("Não foi possível iniciar a sessão.");
+  }
+
+  return data.session;
 }
 
-export function signOut() {
-  try {
-    window.localStorage.removeItem(authStorageKey);
-    window.localStorage.removeItem(authMemberIdKey);
-  } catch {
-    // Ignore storage failures.
-  }
-}
-
-export function getAuthenticatedMemberId() {
-  if (typeof window === "undefined") {
-    return null;
+export async function signOut() {
+  const client = getAuthClient();
+  if (!client) {
+    return;
   }
 
-  try {
-    const raw = window.localStorage.getItem(authMemberIdKey);
-    const parsed = raw ? Number(raw) : Number.NaN;
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-  } catch {
-    return null;
-  }
+  await client.auth.signOut();
 }

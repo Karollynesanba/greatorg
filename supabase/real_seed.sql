@@ -1,4 +1,4 @@
--- Great Orgânico / seed real
+﻿-- Great OrgÃ¢nico / seed real
 -- Limpa a base e repovoa com dados coerentes entre Brenda, Hannah e Thiago.
 
 truncate table public.posts;
@@ -11,6 +11,7 @@ truncate table public.team_profiles;
 
 insert into public.team_profiles (
   id,
+  user_id,
   name,
   role,
   avatar,
@@ -20,13 +21,13 @@ insert into public.team_profiles (
   radar,
   monthly_posts,
   email,
-  password,
   avatar_url,
   bio
 )
 values
   (
     1,
+    '4b8a4d0f-6f9e-4c3d-9a1d-2e1f4d58d101',
     'Brenda',
     'Video Maker',
     'B',
@@ -36,12 +37,12 @@ values
     '[{"subject":"Criatividade","value":95},{"subject":"Pontualidade","value":96},{"subject":"Qualidade","value":93},{"subject":"Engajamento","value":91},{"subject":"Produtividade","value":90}]'::jsonb,
     '[{"month":"Jan","posts":11},{"month":"Fev","posts":12},{"month":"Mar","posts":15},{"month":"Abr","posts":16}]'::jsonb,
     'brendarayssa2706@gmail.com',
-    'Great2026!',
     '',
     'Gravacao, edicao e reels'
   ),
   (
     2,
+    '2c1b7d5f-88a4-4b7b-8cb5-7d8a6f5c2b02',
     'Hannah',
     'Designer de Social',
     'H',
@@ -51,12 +52,12 @@ values
     '[{"subject":"Criatividade","value":88},{"subject":"Pontualidade","value":97},{"subject":"Qualidade","value":90},{"subject":"Engajamento","value":84},{"subject":"Produtividade","value":86}]'::jsonb,
     '[{"month":"Jan","posts":7},{"month":"Fev","posts":8},{"month":"Mar","posts":7},{"month":"Abr","posts":8}]'::jsonb,
     'hannahleticia13@gmail.com',
-    'Great2026!',
     '',
     'Artes estaticas e stories'
   ),
   (
     3,
+    '7d8a2c11-0f4e-4e7b-b0a9-3f9d77a1c303',
     'Thiago',
     'Designer Editorial',
     'T',
@@ -66,7 +67,6 @@ values
     '[{"subject":"Criatividade","value":90},{"subject":"Pontualidade","value":94},{"subject":"Qualidade","value":94},{"subject":"Engajamento","value":87},{"subject":"Produtividade","value":88}]'::jsonb,
     '[{"month":"Jan","posts":10},{"month":"Fev","posts":11},{"month":"Mar","posts":11},{"month":"Abr","posts":12}]'::jsonb,
     'thiagomarquesdev23@hotmail.com',
-    'Great2026!',
     '',
     'Carrosseis e capas'
   );
@@ -223,7 +223,7 @@ values
     '{
       "id": 2,
       "title": "Gravacao de reels",
-      "description": "Rodada de captaçao para os reels de conversao da semana.",
+      "description": "Rodada de captaÃ§ao para os reels de conversao da semana.",
       "type": "Reels",
       "responsibleId": 1,
       "responsibleIds": [1],
@@ -411,12 +411,12 @@ values
       "metrics": {"likes": 4200, "comments": 290, "saves": 180, "shares": 130},
       "checklist": [
         {"id": "1-1", "label": "Roteiro aprovado", "done": true},
-        {"id": "1-2", "label": "Captaçao concluida", "done": true},
+        {"id": "1-2", "label": "CaptaÃ§ao concluida", "done": true},
         {"id": "1-3", "label": "Legenda revisada", "done": true}
       ],
       "comments": [
         {"id": "1-c1", "authorId": 2, "time": "09:18", "text": "Corte final ficou forte e direto."},
-        {"id": "1-c2", "authorId": 3, "time": "09:44", "text": "A capa chama a atenção de primeira."}
+        {"id": "1-c2", "authorId": 3, "time": "09:44", "text": "A capa chama a atenÃ§Ã£o de primeira."}
       ],
       "files": [
         {"id": "1-f1", "name": "roteiro-reels.pdf", "size": "1.2 MB", "kind": "pdf"},
@@ -494,7 +494,7 @@ values
       ],
       "script": {
         "hook": "Veja o processo completo em 5 passos",
-        "development": "Slides com contexto, execução e prova real",
+        "development": "Slides com contexto, execuÃ§Ã£o e prova real",
         "solution": "Fechar com aprendizado pratico",
         "cta": "Arraste ate o final e salve"
       },
@@ -564,8 +564,8 @@ values
       ],
       "script": {
         "hook": "Como produzir stories rapido sem perder qualidade",
-        "development": "Separar captaçao, legenda e revisão em blocos",
-        "solution": "Usar uma rotina replicavel em todo dia útil",
+        "development": "Separar captaÃ§ao, legenda e revisÃ£o em blocos",
+        "solution": "Usar uma rotina replicavel em todo dia Ãºtil",
         "cta": "Quer o modelo? Comenta rotina"
       },
       "approval": {"approvedBy": "Brenda", "date": "2026-04-21"}
@@ -576,7 +576,7 @@ values
     5,
     '{
       "id": 6,
-      "title": "Capas que aumentam retenção",
+      "title": "Capas que aumentam retenÃ§Ã£o",
       "description": "Post de feed com foco em hierarquia visual e leitura rapida no carrossel.",
       "type": "Feed",
       "authorId": 3,
@@ -606,3 +606,4 @@ values
       "approval": {"approvedBy": "Hannah", "date": "2026-04-19"}
     }'::jsonb
   );
+

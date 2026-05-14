@@ -35,10 +35,10 @@ import {
   type ContentType,
   type Goal,
 } from "../data/mockData";
-import { createStorageKey, useSharedState } from "../data/sharedState";
 import { useTeamProfiles } from "../data/profiles";
 import { usePosts, type Post } from "../data/posts";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
+import { useSupabasePreference } from "../data/userPreferences";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import {
   ActionButton,
@@ -477,7 +477,11 @@ function DateRangePicker({
 export function ReportsPage() {
   const { isDark } = useThemeMode();
   const navigate = useNavigate();
-  const anchorDate = useMemo(() => new Date("2026-04-30T12:00:00"), []);
+  const anchorDate = useMemo(() => {
+    const date = new Date();
+    date.setHours(12, 0, 0, 0);
+    return date;
+  }, []);
   const [period, setPeriod] = useState<ReportPeriod>("30");
   const [typeFilter, setTypeFilter] = useState<ContentType | "todos">("todos");
   const [responsibleFilter, setResponsibleFilter] = useState<number | "todos">("todos");
@@ -487,12 +491,9 @@ export function ReportsPage() {
   const [posts] = usePosts();
   const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: seedGoals });
   const [teamScope] = useTeamScope();
-  const [savedReports, setSavedReports] = useSharedState<SavedReport[]>(createStorageKey("reports-history"), []);
+  const emptySavedReports = useMemo<SavedReport[]>(() => [], []);
+  const [savedReports, setSavedReports] = useSupabasePreference<SavedReport[]>("reports-history", emptySavedReports);
   const [selectedMetric, setSelectedMetric] = useState<MetricKey>("reach");
-
-  useEffect(() => {
-    setSavedReports([]);
-  }, [setSavedReports]);
 
   const heroSurfaceClass = isDark
     ? "overflow-hidden bg-[linear-gradient(135deg,rgba(131,58,180,0.96),rgba(180,97,214,0.9),rgba(225,48,108,0.82))] text-white"

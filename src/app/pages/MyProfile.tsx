@@ -3,7 +3,18 @@ import { PencilLine, Save, Upload, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, ActionButton, GlassPanel, PageHeader, PageTransition, SectionTitle, cn } from "../components/ui";
 import { useCurrentTeamMember, useTeamProfiles, type EditableTeamMember } from "../data/profiles";
+import { supabase } from "../data/supabase";
 import { useThemeMode } from "../theme";
+
+type ProfileEditForm = Omit<EditableTeamMember, "password"> & {
+  password: string;
+};
+
+function omitPassword<T extends { password: string }>(profile: T) {
+  const { password, ...rest } = profile;
+  void password;
+  return rest;
+}
 
 function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -20,12 +31,14 @@ function Field({
   onChange,
   type = "text",
   placeholder,
+  readOnly,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
   placeholder?: string;
+  readOnly?: boolean;
 }) {
   return (
     <label className="grid gap-2">
@@ -35,6 +48,7 @@ function Field({
         onChange={(event) => onChange(event.target.value)}
         type={type}
         placeholder={placeholder}
+        readOnly={readOnly}
         className="rounded-2xl border border-border/70 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:bg-white/5"
       />
     </label>
@@ -43,19 +57,22 @@ function Field({
 
 export function MyProfilePage() {
   const { isDark } = useThemeMode();
-  const { member, memberId, updateMember } = useCurrentTeamMember();
+  const { member, updateMember } = useCurrentTeamMember();
   const [profiles] = useTeamProfiles();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [editForm, setEditForm] = useState<EditableTeamMember | null>(null);
+  const [editForm, setEditForm] = useState<ProfileEditForm | null>(null);
 
   useEffect(() => {
     if (!isEditOpen || !member) {
       return;
     }
 
-    setEditForm(member);
+    setEditForm({
+      ...member,
+      password: "",
+    });
   }, [isEditOpen, member]);
 
   useEffect(() => {
@@ -108,23 +125,43 @@ export function MyProfilePage() {
     );
   }
 
-  const saveProfile = () => {
+  const saveProfile = async () => {
     if (!editForm) {
       return;
     }
 
-    if (!editForm.name.trim() || !editForm.email.trim() || !editForm.password.trim() || !editForm.role.trim()) {
-      toast.error("Preencha nome, login, senha e função.");
+    if (!editForm.name.trim() || !editForm.email.trim() || !editForm.role.trim()) {
+      toast.error("Preencha nome, login e função.");
       return;
     }
 
-    updateMember(memberId, () => ({
+    const nextProfile = omitPassword({
       ...editForm,
       avatar: editForm.name.charAt(0).toUpperCase(),
-    }));
+    });
 
-    setIsEditOpen(false);
-    toast.success("Perfil atualizado em todo o app.");
+    try {
+      if (editForm.password.trim()) {
+        if (!supabase) {
+          throw new Error("Supabase not configured.");
+        }
+
+        const { error } = await supabase.auth.updateUser({ password: editForm.password.trim() });
+        if (error) {
+          throw error;
+        }
+      }
+
+      updateMember(member.id, (current) => ({
+        ...current,
+        ...nextProfile,
+      }));
+
+      setIsEditOpen(false);
+      toast.success("Perfil atualizado em todo o app.");
+    } catch {
+      toast.error("Não foi possível atualizar a senha agora.");
+    }
   };
 
   const detailItems = [
@@ -195,7 +232,7 @@ export function MyProfilePage() {
                       }
 
                       const avatarUrl = await readFileAsDataUrl(file);
-                      updateMember(memberId, (current) => ({
+                      updateMember(member.id, (current) => ({
                         ...current,
                         avatarUrl,
                         avatar: current.name.charAt(0).toUpperCase(),
@@ -332,7 +369,7 @@ export function MyProfilePage() {
               <div className="md:col-span-2">
                 <Field label="Foto de perfil (URL)" value={editForm.avatarUrl} onChange={(value) => setEditForm((previous) => previous ? { ...previous, avatarUrl: value } : previous)} placeholder="Cole uma URL ou envie uma foto" />
               </div>
-              <Field label="Login" value={editForm.email} onChange={(value) => setEditForm((previous) => previous ? { ...previous, email: value } : previous)} type="email" />
+              <Field label="Login" value={editForm.email} onChange={() => undefined} type="email" readOnly />
               <Field label="Senha" value={editForm.password} onChange={(value) => setEditForm((previous) => previous ? { ...previous, password: value } : previous)} type="password" />
               <Field label="Função" value={editForm.role} onChange={(value) => setEditForm((previous) => previous ? { ...previous, role: value } : previous)} />
               <Field label="Especialidade" value={editForm.specialty} onChange={(value) => setEditForm((previous) => previous ? { ...previous, specialty: value } : previous)} />
