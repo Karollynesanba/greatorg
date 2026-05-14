@@ -73,6 +73,58 @@ export async function signInWithPassword(email: string, password: string) {
   return data.session;
 }
 
+const bootstrapAccounts = new Set([
+  "brendarayssa2706@gmail.com",
+  "hannahleticia13@gmail.com",
+  "thiagomarquesdev23@hotmail.com",
+]);
+
+export async function signInOrBootstrapDemoAccount(email: string, password: string) {
+  try {
+    return await signInWithPassword(email, password);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    const isInvalidLogin = message.toLowerCase().includes("invalid login credentials");
+
+    if (!isInvalidLogin || !bootstrapAccounts.has(email.trim().toLowerCase())) {
+      throw error;
+    }
+
+    const client = getAuthClient();
+    if (!client) {
+      throw error;
+    }
+
+    const { data: signUpData, error: signUpError } = await client.auth.signUp({
+      email: email.trim(),
+      password,
+    });
+
+    if (signUpError) {
+      throw signUpError;
+    }
+
+    if (!signUpData.session) {
+      const retry = await client.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (retry.error) {
+        throw retry.error;
+      }
+
+      if (!retry.data.session) {
+        throw new Error("Não foi possível iniciar a sessão.");
+      }
+
+      return retry.data.session;
+    }
+
+    return signUpData.session;
+  }
+}
+
 export async function signOut() {
   const client = getAuthClient();
   if (!client) {

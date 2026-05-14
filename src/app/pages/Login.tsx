@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { CalendarDays, ChartColumnBig, Eye, EyeOff, LockKeyhole, Mail, PieChart, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "../components/ui";
-import { signInWithPassword } from "../auth";
+import { signInOrBootstrapDemoAccount, signInWithPassword } from "../auth";
 
 const DEMO_PASSWORD = "Great2026!";
 const quickAccessMembers = [
@@ -75,7 +75,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
     setLoading(true);
 
     try {
-      await signInWithPassword(email, DEMO_PASSWORD);
+      await signInOrBootstrapDemoAccount(email, DEMO_PASSWORD);
       onLogin?.();
       navigate("/dashboard", { replace: true });
     } catch (error) {
