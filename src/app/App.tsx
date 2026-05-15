@@ -56,24 +56,63 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, AppErrorBounda
     console.error("Unhandled application error", error, info);
   }
 
+  handleReset = () => {
+    try {
+      if (typeof window !== "undefined") {
+        const keysToRemove: string[] = [];
+        for (let index = 0; index < window.localStorage.length; index += 1) {
+          const key = window.localStorage.key(index);
+          if (key?.startsWith("great-organico:")) {
+            keysToRemove.push(key);
+          }
+        }
+
+        keysToRemove.forEach((key) => window.localStorage.removeItem(key));
+      }
+    } finally {
+      window.location.reload();
+    }
+  };
+
   render() {
     if (this.state.error) {
       return (
         <div className="flex min-h-screen items-center justify-center bg-background px-6 text-center">
-          <div className="max-w-xl space-y-4 rounded-3xl border border-border/70 bg-card p-8 text-card-foreground shadow-[0_18px_48px_rgba(15,23,42,0.08)]">
+          <div className="max-w-2xl space-y-4 rounded-3xl border border-border/70 bg-card p-8 text-card-foreground shadow-[0_18px_48px_rgba(15,23,42,0.08)]">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">Erro de carregamento</p>
             <h1 className="text-2xl font-semibold tracking-tight">A página travou antes de renderizar</h1>
             <p className="text-sm leading-6 text-muted-foreground">
               Isso normalmente acontece quando algum dado antigo ou um erro de runtime impede o painel de montar.
-              Recarregue a página e, se continuar, me mande esta tela para eu pegar o erro exato.
+              Recarregue a página ou limpe os dados locais do app. Se continuar, me mande o erro abaixo.
             </p>
-            <button
-              type="button"
-              onClick={() => window.location.reload()}
-              className="inline-flex h-11 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-white"
-            >
-              Recarregar
-            </button>
+            <div className="rounded-2xl border border-border/70 bg-muted/50 p-4 text-left">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Mensagem</p>
+              <p className="mt-2 text-sm text-foreground">{this.state.error.message}</p>
+              {this.state.error.stack ? (
+                <>
+                  <p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Stack</p>
+                  <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs leading-5 text-muted-foreground">
+                    {this.state.error.stack}
+                  </pre>
+                </>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="inline-flex h-11 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-white"
+              >
+                Recarregar
+              </button>
+              <button
+                type="button"
+                onClick={this.handleReset}
+                className="inline-flex h-11 items-center justify-center rounded-full border border-border/70 bg-background px-5 text-sm font-semibold text-foreground"
+              >
+                Limpar dados locais
+              </button>
+            </div>
           </div>
         </div>
       );
