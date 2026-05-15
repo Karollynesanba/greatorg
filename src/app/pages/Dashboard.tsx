@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+﻿import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import {
   Area,
@@ -11,7 +11,14 @@ import {
   YAxis,
 } from "recharts";
 import { BarChart3, Eye, Rocket, Sparkles, type LucideIcon } from "lucide-react";
-import { calendarEvents as seedCalendarEvents, goals as seedGoals, getGoalResponsibleIds, type CalendarEvent } from "../data/mockData";
+import {
+  calendarEvents as seedCalendarEvents,
+  goals as seedGoals,
+  getGoalResponsibleIds,
+  storyLogs as seedStoryLogs,
+  type CalendarEvent,
+  type StoryLog,
+} from "../data/mockData";
 import { usePosts } from "../data/posts";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
@@ -95,7 +102,7 @@ function InstagramHealthScoreRing({ score }: { score: number }) {
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span className="text-sm text-white/78">Saúde do perfil</span>
+        <span className="text-sm text-white/78">SaÃºde do perfil</span>
         <strong className="text-5xl font-semibold tracking-tight text-white">{score}</strong>
         <span className="text-sm font-medium text-white/78">de 100</span>
       </div>
@@ -246,6 +253,11 @@ export function DashboardPage() {
     table: "calendar_events",
     fallback: seedCalendarEvents,
   });
+  const [storyLogs] = useSupabaseSyncedListState<StoryLog>({
+    key: "story-logs",
+    table: "story_logs",
+    fallback: seedStoryLogs,
+  });
   const [teamScope] = useTeamScope();
   const chartLegend = [
     { label: "Alcance", color: "#833AB4" },
@@ -261,6 +273,9 @@ export function DashboardPage() {
   const dashboardGoals = visibleGoals.slice(0, 3);
   const totalReach = visiblePosts.reduce((sum, post) => sum + post.reach, 0);
   const totalEngagement = visiblePosts.reduce((sum, post) => sum + post.engagement, 0);
+  const totalStories = storyLogs
+    .filter((story) => matchesTeamScope(story.madeById, teamScope))
+    .reduce((sum, story) => sum + story.quantity, 0);
   const completedGoals = visibleGoals.filter((goal) => goal.current >= goal.target).length;
   const calendarChecklistTotals = visibleCalendarEvents.reduce(
     (acc, event) => {
@@ -273,12 +288,17 @@ export function DashboardPage() {
     },
     { items: 0, done: 0, completedTasks: 0 },
   );
-  const healthScore = visibleGoals.length > 0 ? Math.round((completedGoals / visibleGoals.length) * 100) : 0;
+  const goalCompletionRate = visibleGoals.length > 0 ? (completedGoals / visibleGoals.length) * 100 : 0;
+  const calendarCompletionRate =
+    calendarChecklistTotals.items > 0 ? (calendarChecklistTotals.done / calendarChecklistTotals.items) * 100 : 0;
+  const storyCompletionRate = Math.min((totalStories / 168) * 100, 100);
+  const healthScore = Math.round((goalCompletionRate + calendarCompletionRate + storyCompletionRate) / 3);
   const dashboardSummary = {
     healthScore,
     completedGoals,
     totalReach,
     totalEngagement,
+    totalStories,
     calendarChecklistTotals,
   };
   const dashboardMetrics = [
@@ -287,7 +307,7 @@ export function DashboardPage() {
       label: "Alcance",
       value: formatLongNumber(totalReach),
       change: 0,
-      highlight: visiblePosts.length > 0 ? "Dados vindos do Supabase." : "Nenhum post encontrado no recorte.",
+      highlight: visiblePosts.length > 0 ? "Calculado a partir dos posts ativos no recorte." : "Nenhum post encontrado no recorte.",
       to: "/meta-insights",
       destinationLabel: "Ver insights de alcance",
     },
@@ -296,38 +316,47 @@ export function DashboardPage() {
       label: "Engajamento",
       value: formatLongNumber(totalEngagement),
       change: 0,
-      highlight: visiblePosts.length > 0 ? "Soma de interações dos posts filtrados." : "Nenhum post encontrado no recorte.",
+      highlight: visiblePosts.length > 0 ? "Soma real das interacoes dos posts filtrados." : "Nenhum post encontrado no recorte.",
       to: "/meta-insights",
       destinationLabel: "Ver insights de engajamento",
     },
     {
       id: "posts",
-      label: "Publicações",
+      label: "Publicacoes",
       value: String(visiblePosts.length),
       change: 0,
-      highlight: visiblePosts.length > 0 ? "Quantidade total de conteúdos visíveis." : "Nenhum post encontrado no recorte.",
+      highlight: visiblePosts.length > 0 ? "Quantidade total de conteudos visiveis." : "Nenhum post encontrado no recorte.",
       to: "/reports",
-      destinationLabel: "Ver relatórios de conteúdo",
+      destinationLabel: "Ver relatorios de conteudo",
+    },
+    {
+      id: "stories",
+      label: "Stories",
+      value: formatLongNumber(totalStories),
+      change: 0,
+      highlight: totalStories > 0 ? "Volume real somado dos registros de stories." : "Nenhum story registrado no recorte.",
+      to: "/stories",
+      destinationLabel: "Abrir stories",
     },
     {
       id: "goals",
-      label: "Metas concluídas",
+      label: "Metas concluidas",
       value: `${completedGoals}/${visibleGoals.length}`,
       change: 0,
-      highlight: visibleGoals.length > 0 ? "Metas concluídas dentro do recorte selecionado." : "Nenhuma meta encontrada no recorte.",
+      highlight: visibleGoals.length > 0 ? "Metas concluidas dentro do recorte selecionado." : "Nenhuma meta encontrada no recorte.",
       to: "/goals",
       destinationLabel: "Abrir metas",
     },
     {
       id: "calendar",
-      label: "Tarefas concluídas",
+      label: "Tarefas concluidas",
       value: String(calendarChecklistTotals.completedTasks),
       change: 0,
       highlight: visibleCalendarEvents.length > 0
-        ? "Tarefas do calendário finalizadas com checklist completo."
-        : "Nenhuma tarefa de calendário encontrada no recorte.",
+        ? "Tarefas do calendario finalizadas com checklist completo."
+        : "Nenhuma tarefa de calendario encontrada no recorte.",
       to: "/calendar",
-      destinationLabel: "Abrir calendário",
+      destinationLabel: "Abrir calendario",
     },
   ] as const;
   const evolutionBuckets = visiblePosts.reduce<Map<string, { date: string; reach: number; engagement: number }>>(
@@ -349,14 +378,14 @@ export function DashboardPage() {
       <div style={isDark ? instagramThemeDark : instagramThemeLight} className="space-y-6">
         <PageHeader
           eyebrow="Overview"
-          title="Saúde completa do Instagram da Great"
-          description="Uma leitura executiva da operação criativa, com performance, metas e alertas de conteúdo em um único lugar."
+          title="SaÃºde completa do Instagram da Great"
+          description="Uma leitura executiva da operaÃ§Ã£o criativa, com performance, metas e alertas de conteÃºdo em um Ãºnico lugar."
         />
 
         <div className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
           <Link
             to="/meta-insights"
-            aria-label="Abrir Meta Insights com a saúde do perfil"
+            aria-label="Abrir Meta Insights com a saÃºde do perfil"
             className="group block outline-none transition focus-visible:scale-[1.01]"
           >
             <GlassPanel
@@ -372,7 +401,7 @@ export function DashboardPage() {
               <InstagramHealthScoreRing score={dashboardSummary.healthScore} />
               <div className="mt-5 grid w-full gap-3 sm:grid-cols-2 xl:grid-cols-1">
                 <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
-                  <p className="text-xs uppercase tracking-[0.16em] text-white/72">Metas concluídas</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-white/72">Metas concluÃ­das</p>
                   <p className="mt-2 text-2xl font-semibold text-white">
                     {dashboardSummary.completedGoals}/{visibleGoals.length}
                   </p>
@@ -429,8 +458,8 @@ export function DashboardPage() {
             }
           >
             <SectionTitle
-              title="Top 5 conteúdos"
-              description="Os posts que mais puxaram alcance, saves e conversa nas últimas semanas."
+              title="Top 5 conteÃºdos"
+              description="Os posts que mais puxaram alcance, saves e conversa nas Ãºltimas semanas."
             />
             <div className="mt-5 space-y-3">
               {topPosts.length > 0 ? topPosts.map((post, index) => {
@@ -481,7 +510,7 @@ export function DashboardPage() {
               }) : (
                 <EmptyState
                   title="Nenhum post cadastrado"
-                  description="Assim que você inserir conteúdos na tabela `posts`, eles aparecem aqui."
+                  description="Assim que vocÃª inserir conteÃºdos na tabela `posts`, eles aparecem aqui."
                 />
               )}
             </div>
@@ -504,8 +533,8 @@ export function DashboardPage() {
             }
           >
             <SectionTitle
-              title="Conteúdos com baixa performance"
-              description="Peças que pedem ajuste imediato de gancho, CTA ou proposta editorial."
+              title="ConteÃºdos com baixa performance"
+              description="PeÃ§as que pedem ajuste imediato de gancho, CTA ou proposta editorial."
             />
             <div className="mt-5 grid gap-4">
               {worstPosts.length > 0 ? worstPosts.map((post) => {
@@ -532,7 +561,7 @@ export function DashboardPage() {
                         {post.type}
                       </span>
                       <span className="inline-flex items-center rounded-full border border-[#F56040]/14 bg-[#F56040]/8 px-3 py-1 text-xs font-semibold text-[#B94A2D] dark:border-[#ffab8c]/18 dark:bg-[#251913] dark:text-[#ffab8c]">
-                        Atenção suave
+                        AtenÃ§Ã£o suave
                       </span>
                     </div>
                     <h3 className="mt-4 text-lg font-semibold text-foreground">{post.title}</h3>
@@ -549,8 +578,8 @@ export function DashboardPage() {
                 );
               }) : (
                 <EmptyState
-                  title="Sem conteúdo para comparar"
-                  description="Quando houver posts no Supabase, esta área mostra os que precisam de atenção."
+                  title="Sem conteÃºdo para comparar"
+                  description="Quando houver posts no Supabase, esta Ã¡rea mostra os que precisam de atenÃ§Ã£o."
                 />
               )}
             </div>
@@ -575,8 +604,8 @@ export function DashboardPage() {
             }
           >
             <SectionTitle
-              title="Comparação meta vs resultado"
-              description="As três metas mais críticas do ciclo atual."
+              title="ComparaÃ§Ã£o meta vs resultado"
+              description="As trÃªs metas mais crÃ­ticas do ciclo atual."
             />
               <div className="mt-5 space-y-5">
                 {dashboardGoals.length > 0 ? dashboardGoals.map((goal) => {
@@ -613,7 +642,7 @@ export function DashboardPage() {
               }) : (
                 <EmptyState
                   title="Nenhuma meta cadastrada"
-                  description="Adicione metas no Supabase para ver a comparação por aqui."
+                  description="Adicione metas no Supabase para ver a comparaÃ§Ã£o por aqui."
                 />
               )}
             </div>
@@ -636,8 +665,8 @@ export function DashboardPage() {
             }
           >
             <SectionTitle
-              title="Evolução nos últimos 30 dias"
-              description="A curva conjunta de alcance e engajamento mostra aceleração sustentável."
+              title="EvoluÃ§Ã£o nos Ãºltimos 30 dias"
+              description="A curva conjunta de alcance e engajamento mostra aceleraÃ§Ã£o sustentÃ¡vel."
             />
             <div className="mt-4 flex items-center gap-4 text-xs text-muted-foreground">
               {chartLegend.map((item) => (
@@ -684,8 +713,8 @@ export function DashboardPage() {
                 </ResponsiveContainer>
               ) : (
                 <EmptyState
-                  title="Sem evolução registrada"
-                  description="Os gráficos aparecem quando houver posts cadastrados no Supabase."
+                  title="Sem evoluÃ§Ã£o registrada"
+                  description="Os grÃ¡ficos aparecem quando houver posts cadastrados no Supabase."
                 />
               )}
             </div>
@@ -695,3 +724,4 @@ export function DashboardPage() {
     </PageTransition>
   );
 }
+

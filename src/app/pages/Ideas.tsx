@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+﻿import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { ChevronDown, Image as ImageIcon, Link2, Lightbulb, PencilLine, Plus, Upload, Video, X } from "lucide-react";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "motion/react";
@@ -22,14 +22,14 @@ import {
 
 const ideaCategories = [
   "Stories em foto",
-  "Stories em vídeo",
+  "Stories em vÃ­deo",
   "Reels",
   "Post",
   "Carrossel",
   "Feed",
 ] as const;
 
-const ideaStatuses: IdeaStatus[] = ["Ideia", "Em produção", "Pronto"];
+const ideaStatuses: IdeaStatus[] = ["Ideia", "Em produÃ§Ã£o", "Pronto"];
 
 type IdeaCategory = (typeof ideaCategories)[number];
 type IdeaMediaSource = "url" | "upload";
@@ -107,7 +107,7 @@ function MemberDropdown({
           className="absolute left-0 top-full z-50 mt-2 w-full rounded-[1.75rem] border border-border/70 bg-background p-2 shadow-[0_24px_60px_rgba(15,23,42,0.14)] dark:border-white/8 dark:bg-[#121821] dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]"
         >
           <p className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-            Responsável
+            ResponsÃ¡vel
           </p>
           <div className="space-y-1">
             {teamMembers.map((member) => {
@@ -259,7 +259,7 @@ export function IdeasPage() {
 
   const handleSaveIdea = () => {
     if (!form.title.trim() || !form.category.trim() || !form.theme.trim() || !form.description.trim()) {
-      toast.error("Preencha tÃ­tulo, categoria, tema e descriÃ§Ã£o.");
+      toast.error("Preencha tÃƒÂ­tulo, categoria, tema e descriÃƒÂ§ÃƒÂ£o.");
       return;
     }
 
@@ -310,7 +310,7 @@ export function IdeasPage() {
     }
 
     if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
-      toast.error("Envie uma imagem ou vídeo.");
+      toast.error("Envie uma imagem ou vÃ­deo.");
       event.target.value = "";
       return;
     }
@@ -327,7 +327,7 @@ export function IdeasPage() {
     }));
 
     event.target.value = "";
-    toast.success("Mídia adicionada à ideia.");
+    toast.success("MÃ­dia adicionada Ã  ideia.");
   };
 
   const handleDeleteIdea = (ideaId: number) => {
@@ -359,8 +359,8 @@ export function IdeasPage() {
     <PageTransition>
       <PageHeader
         eyebrow="Pipeline"
-        title="Banco de ideias pronto para produção"
-        description="Temas, roteiros e responsáveis ficam organizados para a operação girar com mais velocidade e menos retrabalho."
+        title="Banco de ideias pronto para produÃ§Ã£o"
+        description="Temas, roteiros e responsÃ¡veis ficam organizados para a operaÃ§Ã£o girar com mais velocidade e menos retrabalho."
         actions={
           <ActionButton onClick={openCreateModal}>
             <Plus className="h-4 w-4" />
@@ -452,7 +452,7 @@ export function IdeasPage() {
                         <ImageIcon className="h-4 w-4 text-muted-foreground" />
                       )}
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                        {idea.mediaKind === "video" || isVideoLike(idea.mediaUrl) ? "Vídeo" : "Foto"}
+                        {idea.mediaKind === "video" || isVideoLike(idea.mediaUrl) ? "VÃ­deo" : "Foto"}
                       </p>
                     </div>
                     {idea.mediaFileName ? (
@@ -486,7 +486,7 @@ export function IdeasPage() {
           <GlassPanel className="xl:col-span-2">
             <EmptyState
               title="Nenhuma ideia neste filtro"
-              description="Troque o membro na visualização ou crie uma nova ideia compartilhada para aparecer aqui."
+              description="Troque o membro na visualizaÃ§Ã£o ou crie uma nova ideia compartilhada para aparecer aqui."
             />
           </GlassPanel>
         )}
@@ -528,7 +528,7 @@ export function IdeasPage() {
               </motion.div>
               <div className="text-center">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-500">Ideia surgindo</p>
-                <p className="mt-2 text-sm text-muted-foreground">Abrindo a criação rápida...</p>
+                <p className="mt-2 text-sm text-muted-foreground">Abrindo a criaÃ§Ã£o rÃ¡pida...</p>
               </div>
             </motion.div>
           </motion.div>
@@ -548,7 +548,7 @@ export function IdeasPage() {
               <div>
                 <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{editingIdeaId !== null ? "Editar ideia" : "Nova Ideia"}</p>
                 <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
-                  {editingIdeaId !== null ? "Ajustar ideia existente" : "Criar ideia rápida"}
+                  {editingIdeaId !== null ? "Ajustar ideia existente" : "Criar ideia rÃ¡pida"}
                 </h3>
               </div>
               <button
@@ -562,7 +562,7 @@ export function IdeasPage() {
 
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               <label className="grid gap-2">
-                <span className="text-sm font-medium text-foreground">Título</span>
+                <span className="text-sm font-medium text-foreground">TÃ­tulo</span>
                 <input
                   value={form.title}
                   onChange={(event) => setForm((previous) => ({ ...previous, title: event.target.value }))}
@@ -570,7 +570,7 @@ export function IdeasPage() {
                 />
               </label>
               <label className="grid gap-2">
-                <span className="text-sm font-medium text-foreground">Responsável</span>
+                <span className="text-sm font-medium text-foreground">ResponsÃ¡vel</span>
                 <MemberDropdown
                   value={form.responsibleId}
                   onChange={(value) => setForm((previous) => ({ ...previous, responsibleId: value }))}
@@ -603,7 +603,7 @@ export function IdeasPage() {
                 />
               </label>
               <label className="grid gap-2 md:col-span-2">
-                <span className="text-sm font-medium text-foreground">Descrição</span>
+                <span className="text-sm font-medium text-foreground">DescriÃ§Ã£o</span>
                 <textarea
                   value={form.description}
                   onChange={(event) => setForm((previous) => ({ ...previous, description: event.target.value }))}
@@ -624,7 +624,7 @@ export function IdeasPage() {
                 <div className="md:col-span-2 rounded-[1.75rem] border border-border/60 bg-muted/20 p-4">
                   <div className="flex items-center gap-2">
                     <Upload className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium text-foreground">Mídia da ideia</span>
+                    <span className="text-sm font-medium text-foreground">MÃ­dia da ideia</span>
                   </div>
 
                   <div className="mt-4 inline-flex rounded-full border border-border/60 bg-background p-1">
@@ -652,13 +652,13 @@ export function IdeasPage() {
 
                   <div className="mt-4 grid gap-4 md:grid-cols-2">
                     <label className="grid gap-2">
-                      <span className="text-sm font-medium text-foreground">Tipo de mídia</span>
+                      <span className="text-sm font-medium text-foreground">Tipo de mÃ­dia</span>
                       <RoundedDropdown
-                        label="Tipo de mídia"
+                        label="Tipo de mÃ­dia"
                         value={form.mediaKind}
                         options={[
                           { label: "Foto", value: "photo" },
-                          { label: "Vídeo", value: "video" },
+                          { label: "VÃ­deo", value: "video" },
                         ]}
                         onChange={(value) => setForm((previous) => ({ ...previous, mediaKind: value }))}
                       />
@@ -666,7 +666,7 @@ export function IdeasPage() {
 
                     {form.mediaSource === "url" ? (
                       <label className="grid gap-2">
-                        <span className="text-sm font-medium text-foreground">URL da mídia</span>
+                        <span className="text-sm font-medium text-foreground">URL da mÃ­dia</span>
                         <input
                           value={form.mediaUrl}
                           onChange={(event) => setForm((previous) => ({ ...previous, mediaUrl: event.target.value }))}
@@ -676,7 +676,7 @@ export function IdeasPage() {
                       </label>
                     ) : (
                       <div className="grid gap-2">
-                        <span className="text-sm font-medium text-foreground">Upload de mídia</span>
+                        <span className="text-sm font-medium text-foreground">Upload de mÃ­dia</span>
                         <input
                           ref={mediaInputRef}
                           type="file"
@@ -708,13 +708,13 @@ export function IdeasPage() {
                           <ImageIcon className="h-4 w-4 text-muted-foreground" />
                         )}
                         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                          Prévia
+                          PrÃ©via
                         </p>
                       </div>
                       {form.mediaKind === "video" || isVideoLike(form.mediaUrl) ? (
                         <video src={form.mediaUrl} controls className="h-44 w-full bg-black object-cover" />
                       ) : (
-                        <img src={form.mediaUrl} alt="Prévia da mídia" className="h-44 w-full object-cover" />
+                        <img src={form.mediaUrl} alt="PrÃ©via da mÃ­dia" className="h-44 w-full object-cover" />
                       )}
                     </div>
                   ) : null}
@@ -737,7 +737,7 @@ export function IdeasPage() {
       {pendingDelete ? (
         <ConfirmDialog
           title="Tem certeza que deseja apagar?"
-          description="Essa ação não pode ser desfeita."
+          description="Essa aÃ§Ã£o nÃ£o pode ser desfeita."
           onCancel={() => setPendingDelete(null)}
           onConfirm={() => handleDeleteIdea(pendingDelete.ideaId)}
         />
@@ -745,3 +745,4 @@ export function IdeasPage() {
     </PageTransition>
   );
 }
+

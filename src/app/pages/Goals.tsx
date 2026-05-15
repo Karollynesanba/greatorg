@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, PencilLine, Plus, Users, X } from "lucide-react";
 import { toast } from "sonner";
-import { goals, getGoalResponsibleIds, type Goal, type GoalChecklistItem } from "../data/mockData";
+import { goals, getGoalResponsibleIds, historyTimeline, type Goal, type GoalChecklistItem, type HistoryEvent } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
+import { buildGoalHistoryEvent, getGoalHistoryId, removeHistoryEvent, upsertHistoryEvent } from "../data/historyEvents";
 import {
   ActionButton,
   ConfirmDialog,
@@ -390,6 +391,11 @@ export function GoalsPage() {
   const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
   const [items, setItems] = useSupabaseSyncedListState({ key: "goals", table: "goals", fallback: goals });
+  const [, setHistoryEvents] = useSupabaseSyncedListState<HistoryEvent>({
+    key: "history",
+    table: "history_events",
+    fallback: historyTimeline,
+  });
   const [teamScope] = useTeamScope();
   const [goalView, setGoalView] = useState<GoalView>("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -641,15 +647,36 @@ export function GoalsPage() {
 
     if (editingGoalId !== null) {
       setItems((previous) => previous.map((goal) => (goal.id === editingGoalId ? { ...goal, ...goalPayload } : goal)));
+      setHistoryEvents((previous) =>
+        upsertHistoryEvent(
+          previous,
+          buildGoalHistoryEvent(
+            { id: editingGoalId, ...goalPayload },
+            teamCards.find((member) => member.id === uniqueResponsibleIds[0])?.name ?? "Equipe",
+            "updated",
+          ),
+        ),
+      );
       toast.success("Meta atualizada com sucesso.");
     } else {
+      const nextGoalId = Math.max(...items.map((goal) => goal.id), 0) + 1;
       setItems((previous) => [
         {
-          id: Math.max(...previous.map((goal) => goal.id), 0) + 1,
+          id: nextGoalId,
           ...goalPayload,
         },
         ...previous,
       ]);
+      setHistoryEvents((previous) =>
+        upsertHistoryEvent(
+          previous,
+          buildGoalHistoryEvent(
+            { id: nextGoalId, ...goalPayload },
+            teamCards.find((member) => member.id === uniqueResponsibleIds[0])?.name ?? "Equipe",
+            "created",
+          ),
+        ),
+      );
       toast.success("Meta criada com sucesso.");
     }
 
@@ -664,6 +691,7 @@ export function GoalsPage() {
     }
 
     setItems((previous) => previous.filter((goal) => goal.id !== goalId));
+    setHistoryEvents((previous) => removeHistoryEvent(previous, getGoalHistoryId(goalId)));
     setPendingDelete(null);
     toast.success("Meta apagada com sucesso.", {
       action: {
@@ -676,6 +704,16 @@ export function GoalsPage() {
 
             return [removedGoal, ...previous];
           });
+          setHistoryEvents((previous) =>
+            upsertHistoryEvent(
+              previous,
+              buildGoalHistoryEvent(
+                removedGoal,
+                teamCards.find((member) => member.id === getGoalResponsibleIds(removedGoal)[0])?.name ?? "Equipe",
+                "updated",
+              ),
+            ),
+          );
         },
       },
     });

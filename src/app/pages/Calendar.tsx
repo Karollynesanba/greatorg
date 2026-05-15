@@ -1058,19 +1058,20 @@ export function CalendarPage() {
     setSelectedEvent((current) => (current?.id === eventId ? null : current));
     setPendingDelete(null);
     toast.success("Evento apagado com sucesso.", {
-      action: {
-        label: "Desfazer",
-        onClick: () => {
-          setEvents((previous) => {
-            if (previous.some((event) => event.id === removedEvent.id)) {
-              return previous;
-            }
+        action: {
+          label: "Desfazer",
+          onClick: () => {
+            setEvents((previous) => {
+              if (previous.some((event) => event.id === removedEvent.id)) {
+                return previous;
+              }
 
-            return [removedEvent, ...previous];
-          });
+              return [removedEvent, ...previous];
+            });
+            syncCompletionHistory(removedEvent);
+          },
         },
-      },
-    });
+      });
   };
 
   const syncCompletionHistory = (nextEvent: CalendarEvent, previousEvent?: CalendarEvent) => {

@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { Film, PencilLine, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
-import { storyLogs, type StoryLog } from "../data/mockData";
+import { historyTimeline, storyLogs, type HistoryEvent, type StoryLog } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
+import { buildStoryHistoryEvent, getStoryHistoryId, removeHistoryEvent, upsertHistoryEvent } from "../data/historyEvents";
 import {
   ActionButton,
   GlassPanel,
@@ -98,6 +99,11 @@ export function StoriesPage() {
     key: "story-logs",
     table: "story_logs",
     fallback: storyLogs,
+  });
+  const [, setHistoryEvents] = useSupabaseSyncedListState<HistoryEvent>({
+    key: "history",
+    table: "history_events",
+    fallback: historyTimeline,
   });
   const [teamScope] = useTeamScope();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -206,12 +212,24 @@ export function StoriesPage() {
         ? previous.map((item) => (item.id === editingStoryId ? nextItem : item))
         : [nextItem, ...previous],
     );
+    setHistoryEvents((previous) =>
+      upsertHistoryEvent(
+        previous,
+        buildStoryHistoryEvent(nextItem, madeBy.name, editingStoryId !== null ? "updated" : "created"),
+      ),
+    );
     toast.success(editingStoryId !== null ? "Story atualizado." : "Stories registrados.");
     closeModal();
   };
 
   const handleDelete = (storyId: number) => {
+    const removedStory = items.find((item) => item.id === storyId);
+    if (!removedStory) {
+      return;
+    }
+
     setItems((previous) => previous.filter((item) => item.id !== storyId));
+    setHistoryEvents((previous) => removeHistoryEvent(previous, getStoryHistoryId(storyId)));
     toast.success("Registro removido.");
   };
 

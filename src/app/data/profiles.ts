@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuthSession } from "../auth";
+import { usePosts } from "./posts";
 import { readLocalJson, subscribeLocalKey, writeLocalJson } from "./localStore";
-import { teamMembers as baseTeamMembers, type TeamMember } from "./mockData";
+import { calendarEvents as seedCalendarEvents, goals as seedGoals, storyLogs as seedStoryLogs, teamMembers as baseTeamMembers, type TeamMember } from "./mockData";
+import { useSupabaseSyncedListState } from "./supabaseSync";
+import { deriveTeamProfiles } from "./teamAnalytics";
+import { type CalendarEvent, type Goal, type StoryLog } from "./mockData";
 
 export type EditableTeamMember = TeamMember & {
   userId: string;
@@ -34,11 +38,27 @@ const seedAccounts: EditableTeamMember[] = baseTeamMembers.map((member, index) =
 export function useTeamProfiles() {
   const [profiles, setProfiles] = useState<EditableTeamMember[]>(seedAccounts);
   const { session } = useAuthSession();
+  const [posts] = usePosts();
+  const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: seedGoals });
+  const [calendarEvents] = useSupabaseSyncedListState<CalendarEvent>({
+    key: "calendar-events",
+    table: "calendar_events",
+    fallback: seedCalendarEvents,
+  });
+  const [storyLogItems] = useSupabaseSyncedListState<StoryLog>({
+    key: "story-logs",
+    table: "story_logs",
+    fallback: seedStoryLogs,
+  });
   const lastSavedSnapshotRef = useRef<string | null>(null);
 
   const normalizedProfiles = useMemo(
     () => profiles.map((profile, index) => mergeTeamMember(profile, baseTeamMembers[index] ?? baseTeamMembers[0])),
     [profiles],
+  );
+  const derivedProfiles = useMemo(
+    () => deriveTeamProfiles(normalizedProfiles, posts, goals, calendarEvents, storyLogItems),
+    [calendarEvents, goals, normalizedProfiles, posts, storyLogItems],
   );
 
   useEffect(() => {
@@ -78,7 +98,7 @@ export function useTeamProfiles() {
     lastSavedSnapshotRef.current = nextSnapshot;
   }, [normalizedProfiles, session?.user.id]);
 
-  return [normalizedProfiles, setProfiles] as const;
+  return [derivedProfiles, setProfiles] as const;
 }
 
 export function useCurrentTeamMember() {
