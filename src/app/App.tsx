@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { Component, Suspense, lazy, type ErrorInfo, type ReactNode } from "react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
@@ -29,12 +29,58 @@ export default function App() {
     <ThemeModeProvider>
       <DndProvider backend={HTML5Backend}>
         <BrowserRouter>
-          <AppRouter />
+          <AppErrorBoundary>
+            <AppRouter />
+          </AppErrorBoundary>
         </BrowserRouter>
         <AppToaster />
       </DndProvider>
     </ThemeModeProvider>
   );
+}
+
+type AppErrorBoundaryState = {
+  error: Error | null;
+};
+
+class AppErrorBoundary extends Component<{ children: ReactNode }, AppErrorBoundaryState> {
+  state: AppErrorBoundaryState = {
+    error: null,
+  };
+
+  static getDerivedStateFromError(error: Error): AppErrorBoundaryState {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("Unhandled application error", error, info);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-background px-6 text-center">
+          <div className="max-w-xl space-y-4 rounded-3xl border border-border/70 bg-card p-8 text-card-foreground shadow-[0_18px_48px_rgba(15,23,42,0.08)]">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">Erro de carregamento</p>
+            <h1 className="text-2xl font-semibold tracking-tight">A página travou antes de renderizar</h1>
+            <p className="text-sm leading-6 text-muted-foreground">
+              Isso normalmente acontece quando algum dado antigo ou um erro de runtime impede o painel de montar.
+              Recarregue a página e, se continuar, me mande esta tela para eu pegar o erro exato.
+            </p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="inline-flex h-11 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-white"
+            >
+              Recarregar
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
 }
 
 function AppRouter() {
