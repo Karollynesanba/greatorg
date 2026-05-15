@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { CalendarDays, ChartColumnBig, Eye, EyeOff, LockKeyhole, Mail, PieChart, Shield } from "lucide-react";
 import { toast } from "sonner";
@@ -23,11 +23,11 @@ function Feature({
 }) {
   return (
     <div className="flex flex-col items-center text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-white shadow-[0_16px_40px_rgba(229,9,20,0.22)]">
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#e50914] text-white shadow-[0_16px_40px_rgba(229,9,20,0.22)]">
         <Icon className="h-6 w-6" />
       </div>
-      <h3 className="mt-5 text-[18px] font-medium leading-6 text-foreground">{title}</h3>
-      <p className="mt-2 max-w-[180px] text-[14px] leading-6 text-muted-foreground">{description}</p>
+      <h3 className="mt-5 text-[18px] font-medium leading-6 text-[#141414]">{title}</h3>
+      <p className="mt-2 max-w-[180px] text-[14px] leading-6 text-[#667085]">{description}</p>
     </div>
   );
 }
@@ -37,7 +37,7 @@ function GreatOrganicoMark({ className }: { className?: string }) {
     <div
       aria-hidden="true"
       className={cn(
-        "flex items-center justify-center rounded-full bg-primary font-bold text-white shadow-[0_18px_50px_rgba(229,9,20,0.24)]",
+        "flex items-center justify-center rounded-full bg-[#e50914] font-bold text-white shadow-[0_18px_50px_rgba(229,9,20,0.24)]",
         className,
       )}
     >
@@ -52,6 +52,20 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const previousDark = root.classList.contains("dark");
+    const previousColorScheme = root.style.colorScheme;
+
+    root.classList.remove("dark");
+    root.style.colorScheme = "light";
+
+    return () => {
+      root.classList.toggle("dark", previousDark);
+      root.style.colorScheme = previousColorScheme;
+    };
+  }, []);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -91,7 +105,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
   };
 
   return (
-    <div className="min-h-screen overflow-hidden bg-[#fbf7f6]">
+    <div className="min-h-screen overflow-hidden bg-[#fbf7f6] text-[#141414] [color-scheme:light]">
       <div className="grid min-h-screen lg:grid-cols-[1.02fr_0.98fr]">
         <section className="relative overflow-hidden bg-[#fcf9f8] px-8 py-8 xl:px-12">
           <div className="absolute inset-0">
@@ -102,17 +116,17 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
             <div className="flex items-center gap-4">
               <GreatOrganicoMark className="h-[88px] w-[88px]" />
               <div>
-                <p className="text-[3.2rem] font-semibold leading-none tracking-tight text-foreground">Great</p>
-                <p className="mt-2 pl-0.5 text-[0.92rem] font-semibold uppercase tracking-[0.5em] text-primary">Orgânico</p>
+                <p className="text-[3.2rem] font-semibold leading-none tracking-tight text-[#141414]">Great</p>
+                <p className="mt-2 pl-0.5 text-[0.92rem] font-semibold uppercase tracking-[0.5em] text-[#e50914]">Orgânico</p>
               </div>
             </div>
 
             <div className="flex flex-1 flex-col justify-center pb-10 pt-14">
               <div className="max-w-2xl">
-                <h1 className="mt-5 max-w-xl text-[3.8rem] font-semibold leading-[0.94] tracking-tight text-foreground xl:text-[4.1rem]">
+                <h1 className="mt-5 max-w-xl text-[3.8rem] font-semibold leading-[0.94] tracking-tight text-[#141414] xl:text-[4.1rem]">
                   Gestão estratégica
                   <br />
-                  do <span className="text-primary">orgânico.</span>
+                  do <span className="text-[#e50914]">orgânico.</span>
                 </h1>
                 <p className="mt-6 max-w-xl text-[1.1rem] leading-[1.42] text-[#5d6168]">
                   Organize conteúdos, acompanhe metas e analise resultados em um só lugar.
@@ -149,9 +163,9 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                 <div className="absolute -left-[12rem] top-[4rem] h-[38rem] w-[38rem] rounded-full border border-white/12" />
                 <form
                   onSubmit={handleSubmit}
-                  className="relative w-full max-w-[560px] rounded-t-[2.3rem] rounded-b-[1.15rem] bg-white px-12 py-12 text-foreground shadow-[0_42px_100px_rgba(0,0,0,0.26)]"
+                  className="relative w-full max-w-[560px] rounded-t-[2.3rem] rounded-b-[1.15rem] bg-white px-12 py-12 text-[#141414] shadow-[0_42px_100px_rgba(0,0,0,0.26)]"
                 >
-                  <h2 className="text-[2rem] font-semibold tracking-tight text-foreground">Entrar na plataforma</h2>
+                  <h2 className="text-[2rem] font-semibold tracking-tight text-[#141414]">Entrar na plataforma</h2>
                   <p className="mt-2 text-[1rem] text-[#7a7f87]">Acesse o painel Great Orgânico</p>
 
                   <div className="mt-6 grid gap-3 sm:grid-cols-3">
@@ -160,7 +174,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                         key={member.id}
                         type="button"
                         onClick={() => void handleQuickAccess(member.email)}
-                        className="flex flex-col items-start gap-3 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-4 text-left shadow-[0_2px_8px_rgba(15,23,42,0.03)] transition hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_12px_30px_rgba(15,23,42,0.08)]"
+                        className="flex flex-col items-start gap-3 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-4 text-left shadow-[0_2px_8px_rgba(15,23,42,0.03)] transition hover:-translate-y-0.5 hover:border-[#e50914] hover:shadow-[0_12px_30px_rgba(15,23,42,0.08)]"
                       >
                         <span
                           className="inline-flex h-11 w-11 items-center justify-center rounded-2xl text-base font-semibold text-white"
@@ -169,7 +183,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                           {member.name.charAt(0)}
                         </span>
                         <span>
-                          <span className="block text-sm font-semibold text-foreground">{member.name}</span>
+                          <span className="block text-sm font-semibold text-[#141414]">{member.name}</span>
                           <span className="block text-xs text-[#7a7f87]">{member.role}</span>
                         </span>
                       </button>
@@ -178,7 +192,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
 
                   <div className="mt-8 space-y-6">
                     <label className="grid gap-2">
-                      <span className="text-sm font-medium text-foreground">Email</span>
+                      <span className="text-sm font-medium text-[#141414]">Email</span>
                       <div className="flex items-center gap-3 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-4 shadow-[0_2px_8px_rgba(15,23,42,0.03)]">
                         <Mail className="h-4 w-4 text-[#9ca3af]" />
                         <input
@@ -192,7 +206,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                     </label>
 
                     <label className="grid gap-2">
-                      <span className="text-sm font-medium text-foreground">Senha</span>
+                      <span className="text-sm font-medium text-[#141414]">Senha</span>
                       <div className="flex items-center gap-3 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-4 shadow-[0_2px_8px_rgba(15,23,42,0.03)]">
                         <LockKeyhole className="h-4 w-4 text-[#9ca3af]" />
                         <input
@@ -205,7 +219,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                         <button
                           type="button"
                           onClick={() => setShowPassword((previous) => !previous)}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#9ca3af] transition hover:bg-muted hover:text-foreground"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#9ca3af] transition hover:bg-[#f3f4f6] hover:text-[#141414]"
                           aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
                         >
                           {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -218,7 +232,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                         <input type="checkbox" className="rounded border-[#d1d5db]" defaultChecked />
                         Lembrar-me
                       </label>
-                      <button type="button" className="font-medium text-primary hover:underline">
+                      <button type="button" className="font-medium text-[#e50914] hover:underline">
                         Esqueceu a senha?
                       </button>
                     </div>
@@ -236,7 +250,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                   </button>
 
                   <div className="mt-8 border-t border-[#e8e8e8] pt-6 text-center text-sm text-[#7a7f87]">
-                    Não tem uma conta? <span className="font-medium text-primary">Solicitar acesso</span>
+                    Não tem uma conta? <span className="font-medium text-[#e50914]">Solicitar acesso</span>
                   </div>
                 </form>
               </div>
