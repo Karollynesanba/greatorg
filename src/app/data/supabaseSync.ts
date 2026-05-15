@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuthSession } from "../auth";
 import { isSupabaseConfigured, supabase } from "./supabase";
 import { readLocalJson, subscribeLocalKey, writeLocalJson } from "./localStore";
+import { subscribeSharedChannel } from "./supabaseRealtime";
 
 type RowEnvelope<T> = {
   id: number;
@@ -125,7 +126,6 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
       });
     }
 
-    const client = supabase;
     let cancelled = false;
 
     const loadRemote = async () => {
@@ -147,23 +147,29 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
       console.error(`Unexpected failure loading ${options.table}`, error);
     });
 
-    const channel = client.channel(`great-organico:${options.table}`).on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: options.table,
+    const unsubscribe = subscribeSharedChannel(
+      `great-organico:${options.table}`,
+      (channel, dispatch) => {
+        channel.on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: options.table,
+          },
+          () => {
+            dispatch();
+          },
+        );
       },
       () => {
         void loadRemote();
       },
     );
 
-    channel.subscribe();
-
     return () => {
       cancelled = true;
-      void client.removeChannel(channel);
+      unsubscribe();
     };
   }, [authReady, options.fallback, options.table, session?.user.id, storageKey]);
 

@@ -3,6 +3,7 @@ import { useAuthSession } from "../auth";
 import { usePosts } from "./posts";
 import { isSupabaseConfigured, supabase } from "./supabase";
 import { readLocalJson, subscribeLocalKey, writeLocalJson } from "./localStore";
+import { subscribeSharedChannel } from "./supabaseRealtime";
 import {
   calendarEvents as seedCalendarEvents,
   goals as seedGoals,
@@ -203,24 +204,29 @@ export function useTeamProfiles() {
 
     void loadProfiles();
 
-    const channel = client
-      .channel("great-organico:team_profiles")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "team_profiles",
-        },
-        () => {
-          void loadProfiles();
-        },
-      )
-      .subscribe();
+    const unsubscribe = subscribeSharedChannel(
+      "great-organico:team_profiles",
+      (channel, dispatch) => {
+        channel.on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "team_profiles",
+          },
+          () => {
+            dispatch();
+          },
+        );
+      },
+      () => {
+        void loadProfiles();
+      },
+    );
 
     return () => {
       cancelled = true;
-      void client.removeChannel(channel);
+      unsubscribe();
     };
   }, [authReady, session, seedAccounts]);
 

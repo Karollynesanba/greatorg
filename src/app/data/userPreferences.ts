@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuthSession } from "../auth";
 import { isSupabaseConfigured, supabase } from "./supabase";
 import { readLocalJson, subscribeLocalKey, writeLocalJson } from "./localStore";
+import { subscribeSharedChannel } from "./supabaseRealtime";
 
 function snapshotOf<T>(value: T) {
   return JSON.stringify(value);
@@ -71,32 +72,38 @@ export function useSupabasePreference<T>(key: string, fallback: T) {
 
     void loadPreference();
 
-    const channel = client
-      .channel(`great-organico:pref:${key}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "app_preferences",
-        },
-        (payload) => {
-          const row = payload.new as { user_id?: string; key?: string; value?: T } | null;
-          if (row?.user_id !== session.user.id || row?.key !== key) {
-            return;
-          }
+    const unsubscribe = subscribeSharedChannel(
+      `great-organico:pref:${key}`,
+      (channel, dispatch) => {
+        channel.on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "app_preferences",
+          },
+          (payload) => {
+            const row = payload.new as { user_id?: string; key?: string; value?: T } | null;
+            if (row?.user_id !== session.user.id || row?.key !== key) {
+              return;
+            }
 
-          const nextValue = row.value ?? fallback;
-          setValue(nextValue);
-          lastSavedSnapshotRef.current = snapshotOf(nextValue);
-          setReady(true);
-        },
-      )
-      .subscribe();
+            const nextValue = row.value ?? fallback;
+            setValue(nextValue);
+            lastSavedSnapshotRef.current = snapshotOf(nextValue);
+            setReady(true);
+            dispatch();
+          },
+        );
+      },
+      () => {
+        void loadPreference();
+      },
+    );
 
     return () => {
       cancelled = true;
-      void client.removeChannel(channel);
+      unsubscribe();
     };
   }, [authReady, fallback, key, session?.user.id, storageKey]);
 
