@@ -263,6 +263,27 @@ export function DashboardPage() {
     { label: "Alcance", color: "#833AB4" },
     { label: "Engajamento", color: "#E1306C" },
   ];
+  const fallbackMember = teamMembers[0] ?? {
+    id: 0,
+    name: "Equipe",
+    role: "Great Orgânico",
+    avatar: "E",
+    specialty: "",
+    color: "#833AB4",
+    stats: {
+      postsCreated: 0,
+      avgEngagement: 0,
+      goalsCompleted: 0,
+      performance: 0,
+      punctuality: 0,
+    },
+    radar: [],
+    monthlyPosts: [],
+    userId: "",
+    email: "",
+    avatarUrl: "",
+    bio: "",
+  };
   const visiblePosts = posts.filter((post) => matchesTeamScope(post.authorId, teamScope));
   const visibleGoals = goals.filter((goal) => getGoalResponsibleIds(goal).some((id) => matchesTeamScope(id, teamScope)));
   const visibleCalendarEvents = calendarEvents.filter((event) =>
@@ -463,7 +484,7 @@ export function DashboardPage() {
             />
             <div className="mt-5 space-y-3">
               {topPosts.length > 0 ? topPosts.map((post, index) => {
-                const member = teamMembers.find((item) => item.id === post.authorId)!;
+                const member = teamMembers.find((item) => item.id === post.authorId) ?? fallbackMember;
 
                 return (
                   <Link
@@ -538,7 +559,7 @@ export function DashboardPage() {
             />
             <div className="mt-5 grid gap-4">
               {worstPosts.length > 0 ? worstPosts.map((post) => {
-                const member = teamMembers.find((item) => item.id === post.authorId)!;
+                const member = teamMembers.find((item) => item.id === post.authorId) ?? fallbackMember;
 
                 return (
                   <div
