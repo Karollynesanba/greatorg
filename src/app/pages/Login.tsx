@@ -154,38 +154,26 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                   <h2 className="text-[2rem] font-semibold tracking-tight text-foreground">Entrar na plataforma</h2>
                   <p className="mt-2 text-[1rem] text-[#7a7f87]">Acesse o painel Great Orgânico</p>
 
-                  <div className="mt-6 rounded-[1.5rem] border border-[#ececec] bg-[#fafafa] p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8b8f96]">Acesso rápido</p>
-                        <p className="mt-1 text-sm text-[#5f6470]">Escolha um perfil e entre com um clique.</p>
-                      </div>
-                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#7a7f87] shadow-sm">
-                        {quickAccessMembers.length} contas
-                      </span>
-                    </div>
-
-                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                      {quickAccessMembers.map((member) => (
-                        <button
-                          key={member.id}
-                          type="button"
-                          onClick={() => void handleQuickAccess(member.email)}
-                          className="flex flex-col items-start gap-3 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-4 text-left shadow-[0_2px_8px_rgba(15,23,42,0.03)] transition hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_12px_30px_rgba(15,23,42,0.08)]"
+                  <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                    {quickAccessMembers.map((member) => (
+                      <button
+                        key={member.id}
+                        type="button"
+                        onClick={() => void handleQuickAccess(member.email)}
+                        className="flex flex-col items-start gap-3 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-4 text-left shadow-[0_2px_8px_rgba(15,23,42,0.03)] transition hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_12px_30px_rgba(15,23,42,0.08)]"
+                      >
+                        <span
+                          className="inline-flex h-11 w-11 items-center justify-center rounded-2xl text-base font-semibold text-white"
+                          style={{ backgroundColor: member.color }}
                         >
-                          <span
-                            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl text-base font-semibold text-white"
-                            style={{ backgroundColor: member.color }}
-                          >
-                            {member.name.charAt(0)}
-                          </span>
-                          <span>
-                            <span className="block text-sm font-semibold text-foreground">{member.name}</span>
-                            <span className="block text-xs text-[#7a7f87]">{member.role}</span>
-                          </span>
-                        </button>
-                      ))}
-                    </div>
+                          {member.name.charAt(0)}
+                        </span>
+                        <span>
+                          <span className="block text-sm font-semibold text-foreground">{member.name}</span>
+                          <span className="block text-xs text-[#7a7f87]">{member.role}</span>
+                        </span>
+                      </button>
+                    ))}
                   </div>
 
                   <div className="mt-8 space-y-6">
