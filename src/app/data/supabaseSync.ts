@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuthSession } from "../auth";
 import { isSupabaseConfigured, supabase } from "./supabase";
 import { readLocalJson, subscribeLocalKey, writeLocalJson } from "./localStore";
@@ -95,52 +95,80 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
   const hydratedRef = useRef(false);
   const lastSavedSnapshotRef = useRef<string | null>(null);
   const lastPersistedValueRef = useRef<T[]>(options.fallback);
+  const isRemoteSourceAvailable = isSupabaseConfigured() && Boolean(supabase) && Boolean(session);
+
+  const readLocalValue = useCallback(() => {
+    const loadedRows = readLocalJson<RowEnvelope<T>[]>(storageKey, options.fallback.map((item, index) => toRowEnvelope(item, index)));
+    const loadedItems = loadedRows
+      .map((row) => row.data)
+      .filter((item): item is T => Boolean(item) && normalizeId((item as { id?: unknown }).id) !== null);
+
+    return loadedItems.length > 0 ? loadedItems : options.fallback;
+  }, [options.fallback, storageKey]);
+
+  const loadValue = useCallback(async () => {
+    if (!authReady) {
+      return options.fallback;
+    }
+
+    if (!isRemoteSourceAvailable) {
+      return readLocalValue();
+    }
+
+    const nextValue = await fetchRemoteRows<T>(options.table, options.fallback);
+    return nextValue.length > 0 ? nextValue : options.fallback;
+  }, [authReady, isRemoteSourceAvailable, options.fallback, options.table, readLocalValue]);
+
+  const commitValue = useCallback((nextValue: T[]) => {
+    setValue(nextValue);
+    lastSavedSnapshotRef.current = snapshotOf(nextValue);
+    lastPersistedValueRef.current = nextValue;
+    hydratedRef.current = true;
+    setHydrated(true);
+    return nextValue;
+  }, []);
+
+  const reload = useCallback(async () => {
+    if (!authReady) {
+      return value;
+    }
+
+    const nextValue = await loadValue();
+    return commitValue(nextValue);
+  }, [authReady, commitValue, loadValue, value]);
 
   useEffect(() => {
     if (!authReady) {
       return;
     }
 
-    if (!isSupabaseConfigured() || !supabase || !session) {
-      const loadedRows = readLocalJson<RowEnvelope<T>[]>(storageKey, options.fallback.map((item, index) => toRowEnvelope(item, index)));
-      const loadedItems = loadedRows
-        .map((row) => row.data)
-        .filter((item): item is T => Boolean(item) && normalizeId((item as { id?: unknown }).id) !== null);
-
-      const nextValue = loadedItems.length > 0 ? loadedItems : options.fallback;
-      setValue(nextValue);
-      lastSavedSnapshotRef.current = snapshotOf(nextValue);
-      lastPersistedValueRef.current = nextValue;
-      hydratedRef.current = true;
-      setHydrated(true);
+    if (!isRemoteSourceAvailable) {
+      commitValue(readLocalValue());
 
       return subscribeLocalKey(storageKey, () => {
-        const nextRows = readLocalJson<RowEnvelope<T>[]>(storageKey, options.fallback.map((item, index) => toRowEnvelope(item, index)));
-        const nextItems = nextRows
-          .map((row) => row.data)
-          .filter((item): item is T => Boolean(item) && normalizeId((item as { id?: unknown }).id) !== null);
-        const resolvedValue = nextItems.length > 0 ? nextItems : options.fallback;
-        setValue(resolvedValue);
-        lastSavedSnapshotRef.current = snapshotOf(resolvedValue);
-        lastPersistedValueRef.current = resolvedValue;
+        commitValue(readLocalValue());
       });
     }
 
     let cancelled = false;
 
     const loadRemote = async () => {
-      const nextValue = await fetchRemoteRows<T>(options.table, options.fallback);
+      try {
+        const nextValue = await loadValue();
 
-      if (cancelled) {
-        return;
+        if (cancelled) {
+          return;
+        }
+
+        commitValue(nextValue);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        console.error(`Unexpected failure loading ${options.table}`, error);
+        commitValue(options.fallback);
       }
-
-      setValue(nextValue.length > 0 ? nextValue : options.fallback);
-      const resolvedValue = nextValue.length > 0 ? nextValue : options.fallback;
-      lastSavedSnapshotRef.current = snapshotOf(resolvedValue);
-      lastPersistedValueRef.current = resolvedValue;
-      hydratedRef.current = true;
-      setHydrated(true);
     };
 
     void loadRemote().catch((error) => {
@@ -171,7 +199,7 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
       cancelled = true;
       unsubscribe();
     };
-  }, [authReady, options.fallback, options.table, session?.user.id, storageKey]);
+  }, [authReady, commitValue, isRemoteSourceAvailable, loadValue, options.fallback, options.table, readLocalValue, storageKey]);
 
   useEffect(() => {
     if (!hydratedRef.current) {
@@ -204,5 +232,5 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
       });
   }, [options.table, session, storageKey, value]);
 
-  return [value, setValue, hydrated] as const;
+  return [value, setValue, hydrated, reload] as const;
 }

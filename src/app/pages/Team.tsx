@@ -12,22 +12,29 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { useTeamProfiles, useCurrentTeamMember } from "../data/profiles";
+import { RefreshCw } from "lucide-react";
+import { useAuthSession } from "../auth";
+import { useTeamProfiles } from "../data/profiles";
 import { useThemeMode } from "../theme";
-import { Avatar, DetailGrid, GlassPanel, PageHeader, PageTransition, SectionTitle } from "../components/ui";
+import { Avatar, DetailGrid, GlassPanel, IconActionButton, PageHeader, PageTransition, SectionTitle } from "../components/ui";
 
 export function TeamPage() {
   const { isDark } = useThemeMode();
-  const [teamMembers] = useTeamProfiles();
-  const { member: currentMember } = useCurrentTeamMember();
+  const [teamMembers, , refreshTeamData] = useTeamProfiles();
+  const { session } = useAuthSession();
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const currentMember = useMemo(
+    () => teamMembers.find((member) => member.userId === session?.user.id) ?? null,
+    [session?.user.id, teamMembers],
+  );
 
   useEffect(() => {
-    if (selectedMemberId !== null) {
-      return;
-    }
+    const selectedExists = selectedMemberId === null ? false : teamMembers.some((member) => member.id === selectedMemberId);
 
-    setSelectedMemberId(currentMember?.id ?? teamMembers[0]?.id ?? null);
+    if (selectedMemberId === null || !selectedExists) {
+      setSelectedMemberId(currentMember?.id ?? teamMembers[0]?.id ?? null);
+    }
   }, [currentMember?.id, selectedMemberId, teamMembers]);
 
   const selectedMember = useMemo(
@@ -38,6 +45,16 @@ export function TeamPage() {
   const panelBackground = isDark
     ? `linear-gradient(180deg, rgba(24,24,26,0.98), ${selectedMember?.color ?? "#8b5cf6"}12)`
     : `linear-gradient(180deg, rgba(255,255,255,0.99), rgba(252,252,253,0.98))`;
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+
+    try {
+      await refreshTeamData();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   if (!selectedMember) {
     return (
@@ -66,7 +83,16 @@ export function TeamPage() {
           title="Performance individual do time criativo"
           description="Visualize especialidades, produção recente e evolução de qualidade para cada membro da operação."
           actions={
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <IconActionButton
+                icon={RefreshCw}
+                label="Atualizar dados"
+                title="Atualizar dados"
+                onClick={() => {
+                  void handleRefresh();
+                }}
+                className={isRefreshing ? "animate-spin" : undefined}
+              />
               {teamMembers.map((item) => (
                 <button
                   key={item.id}

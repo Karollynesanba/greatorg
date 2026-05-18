@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuthSession } from "../auth";
 import { usePosts } from "./posts";
 import { isSupabaseConfigured, supabase } from "./supabase";
@@ -122,19 +122,20 @@ function mergeTeamMember(profile: EditableTeamMember, fallback: TeamMember) {
 export function useTeamProfiles() {
   const [profiles, setProfiles] = useState<EditableTeamMember[]>(seedAccounts);
   const { session, ready: authReady } = useAuthSession();
-  const [posts] = usePosts();
-  const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: seedGoals });
-  const [calendarEvents] = useSupabaseSyncedListState<CalendarEvent>({
+  const [posts, , , reloadPosts] = usePosts();
+  const [goals, , , reloadGoals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: seedGoals });
+  const [calendarEvents, , , reloadCalendarEvents] = useSupabaseSyncedListState<CalendarEvent>({
     key: "calendar-events",
     table: "calendar_events",
     fallback: seedCalendarEvents,
   });
-  const [storyLogItems] = useSupabaseSyncedListState<StoryLog>({
+  const [storyLogItems, , , reloadStoryLogs] = useSupabaseSyncedListState<StoryLog>({
     key: "story-logs",
     table: "story_logs",
     fallback: seedStoryLogs,
   });
   const lastSavedSnapshotRef = useRef<string | null>(null);
+  const isRemoteSourceAvailable = isSupabaseConfigured() && Boolean(supabase) && Boolean(session);
 
   const mergedProfiles = useMemo(
     () => profiles.map((profile, index) => mergeTeamMember(profile, baseTeamMembers[index] ?? baseTeamMembers[0])),
@@ -145,64 +146,84 @@ export function useTeamProfiles() {
     [calendarEvents, goals, mergedProfiles, posts, storyLogItems],
   );
 
+  const commitProfiles = useCallback((nextProfiles: EditableTeamMember[]) => {
+    setProfiles(nextProfiles);
+    lastSavedSnapshotRef.current = snapshotOf(nextProfiles);
+    return nextProfiles;
+  }, []);
+
+  const readLocalProfiles = useCallback(() => {
+    const loadedProfiles = readLocalJson<EditableTeamMember[]>(TEAM_PROFILES_KEY, seedAccounts);
+    return loadedProfiles.length > 0 ? loadedProfiles : seedAccounts;
+  }, []);
+
+  const fetchProfiles = useCallback(async () => {
+    if (!authReady) {
+      return seedAccounts;
+    }
+
+    if (!isRemoteSourceAvailable) {
+      return readLocalProfiles();
+    }
+
+    try {
+      const client = supabase;
+      if (!client) {
+        return seedAccounts;
+      }
+
+      const { data, error } = await client
+        .from("team_profiles")
+        .select("id,user_id,name,role,avatar,specialty,color,stats,radar,monthly_posts,email,avatar_url,bio")
+        .order("id", { ascending: true });
+
+      if (error) {
+        throw error;
+      }
+
+      const nextProfiles = (data ?? []).map((row) => toEditableTeamMember(row as TeamProfileRow));
+      return nextProfiles.length > 0 ? nextProfiles : seedAccounts;
+    } catch (error) {
+      console.error("Failed to load team profiles from Supabase", error);
+      return seedAccounts;
+    }
+  }, [authReady, isRemoteSourceAvailable, readLocalProfiles]);
+
+  const refreshAllTeamData = useCallback(async () => {
+    const nextProfiles = await fetchProfiles();
+    commitProfiles(nextProfiles);
+    await Promise.all([reloadPosts(), reloadGoals(), reloadCalendarEvents(), reloadStoryLogs()]);
+    return nextProfiles;
+  }, [commitProfiles, fetchProfiles, reloadCalendarEvents, reloadGoals, reloadPosts, reloadStoryLogs]);
+
   useEffect(() => {
     if (!authReady) {
       return;
     }
 
-    if (!isSupabaseConfigured() || !supabase || !session) {
-      const loadedProfiles = readLocalJson<EditableTeamMember[]>(TEAM_PROFILES_KEY, seedAccounts);
-      const nextProfiles = loadedProfiles.length > 0 ? loadedProfiles : seedAccounts;
-      setProfiles(nextProfiles);
-      lastSavedSnapshotRef.current = snapshotOf(nextProfiles);
+    if (!isRemoteSourceAvailable) {
+      commitProfiles(readLocalProfiles());
 
       return subscribeLocalKey(TEAM_PROFILES_KEY, () => {
-        const nextProfiles = readLocalJson<EditableTeamMember[]>(TEAM_PROFILES_KEY, seedAccounts);
-        const resolvedProfiles = nextProfiles.length > 0 ? nextProfiles : seedAccounts;
+        const resolvedProfiles = readLocalProfiles();
         const nextSnapshot = snapshotOf(resolvedProfiles);
         if (nextSnapshot === lastSavedSnapshotRef.current) {
           return;
         }
 
-        lastSavedSnapshotRef.current = nextSnapshot;
-        setProfiles(resolvedProfiles);
+        commitProfiles(resolvedProfiles);
       });
     }
 
-    const client = supabase;
     let cancelled = false;
 
-    const loadProfiles = async () => {
-      try {
-        const { data, error } = await client
-          .from("team_profiles")
-          .select("id,user_id,name,role,avatar,specialty,color,stats,radar,monthly_posts,email,avatar_url,bio")
-          .order("id", { ascending: true });
-
-        if (cancelled) {
-          return;
-        }
-
-        if (error) {
-          throw error;
-        }
-
-        const nextProfiles = (data ?? []).map((row) => toEditableTeamMember(row as TeamProfileRow));
-        const resolvedProfiles = nextProfiles.length > 0 ? nextProfiles : seedAccounts;
-        setProfiles(resolvedProfiles);
-        lastSavedSnapshotRef.current = snapshotOf(resolvedProfiles);
-      } catch (error) {
-        if (cancelled) {
-          return;
-        }
-
-        console.error("Failed to load team profiles from Supabase", error);
-        setProfiles(seedAccounts);
-        lastSavedSnapshotRef.current = snapshotOf(seedAccounts);
+    void fetchProfiles().then((nextProfiles) => {
+      if (cancelled) {
+        return;
       }
-    };
 
-    void loadProfiles();
+      commitProfiles(nextProfiles);
+    });
 
     const unsubscribe = subscribeSharedChannel(
       "great-organico:team_profiles",
@@ -220,7 +241,13 @@ export function useTeamProfiles() {
         );
       },
       () => {
-        void loadProfiles();
+        void fetchProfiles().then((nextProfiles) => {
+          if (cancelled) {
+            return;
+          }
+
+          commitProfiles(nextProfiles);
+        });
       },
     );
 
@@ -228,7 +255,7 @@ export function useTeamProfiles() {
       cancelled = true;
       unsubscribe();
     };
-  }, [authReady, session, seedAccounts]);
+  }, [authReady, commitProfiles, fetchProfiles, isRemoteSourceAvailable, readLocalProfiles]);
 
   useEffect(() => {
     const nextSnapshot = snapshotOf(profiles);
@@ -259,7 +286,7 @@ export function useTeamProfiles() {
     });
   }, [profiles, session]);
 
-  return [derivedProfiles, setProfiles] as const;
+  return [derivedProfiles, setProfiles, refreshAllTeamData] as const;
 }
 
 export function useCurrentTeamMember() {

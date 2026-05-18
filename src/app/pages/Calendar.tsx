@@ -47,8 +47,11 @@ import { useThemeMode } from "../theme";
 
 const viewModes = ["Dia", "Semana", "Mês"] as const;
 const dragType = "calendar-event";
-const getTodayDate = () => new Date();
-const weekHeaderLabels = ["DOM.", "SEG.", "TER.", "QUA.", "QUI.", "SEX.", "SÁB."];
+const getTodayDate = () => {
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  return today;
+};
 
 function addDays(date: Date, value: number) {
   const nextDate = new Date(date);
@@ -84,6 +87,10 @@ function formatMonthLabel(date: Date) {
 
 function formatDayLabel(date: Date) {
   return new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "short" }).format(date);
+}
+
+function formatMiniMonthLabel(date: Date) {
+  return new Intl.DateTimeFormat("pt-BR", { month: "short", year: "numeric" }).format(date);
 }
 
 function buildMonthCells(date: Date) {
@@ -711,7 +718,7 @@ function MiniMonth({ date }: { date: Date }) {
     )}>
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-foreground">{formatMonthLabel(date)}</h3>
-        <span className="text-xs font-medium text-muted-foreground">Abr 2026</span>
+        <span className="text-xs font-medium text-muted-foreground">{formatMiniMonthLabel(date)}</span>
       </div>
       <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
         {daysOfWeek.map((day) => (
@@ -807,6 +814,17 @@ export function CalendarPage() {
   const { member: currentMember } = useCurrentTeamMember();
   const [teamScope, setTeamScope] = useTeamScope();
   const defaultVisibleAgendaIds = useMemo(() => teamMembers.map((member) => member.id), [teamMembers]);
+  const defaultResponsibleId = useMemo(() => {
+    if (currentMember?.id) {
+      return currentMember.id;
+    }
+
+    if (teamScope !== "todos") {
+      return teamScope;
+    }
+
+    return teamMembers[0]?.id ?? 1;
+  }, [currentMember?.id, teamMembers, teamScope]);
   const [visibleAgendaIds, setVisibleAgendaIds] = useSupabasePreference<number[]>(
     "calendar-visible-agendas",
     defaultVisibleAgendaIds,
@@ -834,9 +852,9 @@ export function CalendarPage() {
     status: "Agendado" as CalendarEvent["status"],
     date: formatDateKey(getTodayDate()),
     time: "09:00",
-    responsibleId: teamMembers[0]?.id ?? 1,
-    responsibleIds: [teamMembers[0]?.id ?? 1],
-    addedById: currentMember?.id ?? teamMembers[0]?.id ?? 1,
+    responsibleId: defaultResponsibleId,
+    responsibleIds: [defaultResponsibleId],
+    addedById: currentMember?.id ?? defaultResponsibleId,
     checklist: [],
   });
 
@@ -969,9 +987,9 @@ export function CalendarPage() {
       status: "Agendado" as CalendarEvent["status"],
       date: formatDateKey(getTodayDate()),
       time: "09:00",
-      responsibleId: teamMembers[0]?.id ?? previous.responsibleId,
-      responsibleIds: [teamMembers[0]?.id ?? previous.responsibleId],
-      addedById: currentMember?.id ?? teamMembers[0]?.id ?? previous.addedById,
+      responsibleId: defaultResponsibleId,
+      responsibleIds: [defaultResponsibleId],
+      addedById: currentMember?.id ?? defaultResponsibleId,
       checklist: [],
     }));
     setCreateChecklistDraft("");
@@ -1106,9 +1124,9 @@ export function CalendarPage() {
       time,
       title: "",
       description: "",
-      responsibleId: teamMembers[0]?.id ?? previous.responsibleId,
-      responsibleIds: [teamMembers[0]?.id ?? previous.responsibleId],
-      addedById: currentMember?.id ?? previous.addedById,
+      responsibleId: defaultResponsibleId,
+      responsibleIds: [defaultResponsibleId],
+      addedById: currentMember?.id ?? defaultResponsibleId,
       checklist: [],
     }));
     setCreateChecklistDraft("");
@@ -1321,7 +1339,7 @@ export function CalendarPage() {
 
                       return (
                         <div key={formatDateKey(date)} className="px-2 py-4 text-center">
-                          <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{weekHeaderLabels[index]}</p>
+                          <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{daysOfWeek[index]}</p>
                           <p
                             className={cn(
                               "mt-1 inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold",
