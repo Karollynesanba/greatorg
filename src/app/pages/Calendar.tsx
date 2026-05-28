@@ -2,10 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useDrag, useDrop } from "react-dnd";
 import {
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
   CirclePlus,
   ChevronDown,
+  CheckCircle2,
   Menu,
   Plus,
 } from "lucide-react";
@@ -14,23 +16,14 @@ import {
   calendarEvents,
   calendarHours,
   daysOfWeek,
-  historyTimeline,
   weekLabel,
-  type HistoryEvent,
   type CalendarEvent,
+  type CalendarTaskItem,
 } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
 import { useCurrentTeamMember } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
-import { useSupabasePreference } from "../data/userPreferences";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
-import {
-  applyCalendarCompletionState,
-  buildCalendarCompletionHistoryEvent,
-  getCalendarCompletionHistoryId,
-  getCalendarResponsibleIds,
-  isCalendarTaskCompleted,
-} from "../data/calendarWorkflow";
 import {
   ActionButton,
   ConfirmDialog,
@@ -38,6 +31,7 @@ import {
   GlassPanel,
   PageHeader,
   PageTransition,
+  RoundedDropdown,
   RoundedDatePicker,
   RoundedTimePicker,
   MemberChip,
@@ -47,11 +41,20 @@ import { useThemeMode } from "../theme";
 
 const viewModes = ["Dia", "Semana", "Mês"] as const;
 const dragType = "calendar-event";
-const getTodayDate = () => {
-  const today = new Date();
-  today.setHours(12, 0, 0, 0);
-  return today;
-};
+const getTodayDate = () => new Date();
+const weekHeaderLabels = ["DOM.", "SEG.", "TER.", "QUA.", "QUI.", "SEX.", "SÁB."];
+const typeOptions: Array<{ label: string; value: CalendarEvent["type"]; color: string }> = [
+  { label: "Reels", value: "Reels", color: "#d946ef" },
+  { label: "Stories", value: "Stories", color: "#ec4899" },
+  { label: "Carrossel", value: "Carrossel", color: "#f59e0b" },
+  { label: "Feed", value: "Feed", color: "#0ea5e9" },
+];
+const statusOptions: Array<{ label: string; value: CalendarEvent["status"]; color: string }> = [
+  { label: "Agendado", value: "Agendado", color: "#8b5cf6" },
+  { label: "Em produção", value: "Em produção", color: "#06b6d4" },
+  { label: "Aprovado", value: "Aprovado", color: "#10b981" },
+  { label: "Publicado", value: "Publicado", color: "#f97316" },
+];
 
 function addDays(date: Date, value: number) {
   const nextDate = new Date(date);
@@ -87,10 +90,6 @@ function formatMonthLabel(date: Date) {
 
 function formatDayLabel(date: Date) {
   return new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "short" }).format(date);
-}
-
-function formatMiniMonthLabel(date: Date) {
-  return new Intl.DateTimeFormat("pt-BR", { month: "short", year: "numeric" }).format(date);
 }
 
 function buildMonthCells(date: Date) {
@@ -245,7 +244,264 @@ function useFloatingPopoverPosition({
 }
 
 function getEventResponsibleIds(event: CalendarEvent) {
-  return getCalendarResponsibleIds(event);
+  const ids = getUniqueIds(event.responsibleIds ?? []);
+  if (ids.length > 0) {
+    return ids;
+  }
+
+  return event.responsibleId ? [event.responsibleId] : [];
+}
+
+type TaskDraftState = {
+  label: string;
+  note: string;
+  checklist: boolean;
+};
+
+function createEmptyTaskDraft(): TaskDraftState {
+  return {
+    label: "",
+    note: "",
+    checklist: false,
+  };
+}
+
+function createTaskItem(label: string, note = "", checklist = false): CalendarTaskItem {
+  return {
+    id: `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    label,
+    note,
+    checklist,
+    done: false,
+  };
+}
+
+function calculateTaskProgress(tasks: CalendarTaskItem[]) {
+  const total = tasks.length;
+  const completed = tasks.filter((task) => task.done).length;
+  const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+  return { total, completed, percent };
+}
+
+function ActivityCheckIcon({ done }: { done: boolean }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-5 w-5 items-center justify-center rounded-md border text-[11px] transition",
+        done ? "border-emerald-500 bg-emerald-500 text-white shadow-sm" : "border-border bg-white text-transparent",
+      )}
+    >
+      ✓
+    </span>
+  );
+}
+
+type ActivityDraftState = {
+  label: string;
+  note: string;
+  checklist: boolean;
+};
+
+function emptyActivityDraft(): ActivityDraftState {
+  return {
+    label: "",
+    note: "",
+    checklist: false,
+  };
+}
+
+function ActivitySection({
+  tasks,
+  onAddTask,
+  onToggleTask,
+  onRemoveTask,
+  onMarkAllDone,
+  onClearTaskDraft,
+  draft,
+  setDraft,
+}: {
+  tasks: CalendarTaskItem[];
+  onAddTask: (task: CalendarTaskItem) => void;
+  onToggleTask: (taskId: string) => void;
+  onRemoveTask: (taskId: string) => void;
+  onMarkAllDone: () => void;
+  onClearTaskDraft: () => void;
+  draft: ActivityDraftState;
+  setDraft: (updater: (current: ActivityDraftState) => ActivityDraftState) => void;
+}) {
+  const progress = calculateTaskProgress(tasks);
+
+  return (
+    <div className="md:col-span-2 overflow-hidden rounded-[1.9rem] border border-border/60 bg-white p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary shadow-[0_10px_20px_rgba(229,9,20,0.12)]">
+              <CheckCircle2 className="h-4.5 w-4.5" />
+            </span>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">ATIVIDADES</p>
+              <p className="mt-1 text-sm font-semibold text-foreground">
+                {progress.completed} de {progress.total} atividades concluídas
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 flex items-center gap-4">
+            <div className="flex-1">
+              <div className="h-2 overflow-hidden rounded-full bg-slate-200/90">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-lime-500 to-emerald-400 shadow-[0_0_18px_rgba(34,197,94,0.28)] transition-all duration-300"
+                  style={{ width: `${Math.min(progress.percent, 100)}%` }}
+                />
+              </div>
+            </div>
+            <span className="min-w-[44px] text-right text-sm font-semibold text-muted-foreground">
+              {progress.percent}%
+            </span>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <ActionButton
+            variant="secondary"
+            onClick={() => {
+              const label = draft.label.trim();
+              const note = draft.note.trim();
+              if (!label) {
+                toast.error("Digite o nome da atividade.");
+                return;
+              }
+
+              onAddTask(createTaskItem(label, note, draft.checklist));
+              onClearTaskDraft();
+            }}
+            className="border-border/60 bg-white shadow-[0_10px_24px_rgba(15,23,42,0.04)] hover:border-primary/20 hover:bg-white"
+          >
+            <Plus className="h-4 w-4" />
+            Adicionar item
+          </ActionButton>
+          <ActionButton
+            onClick={onMarkAllDone}
+            className="bg-gradient-to-r from-primary to-[#ff5d6d] text-white shadow-[0_18px_34px_rgba(229,9,20,0.22)] hover:from-[#ff3f53] hover:to-[#ff6d7b]"
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            Marcar todas como concluídas
+          </ActionButton>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-4 rounded-[1.55rem] border border-border/60 bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+        {tasks.length > 0 ? (
+          <div className="space-y-3">
+            {tasks.map((task) => (
+              <div
+                key={task.id}
+                className="group rounded-[1.35rem] border border-border/60 bg-[#fbfbfc] px-4 py-4 transition duration-200 hover:-translate-y-0.5 hover:border-primary/15 hover:shadow-[0_14px_28px_rgba(15,23,42,0.06)]"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <button
+                    type="button"
+                    onClick={() => onToggleTask(task.id)}
+                    className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                  >
+                    <ActivityCheckIcon done={task.done} />
+                    <span className="min-w-0">
+                      <span
+                        className={cn(
+                          "block text-sm font-semibold transition",
+                          task.done ? "text-muted-foreground line-through" : "text-foreground",
+                        )}
+                      >
+                        {task.label}
+                      </span>
+                      {task.note ? <span className="mt-1 block text-sm text-muted-foreground">{task.note}</span> : null}
+                      <span className="mt-3 flex flex-wrap items-center gap-2">
+                        <span
+                          className={cn(
+                            "rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                            task.checklist
+                              ? "bg-emerald-500/10 text-emerald-700"
+                              : "bg-slate-100 text-slate-500",
+                          )}
+                        >
+                          {task.checklist ? "Checklist" : "Avulsa"}
+                        </span>
+                        <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">
+                          {task.done ? "Concluída" : "Pendente"}
+                        </span>
+                      </span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onRemoveTask(task.id)}
+                    className="rounded-full border border-border/60 bg-white px-3 py-2 text-xs font-semibold text-muted-foreground transition duration-200 hover:border-primary/20 hover:bg-muted/60 hover:text-foreground"
+                  >
+                    Remover
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-[1.35rem] border border-dashed border-border/60 bg-[#fbfbfc] px-5 py-8 text-center text-sm text-muted-foreground">
+            Nenhuma atividade adicionada ainda.
+          </div>
+        )}
+
+        <div className="rounded-[1.55rem] border border-border/60 bg-[#fbfbfc] p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+          <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+            <label className="grid gap-2">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Nome da atividade</span>
+              <input
+                value={draft.label}
+                onChange={(event) => setDraft((current) => ({ ...current, label: event.target.value }))}
+                placeholder="Ex.: aprovar capa"
+                className="rounded-2xl border border-border/70 bg-white px-4 py-3 text-sm outline-none transition duration-200 placeholder:text-muted-foreground/60 focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+              />
+            </label>
+            <label className="grid gap-2">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Observação rápida</span>
+              <input
+                value={draft.note}
+                onChange={(event) => setDraft((current) => ({ ...current, note: event.target.value }))}
+                placeholder="Ex.: revisar CTA"
+                className="rounded-2xl border border-border/70 bg-white px-4 py-3 text-sm outline-none transition duration-200 placeholder:text-muted-foreground/60 focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => setDraft((current) => ({ ...current, checklist: !current.checklist }))}
+              className={cn(
+                "flex h-[48px] items-center justify-center gap-2 self-end rounded-2xl border px-4 text-sm font-semibold transition duration-200",
+                draft.checklist
+                  ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15"
+                : "border-border/70 bg-white text-muted-foreground hover:border-primary/25 hover:text-foreground",
+              )}
+            >
+              <span
+                className={cn(
+                  "inline-flex h-4 w-4 items-center justify-center rounded-[5px] border text-[10px]",
+                  draft.checklist ? "border-emerald-500 bg-emerald-500 text-white" : "border-border bg-white text-transparent",
+                )}
+              >
+                ✓
+              </span>
+              Checklist
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function getMonthLabel(dateString: string) {
+  const date = new Date(`${dateString}T12:00:00`);
+  return new Intl.DateTimeFormat("pt-BR", { month: "short", year: "numeric" }).format(date);
 }
 
 type CalendarEventFormState = {
@@ -258,43 +514,9 @@ type CalendarEventFormState = {
   responsibleId: number;
   responsibleIds: number[];
   addedById?: number;
-  checklist: CalendarChecklistItem[];
+  completed?: boolean;
+  tasks: CalendarTaskItem[];
 };
-
-type CalendarChecklistItem = {
-  id: string;
-  label: string;
-  done: boolean;
-};
-
-function createChecklistItem(label: string): CalendarChecklistItem {
-  return {
-    id: `calendar-check-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    label,
-    done: false,
-  };
-}
-
-function addChecklistItem(items: CalendarChecklistItem[], label: string) {
-  const normalizedLabel = label.trim();
-  if (!normalizedLabel) {
-    return items;
-  }
-
-  return [...items, createChecklistItem(normalizedLabel)];
-}
-
-function updateChecklistItem(items: CalendarChecklistItem[], itemId: string, nextLabel: string) {
-  return items.map((item) => (item.id === itemId ? { ...item, label: nextLabel } : item));
-}
-
-function toggleChecklistItem(items: CalendarChecklistItem[], itemId: string) {
-  return items.map((item) => (item.id === itemId ? { ...item, done: !item.done } : item));
-}
-
-function removeChecklistItem(items: CalendarChecklistItem[], itemId: string) {
-  return items.filter((item) => item.id !== itemId);
-}
 
 function CalendarSlot({
   date,
@@ -501,210 +723,6 @@ function ResponsibleMultiPicker({
   );
 }
 
-function ChecklistEditor({
-  title,
-  items,
-  draft,
-  onDraftChange,
-  onAddItem,
-  onToggleItem,
-  onUpdateItem,
-  onRemoveItem,
-}: {
-  title: string;
-  items: CalendarChecklistItem[];
-  draft: string;
-  onDraftChange: (value: string) => void;
-  onAddItem: (label: string) => void;
-  onToggleItem: (itemId: string) => void;
-  onUpdateItem: (itemId: string, nextLabel: string) => void;
-  onRemoveItem: (itemId: string) => void;
-}) {
-  const completedCount = items.filter((item) => item.done).length;
-
-  return (
-    <div className="grid gap-3 md:col-span-2">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <span className="text-sm font-medium text-foreground">{title}</span>
-        </div>
-        <span className="rounded-full bg-muted/50 px-3 py-1 text-xs font-semibold text-muted-foreground">
-          {completedCount}/{items.length || 0} concluidas
-        </span>
-      </div>
-
-      <div className="flex flex-col gap-2 rounded-[1.5rem] border border-border/70 bg-background p-3 sm:flex-row">
-        <input
-          value={draft}
-          onChange={(event) => onDraftChange(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              onAddItem(draft);
-              onDraftChange("");
-            }
-          }}
-          placeholder="Ex.: Revisar pauta, separar arquivos, confirmar horario"
-          className="min-w-0 flex-1 rounded-2xl border border-border/70 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:bg-white/5"
-        />
-        <button
-          type="button"
-          onClick={() => {
-            onAddItem(draft);
-            onDraftChange("");
-          }}
-          className="inline-flex items-center justify-center rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90"
-        >
-          Adicionar item
-        </button>
-      </div>
-
-      {items.length > 0 ? (
-        <div className="space-y-2">
-          {items.map((item) => (
-            <div
-              key={item.id}
-              className="flex items-center gap-3 rounded-[1.35rem] border border-border/60 bg-white p-3 shadow-sm dark:bg-card/80"
-            >
-              <button
-                type="button"
-                onClick={() => onToggleItem(item.id)}
-                className={cn(
-                  "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition",
-                  item.done
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border/60 bg-background text-transparent hover:border-primary/30",
-                )}
-                aria-label={item.done ? "Desmarcar item" : "Marcar item"}
-              >
-                ✓
-              </button>
-              <input
-                value={item.label}
-                onChange={(event) => onUpdateItem(item.id, event.target.value)}
-                className={cn(
-                  "min-w-0 flex-1 bg-transparent text-sm outline-none",
-                  item.done && "text-muted-foreground line-through",
-                )}
-              />
-              <button
-                type="button"
-                onClick={() => onRemoveItem(item.id)}
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                aria-label="Remover item"
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="rounded-[1.35rem] border border-dashed border-border/60 bg-background/50 p-4 text-sm text-muted-foreground">
-          Nenhum item ainda. Adicione a primeira etapa desta tarefa.
-        </div>
-      )}
-    </div>
-  );
-}
-
-function AgendaVisibilityPanel({
-  teamMembers,
-  currentMemberId,
-  scope,
-  visibleAgendaIds,
-  onScopeChange,
-  onVisibleAgendaIdsChange,
-}: {
-  teamMembers: { id: number; name: string; role: string; color: string }[];
-  currentMemberId?: number | null;
-  scope: number | "todos";
-  visibleAgendaIds: number[];
-  onScopeChange: (scope: number | "todos") => void;
-  onVisibleAgendaIdsChange: (ids: number[]) => void;
-}) {
-  const { isDark } = useThemeMode();
-  const activeVisibleIds = visibleAgendaIds.length > 0 ? visibleAgendaIds : teamMembers.map((member) => member.id);
-  const activeIds = scope === "todos" ? activeVisibleIds : currentMemberId ? [currentMemberId] : activeVisibleIds;
-
-  return (
-    <div
-      className={cn(
-        "rounded-[1.75rem] border border-border/60 p-3 shadow-sm",
-        isDark ? "bg-card/95 dark:shadow-[0_18px_36px_rgba(0,0,0,0.18)]" : "bg-white shadow-[0_18px_36px_rgba(15,23,42,0.06)]",
-      )}
-    >
-      <div className="grid grid-cols-2 gap-2 rounded-[1.5rem] bg-muted/35 p-1">
-        <button
-          type="button"
-          onClick={() => onScopeChange(currentMemberId ?? "todos")}
-          className={cn(
-            "rounded-[1.2rem] px-3 py-2 text-sm font-semibold transition",
-            scope === "todos" ? "text-muted-foreground hover:text-foreground" : "bg-primary text-primary-foreground shadow-sm",
-          )}
-        >
-          Meu
-        </button>
-        <button
-          type="button"
-          onClick={() => onScopeChange("todos")}
-          className={cn(
-            "rounded-[1.2rem] px-3 py-2 text-sm font-semibold transition",
-            scope === "todos" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          Todos
-        </button>
-      </div>
-
-      <div className="mt-3 space-y-2">
-          {teamMembers.map((member) => {
-            const selected = activeIds.includes(member.id);
-            const locked = scope !== "todos" && currentMemberId === member.id;
-            const disabled = scope !== "todos" && !locked;
-
-            return (
-              <button
-                key={member.id}
-                type="button"
-                onClick={() => {
-                  if (disabled) {
-                    return;
-                  }
-
-                  if (scope !== "todos" && locked) {
-                    onScopeChange("todos");
-                    return;
-                  }
-
-                  const nextIds = selected
-                    ? activeVisibleIds.filter((id) => id !== member.id)
-                    : [...activeVisibleIds, member.id];
-
-                  onVisibleAgendaIdsChange(nextIds.length > 0 ? getUniqueIds(nextIds) : activeVisibleIds);
-                }}
-                className={cn(
-                  "flex w-full items-center justify-between rounded-[1.2rem] border px-3 py-2.5 text-left text-sm transition",
-                  selected
-                    ? "border-primary/25 bg-primary/5 shadow-sm"
-                    : "border-border/60 bg-background/40 hover:bg-muted/60",
-                  disabled && "cursor-not-allowed opacity-50",
-                )}
-              >
-                <span className="flex items-center gap-3">
-                  <span className="inline-flex h-4 w-4 items-center justify-center rounded-sm border border-border/70 bg-white">
-                    {selected ? <span className="h-2.5 w-2.5 rounded-[3px]" style={{ backgroundColor: member.color }} /> : null}
-                  </span>
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: member.color }} />
-                  <span className="font-medium text-foreground">{member.name}</span>
-                </span>
-              </button>
-            );
-          })}
-      </div>
-    </div>
-  );
-}
-
 function MiniMonth({ date }: { date: Date }) {
   const { isDark } = useThemeMode();
   const monthCells = buildMonthCells(date);
@@ -718,7 +736,7 @@ function MiniMonth({ date }: { date: Date }) {
     )}>
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-foreground">{formatMonthLabel(date)}</h3>
-        <span className="text-xs font-medium text-muted-foreground">{formatMiniMonthLabel(date)}</span>
+        <span className="text-xs font-medium text-muted-foreground">Abr 2026</span>
       </div>
       <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
         {daysOfWeek.map((day) => (
@@ -811,75 +829,41 @@ export function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(() => getTodayDate());
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [teamMembers] = useTeamProfiles();
-  const { member: currentMember } = useCurrentTeamMember();
-  const [teamScope, setTeamScope] = useTeamScope();
-  const defaultVisibleAgendaIds = useMemo(() => teamMembers.map((member) => member.id), [teamMembers]);
-  const defaultResponsibleId = useMemo(() => {
-    if (currentMember?.id) {
-      return currentMember.id;
-    }
-
-    if (teamScope !== "todos") {
-      return teamScope;
-    }
-
-    return teamMembers[0]?.id ?? 1;
-  }, [currentMember?.id, teamMembers, teamScope]);
-  const [visibleAgendaIds, setVisibleAgendaIds] = useSupabasePreference<number[]>(
-    "calendar-visible-agendas",
-    defaultVisibleAgendaIds,
-  );
+  const { member: currentMember, memberId: currentMemberId, updateMember } = useCurrentTeamMember();
+  const [teamScope] = useTeamScope();
   const [events, setEvents] = useSupabaseSyncedListState({
     key: "calendar-events",
     table: "calendar_events",
     fallback: calendarEvents,
   });
-  const [, setHistoryEvents] = useSupabaseSyncedListState<HistoryEvent>({
-    key: "history",
-    table: "history_events",
-    fallback: historyTimeline,
-  });
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [eventForm, setEventForm] = useState<CalendarEventFormState | null>(null);
-  const [eventChecklistDraft, setEventChecklistDraft] = useState("");
   const [pendingDelete, setPendingDelete] = useState<CalendarEvent | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [createChecklistDraft, setCreateChecklistDraft] = useState("");
-  const [createForm, setCreateForm] = useState<CalendarEventFormState>({
+  const [taskDraft, setTaskDraft] = useState<ActivityDraftState>(() => emptyActivityDraft());
+  const [createTaskDraft, setCreateTaskDraft] = useState<TaskDraftState>(() => createEmptyTaskDraft());
+  const [createForm, setCreateForm] = useState({
     title: "",
     description: "",
     type: "Reels" as CalendarEvent["type"],
     status: "Agendado" as CalendarEvent["status"],
     date: formatDateKey(getTodayDate()),
     time: "09:00",
-    responsibleId: defaultResponsibleId,
-    responsibleIds: [defaultResponsibleId],
-    addedById: currentMember?.id ?? defaultResponsibleId,
-    checklist: [],
+    responsibleId: teamMembers[0]?.id ?? 1,
+    responsibleIds: [teamMembers[0]?.id ?? 1],
+    addedById: currentMember?.id ?? teamMembers[0]?.id ?? 1,
+    tasks: [] as CalendarTaskItem[],
   });
 
   const weekDates = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(startOfWeek(currentDate), index)), [currentDate]);
   const monthCells = useMemo(() => buildMonthCells(currentDate), [currentDate]);
-  const activeAgendaIds = useMemo(() => {
-    const normalizedVisibleAgendaIds = getUniqueIds(visibleAgendaIds).filter((id) => teamMembers.some((member) => member.id === id));
-
-    if (teamScope !== "todos") {
-      return [teamScope];
-    }
-
-    if (normalizedVisibleAgendaIds.length > 0) {
-      return normalizedVisibleAgendaIds;
-    }
-
-    return teamMembers.map((member) => member.id);
-  }, [teamMembers, teamScope, visibleAgendaIds]);
   const filteredEvents = useMemo(
     () =>
       events.filter((event) => {
         const responsibleIds = event.responsibleIds?.length ? event.responsibleIds : [event.responsibleId];
-        return responsibleIds.some((id) => matchesTeamScope(id, teamScope)) && responsibleIds.some((id) => activeAgendaIds.includes(id));
+        return responsibleIds.some((id) => matchesTeamScope(id, teamScope));
       }),
-    [activeAgendaIds, events, teamScope],
+    [events, teamScope],
   );
   const currentMonthEvents = useMemo(
     () => filteredEvents.filter((event) => event.date.startsWith(`${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}`)),
@@ -887,10 +871,10 @@ export function CalendarPage() {
   );
   const controlBarClass = isDark
     ? "overflow-hidden p-4"
-    : "overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,250,252,0.96))] p-5 shadow-[0_14px_32px_rgba(15,23,42,0.05)]";
+    : "overflow-hidden border border-border/60 bg-white/96 p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)]";
   const gridPanelClass = isDark
     ? "overflow-hidden p-0"
-    : "overflow-hidden border border-border/60 bg-white/98 p-0 shadow-[0_14px_32px_rgba(15,23,42,0.05)]";
+    : "overflow-hidden border border-border/60 bg-white/96 p-0 shadow-[0_18px_48px_rgba(15,23,42,0.06)]";
   const navButtonClass = isDark
     ? "inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/70 bg-card/90 text-foreground shadow-sm transition hover:bg-card"
     : "inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/70 bg-white text-foreground shadow-sm transition hover:bg-muted";
@@ -899,30 +883,16 @@ export function CalendarPage() {
     : "rounded-full border border-border/70 bg-white px-4 py-2.5 text-sm font-semibold text-foreground shadow-sm transition hover:bg-muted";
   const calendarShellClass = isDark
     ? "min-w-[980px] rounded-[2rem] bg-card/95"
-    : "min-w-[980px] rounded-[2rem] bg-white ring-1 ring-border/40";
+    : "min-w-[980px] rounded-[2rem] bg-white";
   const calendarHeaderClass = isDark
     ? "sticky top-0 z-10 grid grid-cols-[72px_repeat(7,minmax(0,1fr))] border-b border-border/50 bg-card/95"
-    : "sticky top-0 z-10 grid grid-cols-[72px_repeat(7,minmax(0,1fr))] border-b border-border/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(247,248,250,0.96))] backdrop-blur";
+    : "sticky top-0 z-10 grid grid-cols-[72px_repeat(7,minmax(0,1fr))] border-b border-border/50 bg-white/98 backdrop-blur";
   const monthCellClass = isDark
     ? "min-h-44 rounded-[1.6rem] border border-border/60 bg-card/95 p-3"
-    : "min-h-44 rounded-[1.6rem] border border-border/50 bg-white p-3 shadow-[0_6px_14px_rgba(15,23,42,0.03)]";
+    : "min-h-44 rounded-[1.6rem] border border-border/60 bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.04)]";
   const modalClass = isDark
-    ? "w-full max-w-lg overflow-hidden rounded-[2.25rem] border border-border/60 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:border-white/8 dark:bg-card dark:shadow-[0_30px_80px_rgba(0,0,0,0.35)]"
-    : "w-full max-w-lg overflow-hidden rounded-[2.25rem] border border-border/60 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.12)]";
-
-  useEffect(() => {
-    if (teamScope !== "todos") {
-      return;
-    }
-
-    const normalizedVisibleAgendaIds = getUniqueIds(visibleAgendaIds).filter((id) => teamMembers.some((member) => member.id === id));
-    const nextVisibleAgendaIds = normalizedVisibleAgendaIds.length > 0 ? normalizedVisibleAgendaIds : teamMembers.map((member) => member.id);
-
-    if (nextVisibleAgendaIds.length !== visibleAgendaIds.length || nextVisibleAgendaIds.some((id, index) => id !== visibleAgendaIds[index])) {
-      setVisibleAgendaIds(nextVisibleAgendaIds);
-    }
-  }, [teamMembers, teamScope, visibleAgendaIds, setVisibleAgendaIds]);
-
+    ? "w-full max-w-4xl overflow-hidden rounded-[2.5rem] border border-border/60 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:border-white/8 dark:bg-card dark:shadow-[0_30px_80px_rgba(0,0,0,0.35)]"
+    : "w-full max-w-4xl overflow-hidden rounded-[2.5rem] border border-border/60 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.12)]";
   const handleNavigate = (direction: -1 | 1) => {
     if (view === "Dia") {
       setCurrentDate((previous) => addDays(previous, direction));
@@ -946,38 +916,6 @@ export function CalendarPage() {
     toast.success("Post reagendado com sucesso.");
   };
 
-  const handleEventChecklistAdd = (label: string) => {
-    setEventForm((previous) => (previous ? { ...previous, checklist: addChecklistItem(previous.checklist, label) } : previous));
-  };
-
-  const handleEventChecklistUpdate = (itemId: string, nextLabel: string) => {
-    setEventForm((previous) => (previous ? { ...previous, checklist: updateChecklistItem(previous.checklist, itemId, nextLabel) } : previous));
-  };
-
-  const handleEventChecklistToggle = (itemId: string) => {
-    setEventForm((previous) => (previous ? { ...previous, checklist: toggleChecklistItem(previous.checklist, itemId) } : previous));
-  };
-
-  const handleEventChecklistRemove = (itemId: string) => {
-    setEventForm((previous) => (previous ? { ...previous, checklist: removeChecklistItem(previous.checklist, itemId) } : previous));
-  };
-
-  const handleCreateChecklistAdd = (label: string) => {
-    setCreateForm((previous) => ({ ...previous, checklist: addChecklistItem(previous.checklist, label) }));
-  };
-
-  const handleCreateChecklistUpdate = (itemId: string, nextLabel: string) => {
-    setCreateForm((previous) => ({ ...previous, checklist: updateChecklistItem(previous.checklist, itemId, nextLabel) }));
-  };
-
-  const handleCreateChecklistToggle = (itemId: string) => {
-    setCreateForm((previous) => ({ ...previous, checklist: toggleChecklistItem(previous.checklist, itemId) }));
-  };
-
-  const handleCreateChecklistRemove = (itemId: string) => {
-    setCreateForm((previous) => ({ ...previous, checklist: removeChecklistItem(previous.checklist, itemId) }));
-  };
-
   const handleOpenCreateModal = () => {
     setCreateForm((previous) => ({
       ...previous,
@@ -987,12 +925,12 @@ export function CalendarPage() {
       status: "Agendado" as CalendarEvent["status"],
       date: formatDateKey(getTodayDate()),
       time: "09:00",
-      responsibleId: defaultResponsibleId,
-      responsibleIds: [defaultResponsibleId],
-      addedById: currentMember?.id ?? defaultResponsibleId,
-      checklist: [],
+      responsibleId: teamMembers[0]?.id ?? previous.responsibleId,
+      responsibleIds: [teamMembers[0]?.id ?? previous.responsibleId],
+      addedById: currentMember?.id ?? teamMembers[0]?.id ?? previous.addedById,
+      tasks: [],
     }));
-    setCreateChecklistDraft("");
+    setCreateTaskDraft(createEmptyTaskDraft());
     setIsCreateOpen(true);
   };
 
@@ -1008,9 +946,6 @@ export function CalendarPage() {
       id: nextId,
       responsibleId: responsibleIds[0] ?? selectedEvent.responsibleId,
       responsibleIds,
-      checklist: selectedEvent.checklist ?? [],
-      completedAt: undefined,
-      completedById: undefined,
     };
 
     setEvents((previous) => [...previous, duplicatedEvent]);
@@ -1042,26 +977,81 @@ export function CalendarPage() {
       responsibleId: nextResponsibleIds[0] ?? eventForm.responsibleId,
       responsibleIds: nextResponsibleIds,
       addedById: eventForm.addedById,
-      checklist: eventForm.checklist,
+      tasks: eventForm.tasks,
     };
-    const normalizedEvent = applyCalendarCompletionState(updatedEvent, currentMember ? { id: currentMember.id, name: currentMember.name } : undefined);
 
-    setEvents((previous) => previous.map((event) => (event.id === selectedEvent.id ? normalizedEvent : event)));
-    syncCompletionHistory(normalizedEvent, selectedEvent);
-    setSelectedEvent(normalizedEvent);
+    setEvents((previous) => previous.map((event) => (event.id === selectedEvent.id ? updatedEvent : event)));
+    setSelectedEvent(updatedEvent);
     setEventForm({
-      title: normalizedEvent.title,
-      description: normalizedEvent.description,
-      type: normalizedEvent.type,
-      status: normalizedEvent.status,
-      date: normalizedEvent.date,
-      time: normalizedEvent.time,
-      responsibleId: normalizedEvent.responsibleId,
-      responsibleIds: normalizedEvent.responsibleIds?.length ? normalizedEvent.responsibleIds : [normalizedEvent.responsibleId],
-      addedById: normalizedEvent.addedById,
-      checklist: normalizedEvent.checklist ?? [],
+      title: updatedEvent.title,
+      description: updatedEvent.description,
+      type: updatedEvent.type,
+      status: updatedEvent.status,
+      date: updatedEvent.date,
+      time: updatedEvent.time,
+      responsibleId: updatedEvent.responsibleId,
+      responsibleIds: updatedEvent.responsibleIds?.length ? updatedEvent.responsibleIds : [updatedEvent.responsibleId],
+      addedById: updatedEvent.addedById,
+      tasks: updatedEvent.tasks ?? [],
     });
     toast.success("Tarefa atualizada com sucesso.");
+  };
+
+  const handleMarkEventCompleted = () => {
+    if (!selectedEvent) {
+      return;
+    }
+
+    if (selectedEvent.completed) {
+      toast.info("Essa atividade já está concluída.");
+      return;
+    }
+
+    const completedEvent: CalendarEvent = {
+      ...selectedEvent,
+      completed: true,
+      status: "Publicado",
+      tasks: (selectedEvent.tasks ?? []).map((task) => ({ ...task, done: true })),
+    };
+
+    setEvents((previous) => previous.map((event) => (event.id === selectedEvent.id ? completedEvent : event)));
+    setSelectedEvent(completedEvent);
+    setEventForm((current) =>
+      current ? { ...current, status: completedEvent.status, tasks: completedEvent.tasks ?? current.tasks } : current,
+    );
+
+    const actorId = getEventResponsibleIds(selectedEvent)[0] ?? currentMemberId ?? currentMember?.id;
+    if (actorId) {
+      updateMember(actorId, (member) => {
+        const monthLabel = getMonthLabel(completedEvent.date);
+        const currentStats = member.stats ?? {
+          postsCreated: 0,
+          avgEngagement: 0,
+          goalsCompleted: 0,
+          performance: 0,
+          punctuality: 0,
+        };
+        const currentMonthlyPosts = member.monthlyPosts ?? [];
+        const currentMonth = currentMonthlyPosts.find((entry) => entry.month === monthLabel);
+        const nextMonthlyPosts = currentMonth
+          ? currentMonthlyPosts.map((entry) =>
+              entry.month === monthLabel ? { ...entry, posts: entry.posts + 1 } : entry,
+            )
+          : [...currentMonthlyPosts, { month: monthLabel, posts: 1 }];
+
+        return {
+          ...member,
+          stats: {
+            ...currentStats,
+            postsCreated: currentStats.postsCreated + 1,
+            performance: currentStats.performance + 1,
+          },
+          monthlyPosts: nextMonthlyPosts,
+        };
+      });
+    }
+
+    toast.success("Atividade marcada como concluída.");
   };
 
   const handleDeleteEvent = (eventId: number) => {
@@ -1072,49 +1062,22 @@ export function CalendarPage() {
     }
 
     setEvents((previous) => previous.filter((event) => event.id !== eventId));
-    setHistoryEvents((previous) => previous.filter((item) => item.id !== getCalendarCompletionHistoryId(eventId)));
     setSelectedEvent((current) => (current?.id === eventId ? null : current));
     setPendingDelete(null);
     toast.success("Evento apagado com sucesso.", {
-        action: {
-          label: "Desfazer",
-          onClick: () => {
-            setEvents((previous) => {
-              if (previous.some((event) => event.id === removedEvent.id)) {
-                return previous;
-              }
+      action: {
+        label: "Desfazer",
+        onClick: () => {
+          setEvents((previous) => {
+            if (previous.some((event) => event.id === removedEvent.id)) {
+              return previous;
+            }
 
-              return [removedEvent, ...previous];
-            });
-            syncCompletionHistory(removedEvent);
-          },
+            return [removedEvent, ...previous];
+          });
         },
-      });
-  };
-
-  const syncCompletionHistory = (nextEvent: CalendarEvent, previousEvent?: CalendarEvent) => {
-    const historyId = getCalendarCompletionHistoryId(nextEvent.id);
-    const nextComplete = isCalendarTaskCompleted(nextEvent);
-    const previousComplete = previousEvent ? isCalendarTaskCompleted(previousEvent) : false;
-
-    if (nextComplete) {
-      const historyItem = buildCalendarCompletionHistoryEvent(nextEvent, currentMember ? { id: currentMember.id, name: currentMember.name } : undefined);
-
-      setHistoryEvents((previous) => {
-        const existing = previous.some((item) => item.id === historyId);
-
-        if (!existing) {
-          return [historyItem, ...previous];
-        }
-
-        return previous.map((item) => (item.id === historyId ? historyItem : item));
-      });
-      return;
-    }
-
-    if (previousComplete || nextComplete === false) {
-      setHistoryEvents((previous) => previous.filter((item) => item.id !== historyId));
-    }
+      },
+    });
   };
 
   const handleOpenQuickCreate = (date: string, time: string) => {
@@ -1124,12 +1087,11 @@ export function CalendarPage() {
       time,
       title: "",
       description: "",
-      responsibleId: defaultResponsibleId,
-      responsibleIds: [defaultResponsibleId],
-      addedById: currentMember?.id ?? defaultResponsibleId,
-      checklist: [],
+      responsibleId: teamMembers[0]?.id ?? previous.responsibleId,
+      responsibleIds: [teamMembers[0]?.id ?? previous.responsibleId],
+      addedById: currentMember?.id ?? previous.addedById,
+      tasks: [],
     }));
-    setCreateChecklistDraft("");
     setIsCreateOpen(true);
   };
 
@@ -1140,25 +1102,25 @@ export function CalendarPage() {
     }
 
     const nextId = Math.max(...events.map((event) => event.id), 0) + 1;
-    const createdEvent: CalendarEvent = {
-      id: nextId,
-      title: createForm.title.trim(),
-      description: createForm.description.trim(),
-      type: createForm.type,
-      responsibleId: createForm.responsibleIds[0] ?? createForm.responsibleId,
-      responsibleIds: getUniqueIds(
-        createForm.responsibleIds.length > 0 ? createForm.responsibleIds : [createForm.responsibleId],
-      ),
-      addedById: createForm.addedById,
-      status: createForm.status,
-      date: createForm.date,
-      time: createForm.time,
-      checklist: createForm.checklist,
-    };
-    const normalizedCreatedEvent = applyCalendarCompletionState(createdEvent, currentMember ? { id: currentMember.id, name: currentMember.name } : undefined);
-
-    setEvents((previous) => [...previous, normalizedCreatedEvent]);
-    syncCompletionHistory(normalizedCreatedEvent);
+    setEvents((previous) => [
+      ...previous,
+        {
+          id: nextId,
+          title: createForm.title.trim(),
+          description: createForm.description.trim(),
+          type: createForm.type,
+          responsibleId: createForm.responsibleIds[0] ?? createForm.responsibleId,
+          responsibleIds: getUniqueIds(
+            createForm.responsibleIds.length > 0 ? createForm.responsibleIds : [createForm.responsibleId],
+          ),
+          addedById: createForm.addedById,
+          tasks: createForm.tasks,
+          status: createForm.status,
+          date: createForm.date,
+          time: createForm.time,
+          completed: false,
+        },
+    ]);
     setIsCreateOpen(false);
     toast.success("Novo post criado com sucesso.");
   };
@@ -1166,6 +1128,7 @@ export function CalendarPage() {
   useEffect(() => {
     if (!selectedEvent) {
       setEventForm(null);
+      setTaskDraft(emptyActivityDraft());
       return undefined;
     }
 
@@ -1179,9 +1142,8 @@ export function CalendarPage() {
       responsibleId: selectedEvent.responsibleId,
       responsibleIds: selectedEvent.responsibleIds?.length ? selectedEvent.responsibleIds : [selectedEvent.responsibleId],
       addedById: selectedEvent.addedById ?? currentMember?.id ?? teamMembers[0]?.id,
-      checklist: selectedEvent.checklist ?? [],
+      tasks: selectedEvent.tasks ?? [],
     });
-    setEventChecklistDraft("");
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -1245,19 +1207,6 @@ export function CalendarPage() {
         <aside className="flex flex-col gap-4">
           {!isSidebarCollapsed ? (
             <>
-              <AgendaVisibilityPanel
-                teamMembers={teamMembers}
-                currentMemberId={currentMember?.id ?? null}
-                scope={teamScope}
-                visibleAgendaIds={visibleAgendaIds}
-                onScopeChange={(scope) => {
-                  setTeamScope(scope);
-                  if (scope !== "todos") {
-                    setVisibleAgendaIds([scope]);
-                  }
-                }}
-                onVisibleAgendaIdsChange={setVisibleAgendaIds}
-              />
               <MiniMonth date={currentDate} />
               <SideAgenda
                 events={currentMonthEvents}
@@ -1339,7 +1288,7 @@ export function CalendarPage() {
 
                       return (
                         <div key={formatDateKey(date)} className="px-2 py-4 text-center">
-                          <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{daysOfWeek[index]}</p>
+                          <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{weekHeaderLabels[index]}</p>
                           <p
                             className={cn(
                               "mt-1 inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold",
@@ -1463,7 +1412,7 @@ export function CalendarPage() {
 
       {selectedEvent ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-background/82 p-4 backdrop-blur-[2px]"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4"
           onWheelCapture={(event) => event.stopPropagation()}
           onClick={() => setSelectedEvent(null)}
         >
@@ -1472,7 +1421,7 @@ export function CalendarPage() {
             onWheelCapture={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="max-h-[88vh] overflow-y-auto overscroll-contain p-6 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            <div className="max-h-[88vh] overflow-y-auto overscroll-contain p-6">
               {(() => {
                 const responsibleIds = getEventResponsibleIds(selectedEvent);
                 const members = responsibleIds
@@ -1483,17 +1432,34 @@ export function CalendarPage() {
                 return (
                   <>
                     <div className="flex items-start justify-between gap-4">
-                      <div className="space-y-2">
-                        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Atividade</p>
-                        <h3 className="text-2xl font-semibold tracking-tight text-foreground">{selectedEvent.title}</h3>
+                      <div className="flex items-start gap-4">
+                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm">
+                          <CalendarDays className="h-7 w-7" />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Agenda</p>
+                          <h3 className="text-3xl font-semibold tracking-tight text-foreground">{selectedEvent.title}</h3>
+                          <p className="text-sm text-muted-foreground">Defina, confirme e acompanhe esta atividade.</p>
+                        </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedEvent(null)}
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
-                      >
-                        ×
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold",
+                            selectedEvent.completed ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700",
+                          )}
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                          {selectedEvent.completed ? "Concluída" : "Agendada"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedEvent(null)}
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
+                        >
+                          ×
+                        </button>
+                      </div>
                     </div>
 
                     <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -1522,7 +1488,20 @@ export function CalendarPage() {
                       </div>
                       <div className="rounded-2xl bg-muted/45 p-4">
                         <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Status</p>
-                        <p className="mt-2 text-sm font-semibold text-foreground">{selectedEvent.status}</p>
+                        <div
+                          className={cn(
+                            "mt-2 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold",
+                            selectedEvent.completed ? "bg-emerald-100 text-emerald-700" : "bg-muted text-foreground",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "h-2.5 w-2.5 rounded-full",
+                              selectedEvent.completed ? "bg-emerald-500" : "bg-primary",
+                            )}
+                          />
+                          {selectedEvent.completed ? "Concluída" : selectedEvent.status}
+                        </div>
                       </div>
                       <div className="rounded-2xl bg-muted/45 p-4 sm:col-span-2">
                         <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Adicionado por</p>
@@ -1539,28 +1518,63 @@ export function CalendarPage() {
                       </div>
                     </div>
 
-                    <div className="mt-5 flex flex-wrap items-center gap-2">
-                      <span
-                        className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
-                        style={{ backgroundColor: `${primaryMember.color}14`, color: primaryMember.color }}
-                      >
-                        {selectedEvent.type}
-                      </span>
-                      <span className="text-sm text-muted-foreground">{selectedEvent.description}</span>
+                    <div className="mt-5 rounded-[1.75rem] border border-border/60 bg-muted/20 p-4">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span
+                          className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
+                          style={{ backgroundColor: `${primaryMember.color}14`, color: primaryMember.color }}
+                        >
+                          {selectedEvent.type}
+                        </span>
+                        <span className="text-sm font-medium text-foreground">{selectedEvent.description}</span>
+                      </div>
                     </div>
 
-                    <div className="mt-6 rounded-3xl border border-border/60 bg-muted/20 p-4">
-                      <ChecklistEditor
-                        title="Checklist da tarefa"
-                        items={eventForm?.checklist ?? selectedEvent.checklist ?? []}
-                        draft={eventChecklistDraft}
-                        onDraftChange={setEventChecklistDraft}
-                        onAddItem={handleEventChecklistAdd}
-                        onToggleItem={handleEventChecklistToggle}
-                        onUpdateItem={handleEventChecklistUpdate}
-                        onRemoveItem={handleEventChecklistRemove}
-                      />
-                    </div>
+                    <ActivitySection
+                      tasks={eventForm?.tasks ?? selectedEvent.tasks ?? []}
+                      draft={taskDraft}
+                      setDraft={setTaskDraft}
+                      onAddTask={(task) => {
+                        setEventForm((current) =>
+                          current
+                            ? { ...current, tasks: [...(current.tasks ?? selectedEvent.tasks ?? []), task] }
+                            : current,
+                        );
+                      }}
+                      onToggleTask={(taskId) => {
+                        setEventForm((current) =>
+                          current
+                            ? {
+                                ...current,
+                                tasks: (current.tasks ?? selectedEvent.tasks ?? []).map((item) =>
+                                  item.id === taskId ? { ...item, done: !item.done } : item,
+                                ),
+                              }
+                            : current,
+                        );
+                      }}
+                      onRemoveTask={(taskId) => {
+                        setEventForm((current) =>
+                          current
+                            ? {
+                                ...current,
+                                tasks: (current.tasks ?? selectedEvent.tasks ?? []).filter((item) => item.id !== taskId),
+                              }
+                            : current,
+                        );
+                      }}
+                      onMarkAllDone={() => {
+                        setEventForm((current) =>
+                          current
+                            ? {
+                                ...current,
+                                tasks: (current.tasks ?? selectedEvent.tasks ?? []).map((task) => ({ ...task, done: true })),
+                              }
+                            : current,
+                        );
+                      }}
+                      onClearTaskDraft={() => setTaskDraft(emptyActivityDraft())}
+                    />
 
                     <div className="mt-6 rounded-3xl border border-border/60 bg-muted/20 p-4">
                       <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Editar informações</p>
@@ -1590,37 +1604,25 @@ export function CalendarPage() {
                         </label>
                         <label className="grid gap-2">
                           <span className="text-sm font-medium text-foreground">Tipo</span>
-                          <select
+                          <RoundedDropdown
+                            label="Tipo"
                             value={eventForm?.type ?? "Reels"}
-                            onChange={(event) =>
-                              setEventForm((previous) =>
-                                previous ? { ...previous, type: event.target.value as CalendarEvent["type"] } : previous,
-                              )
+                            options={typeOptions}
+                            onChange={(value) =>
+                              setEventForm((previous) => (previous ? { ...previous, type: value } : previous))
                             }
-                            className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                          >
-                            <option value="Reels">Reels</option>
-                            <option value="Stories">Stories</option>
-                            <option value="Carrossel">Carrossel</option>
-                            <option value="Feed">Feed</option>
-                          </select>
+                          />
                         </label>
                         <label className="grid gap-2">
                           <span className="text-sm font-medium text-foreground">Status</span>
-                          <select
+                          <RoundedDropdown
+                            label="Status"
                             value={eventForm?.status ?? "Agendado"}
-                            onChange={(event) =>
-                              setEventForm((previous) =>
-                                previous ? { ...previous, status: event.target.value as CalendarEvent["status"] } : previous,
-                              )
+                            options={statusOptions}
+                            onChange={(value) =>
+                              setEventForm((previous) => (previous ? { ...previous, status: value } : previous))
                             }
-                            className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                          >
-                            <option value="Agendado">Agendado</option>
-                            <option value="Em produÃ§Ã£o">Em produÃ§Ã£o</option>
-                            <option value="Aprovado">Aprovado</option>
-                            <option value="Publicado">Publicado</option>
-                          </select>
+                          />
                         </label>
                         <label className="grid gap-2">
                           <span className="text-sm font-medium text-foreground">Data</span>
@@ -1679,6 +1681,13 @@ export function CalendarPage() {
 
                     <div className="mt-6 flex flex-wrap gap-3">
                       <ActionButton
+                        onClick={handleMarkEventCompleted}
+                        className="bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        {selectedEvent.completed ? "Concluída" : "Concluir atividade"}
+                      </ActionButton>
+                      <ActionButton
                         onClick={handleSaveEvent}
                         className="bg-primary text-primary-foreground shadow-lg shadow-primary/20"
                       >
@@ -1714,7 +1723,7 @@ export function CalendarPage() {
 
       {isCreateOpen ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-background/82 p-4 backdrop-blur-[2px] sm:p-6"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 sm:p-6"
           onClick={() => setIsCreateOpen(false)}
           onWheelCapture={(event) => {
             if (event.target === event.currentTarget) {
@@ -1747,7 +1756,7 @@ export function CalendarPage() {
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible overscroll-contain px-6 py-6 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:px-8">
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible overscroll-contain px-6 py-6 sm:px-8">
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="grid gap-2 md:col-span-2">
                   <span className="text-sm font-medium text-foreground">Título</span>
@@ -1770,33 +1779,21 @@ export function CalendarPage() {
                 </label>
                 <label className="grid gap-2">
                   <span className="text-sm font-medium text-foreground">Tipo</span>
-                  <select
+                  <RoundedDropdown
+                    label="Tipo"
                     value={createForm.type}
-                    onChange={(event) =>
-                      setCreateForm((previous) => ({ ...previous, type: event.target.value as CalendarEvent["type"] }))
-                    }
-                    className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                  >
-                    <option value="Reels">Reels</option>
-                    <option value="Stories">Stories</option>
-                    <option value="Carrossel">Carrossel</option>
-                    <option value="Feed">Feed</option>
-                  </select>
+                    options={typeOptions}
+                    onChange={(value) => setCreateForm((previous) => ({ ...previous, type: value }))}
+                  />
                 </label>
                 <label className="grid gap-2">
                   <span className="text-sm font-medium text-foreground">Status</span>
-                  <select
+                  <RoundedDropdown
+                    label="Status"
                     value={createForm.status}
-                    onChange={(event) =>
-                      setCreateForm((previous) => ({ ...previous, status: event.target.value as CalendarEvent["status"] }))
-                    }
-                    className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                  >
-                    <option value="Agendado">Agendado</option>
-                    <option value="Em produção">Em produção</option>
-                    <option value="Aprovado">Aprovado</option>
-                    <option value="Publicado">Publicado</option>
-                  </select>
+                    options={statusOptions}
+                    onChange={(value) => setCreateForm((previous) => ({ ...previous, status: value }))}
+                  />
                 </label>
                 <label className="grid gap-2">
                   <span className="text-sm font-medium text-foreground">Data</span>
@@ -1829,17 +1826,6 @@ export function CalendarPage() {
                   />
                 </label>
 
-                <ChecklistEditor
-                  title="Checklist da tarefa"
-                  items={createForm.checklist}
-                  draft={createChecklistDraft}
-                  onDraftChange={setCreateChecklistDraft}
-                  onAddItem={handleCreateChecklistAdd}
-                  onToggleItem={handleCreateChecklistToggle}
-                  onUpdateItem={handleCreateChecklistUpdate}
-                  onRemoveItem={handleCreateChecklistRemove}
-                />
-
                 <div className="md:col-span-2 rounded-2xl border border-border/60 bg-muted/20 p-4">
                   <p className="text-sm font-medium text-foreground">Quem adicionou</p>
                   <div className="mt-3">
@@ -1855,6 +1841,32 @@ export function CalendarPage() {
                     )}
                   </div>
                 </div>
+
+                <ActivitySection
+                  tasks={createForm.tasks}
+                  draft={createTaskDraft}
+                  setDraft={setCreateTaskDraft}
+                  onAddTask={(task) => setCreateForm((previous) => ({ ...previous, tasks: [...previous.tasks, task] }))}
+                  onToggleTask={(taskId) =>
+                    setCreateForm((previous) => ({
+                      ...previous,
+                      tasks: previous.tasks.map((item) => (item.id === taskId ? { ...item, done: !item.done } : item)),
+                    }))
+                  }
+                  onRemoveTask={(taskId) =>
+                    setCreateForm((previous) => ({
+                      ...previous,
+                      tasks: previous.tasks.filter((item) => item.id !== taskId),
+                    }))
+                  }
+                  onMarkAllDone={() =>
+                    setCreateForm((previous) => ({
+                      ...previous,
+                      tasks: previous.tasks.map((task) => ({ ...task, done: true })),
+                    }))
+                  }
+                  onClearTaskDraft={() => setCreateTaskDraft(emptyActivityDraft())}
+                />
               </div>
             </div>
 
@@ -1875,3 +1887,4 @@ export function CalendarPage() {
     </PageTransition>
   );
 }
+

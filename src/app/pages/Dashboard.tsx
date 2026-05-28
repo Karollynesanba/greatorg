@@ -11,23 +11,11 @@ import {
   YAxis,
 } from "recharts";
 import { BarChart3, Eye, Rocket, Sparkles, type LucideIcon } from "lucide-react";
-import {
-  calendarEvents as seedCalendarEvents,
-  goals as seedGoals,
-  getGoalResponsibleIds,
-  storyLogs as seedStoryLogs,
-  type CalendarEvent,
-  type StoryLog,
-} from "../data/mockData";
+import { getGoalResponsibleIds } from "../data/mockData";
 import { usePosts } from "../data/posts";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
-import {
-  getCalendarChecklistProgress,
-  getCalendarResponsibleIds,
-  isCalendarTaskCompleted,
-} from "../data/calendarWorkflow";
 import {
   GlassPanel,
   EmptyState,
@@ -41,7 +29,6 @@ import { useThemeMode } from "../theme";
 import { type Goal } from "../data/mockData";
 
 const metricIcons = [Eye, BarChart3, Sparkles, Rocket];
-const fallbackMetricIcon = BarChart3;
 
 const instagramThemeLight = {
   ["--primary" as never]: "131 58 180",
@@ -102,7 +89,7 @@ function InstagramHealthScoreRing({ score }: { score: number }) {
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span className="text-sm text-white/78">SaÃºde do perfil</span>
+        <span className="text-sm text-white/78">Saúde do perfil</span>
         <strong className="text-5xl font-semibold tracking-tight text-white">{score}</strong>
         <span className="text-sm font-medium text-white/78">de 100</span>
       </div>
@@ -116,8 +103,6 @@ function DashboardMetricCard({
   value,
   change,
   detail,
-  to,
-  destinationLabel,
   darkMode = false,
 }: {
   icon: LucideIcon;
@@ -125,8 +110,6 @@ function DashboardMetricCard({
   value: string;
   change: number;
   detail: string;
-  to: string;
-  destinationLabel: string;
   darkMode?: boolean;
 }) {
   const positive = change >= 0;
@@ -142,12 +125,10 @@ function DashboardMetricCard({
       };
 
   return (
-    <Link
-      to={to}
-      aria-label={`${label}. ${destinationLabel}`}
-      className="group block outline-none transition focus-visible:scale-[1.01]"
+    <GlassPanel
+      className="overflow-hidden"
+      style={shellStyle}
     >
-      <GlassPanel className="overflow-hidden transition group-hover:-translate-y-1 group-hover:shadow-[0_24px_56px_rgba(15,23,42,0.12)] group-focus-visible:ring-2 group-focus-visible:ring-primary/40" style={shellStyle}>
       <div className="flex items-start justify-between gap-4">
         <div
           className="inline-flex h-12 w-12 items-center justify-center rounded-2xl text-[#8A2FB1] ring-1 ring-[#833AB4]/10"
@@ -193,12 +174,7 @@ function DashboardMetricCard({
           style={{ width: `${Math.min(Math.abs(change) * 6, 100)}%` }}
         />
       </div>
-      <div className="mt-4 flex items-center justify-between text-xs font-medium text-muted-foreground">
-        <span>{destinationLabel}</span>
-        <span className="text-primary transition group-hover:translate-x-0.5">Abrir</span>
-      </div>
-      </GlassPanel>
-    </Link>
+    </GlassPanel>
   );
 }
 
@@ -247,80 +223,27 @@ export function DashboardPage() {
   const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
   const [posts] = usePosts();
-  const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: seedGoals });
-  const [calendarEvents] = useSupabaseSyncedListState<CalendarEvent>({
-    key: "calendar-events",
-    table: "calendar_events",
-    fallback: seedCalendarEvents,
-  });
-  const [storyLogs] = useSupabaseSyncedListState<StoryLog>({
-    key: "story-logs",
-    table: "story_logs",
-    fallback: seedStoryLogs,
-  });
+  const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
   const [teamScope] = useTeamScope();
   const chartLegend = [
     { label: "Alcance", color: "#833AB4" },
     { label: "Engajamento", color: "#E1306C" },
   ];
-  const fallbackMember = teamMembers[0] ?? {
-    id: 0,
-    name: "Equipe",
-    role: "Great Orgânico",
-    avatar: "E",
-    specialty: "",
-    color: "#833AB4",
-    stats: {
-      postsCreated: 0,
-      avgEngagement: 0,
-      goalsCompleted: 0,
-      performance: 0,
-      punctuality: 0,
-    },
-    radar: [],
-    monthlyPosts: [],
-    userId: "",
-    email: "",
-    avatarUrl: "",
-    bio: "",
-  };
   const visiblePosts = posts.filter((post) => matchesTeamScope(post.authorId, teamScope));
   const visibleGoals = goals.filter((goal) => getGoalResponsibleIds(goal).some((id) => matchesTeamScope(id, teamScope)));
-  const visibleCalendarEvents = calendarEvents.filter((event) =>
-    getCalendarResponsibleIds(event).some((id) => matchesTeamScope(id, teamScope)),
-  );
   const topPosts = [...visiblePosts].sort((a, b) => b.engagement - a.engagement).slice(0, 5);
   const worstPosts = [...visiblePosts].sort((a, b) => a.engagement - b.engagement).slice(0, 2);
   const dashboardGoals = visibleGoals.slice(0, 3);
   const totalReach = visiblePosts.reduce((sum, post) => sum + post.reach, 0);
   const totalEngagement = visiblePosts.reduce((sum, post) => sum + post.engagement, 0);
-  const totalStories = storyLogs
-    .filter((story) => matchesTeamScope(story.madeById, teamScope))
-    .reduce((sum, story) => sum + story.quantity, 0);
   const completedGoals = visibleGoals.filter((goal) => goal.current >= goal.target).length;
-  const calendarChecklistTotals = visibleCalendarEvents.reduce(
-    (acc, event) => {
-      const progress = getCalendarChecklistProgress(event);
-      return {
-        items: acc.items + progress.total,
-        done: acc.done + progress.completed,
-        completedTasks: acc.completedTasks + (isCalendarTaskCompleted(event) ? 1 : 0),
-      };
-    },
-    { items: 0, done: 0, completedTasks: 0 },
-  );
-  const goalCompletionRate = visibleGoals.length > 0 ? (completedGoals / visibleGoals.length) * 100 : 0;
-  const calendarCompletionRate =
-    calendarChecklistTotals.items > 0 ? (calendarChecklistTotals.done / calendarChecklistTotals.items) * 100 : 0;
-  const storyCompletionRate = Math.min((totalStories / 168) * 100, 100);
-  const healthScore = Math.round((goalCompletionRate + calendarCompletionRate + storyCompletionRate) / 3);
+  const healthScore = visibleGoals.length > 0 ? Math.round((completedGoals / visibleGoals.length) * 100) : 0;
+  const showOverallGoalCard = teamScope === "todos";
   const dashboardSummary = {
     healthScore,
     completedGoals,
     totalReach,
     totalEngagement,
-    totalStories,
-    calendarChecklistTotals,
   };
   const dashboardMetrics = [
     {
@@ -328,56 +251,28 @@ export function DashboardPage() {
       label: "Alcance",
       value: formatLongNumber(totalReach),
       change: 0,
-      highlight: visiblePosts.length > 0 ? "Calculado a partir dos posts ativos no recorte." : "Nenhum post encontrado no recorte.",
-      to: "/meta-insights",
-      destinationLabel: "Ver insights de alcance",
+      highlight: visiblePosts.length > 0 ? "Dados vindos do Supabase." : "Nenhum post encontrado no recorte.",
     },
     {
       id: "engagement",
       label: "Engajamento",
       value: formatLongNumber(totalEngagement),
       change: 0,
-      highlight: visiblePosts.length > 0 ? "Soma real das interacoes dos posts filtrados." : "Nenhum post encontrado no recorte.",
-      to: "/meta-insights",
-      destinationLabel: "Ver insights de engajamento",
+      highlight: visiblePosts.length > 0 ? "Soma de interações dos posts filtrados." : "Nenhum post encontrado no recorte.",
     },
     {
       id: "posts",
-      label: "Publicacoes",
+      label: "Publicações",
       value: String(visiblePosts.length),
       change: 0,
-      highlight: visiblePosts.length > 0 ? "Quantidade total de conteudos visiveis." : "Nenhum post encontrado no recorte.",
-      to: "/reports",
-      destinationLabel: "Ver relatorios de conteudo",
-    },
-    {
-      id: "stories",
-      label: "Stories",
-      value: formatLongNumber(totalStories),
-      change: 0,
-      highlight: totalStories > 0 ? "Volume real somado dos registros de stories." : "Nenhum story registrado no recorte.",
-      to: "/stories",
-      destinationLabel: "Abrir stories",
+      highlight: visiblePosts.length > 0 ? "Quantidade total de conteúdos visíveis." : "Nenhum post encontrado no recorte.",
     },
     {
       id: "goals",
-      label: "Metas concluidas",
+      label: "Metas concluídas",
       value: `${completedGoals}/${visibleGoals.length}`,
       change: 0,
-      highlight: visibleGoals.length > 0 ? "Metas concluidas dentro do recorte selecionado." : "Nenhuma meta encontrada no recorte.",
-      to: "/goals",
-      destinationLabel: "Abrir metas",
-    },
-    {
-      id: "calendar",
-      label: "Tarefas concluidas",
-      value: String(calendarChecklistTotals.completedTasks),
-      change: 0,
-      highlight: visibleCalendarEvents.length > 0
-        ? "Tarefas do calendario finalizadas com checklist completo."
-        : "Nenhuma tarefa de calendario encontrada no recorte.",
-      to: "/calendar",
-      destinationLabel: "Abrir calendario",
+      highlight: visibleGoals.length > 0 ? "Metas concluídas dentro do recorte selecionado." : "Nenhuma meta encontrada no recorte.",
     },
   ] as const;
   const evolutionBuckets = visiblePosts.reduce<Map<string, { date: string; reach: number; engagement: number }>>(
@@ -399,18 +294,14 @@ export function DashboardPage() {
       <div style={isDark ? instagramThemeDark : instagramThemeLight} className="space-y-6">
         <PageHeader
           eyebrow="Overview"
-          title="SaÃºde completa do Instagram da Great"
-          description="Uma leitura executiva da operaÃ§Ã£o criativa, com performance, metas e alertas de conteÃºdo em um Ãºnico lugar."
+          title="Saúde completa do Instagram da Great"
+          description="Uma leitura executiva da operação criativa, com performance, metas e alertas de conteúdo em um único lugar."
         />
 
-        <div className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
-          <Link
-            to="/meta-insights"
-            aria-label="Abrir Meta Insights com a saÃºde do perfil"
-            className="group block outline-none transition focus-visible:scale-[1.01]"
-          >
+        <div className={showOverallGoalCard ? "grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]" : "grid gap-6 xl:grid-cols-1"}>
+          {showOverallGoalCard ? (
             <GlassPanel
-              className="flex flex-col items-center justify-center overflow-hidden p-6 text-white shadow-[0_28px_60px_rgba(131,58,180,0.18)] transition group-hover:-translate-y-1 group-hover:shadow-[0_34px_70px_rgba(131,58,180,0.24)] group-focus-visible:ring-2 group-focus-visible:ring-primary/40"
+              className="flex flex-col items-center justify-center overflow-hidden p-6 text-white shadow-[0_28px_60px_rgba(131,58,180,0.18)]"
               index={1}
               style={{
                 background: isDark
@@ -422,7 +313,7 @@ export function DashboardPage() {
               <InstagramHealthScoreRing score={dashboardSummary.healthScore} />
               <div className="mt-5 grid w-full gap-3 sm:grid-cols-2 xl:grid-cols-1">
                 <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
-                  <p className="text-xs uppercase tracking-[0.16em] text-white/72">Metas concluÃ­das</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-white/72">Metas concluídas</p>
                   <p className="mt-2 text-2xl font-semibold text-white">
                     {dashboardSummary.completedGoals}/{visibleGoals.length}
                   </p>
@@ -434,15 +325,12 @@ export function DashboardPage() {
                   </p>
                 </div>
               </div>
-              <div className="mt-5 inline-flex items-center rounded-full bg-white/12 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/85 transition group-hover:bg-white/18">
-                Abrir Meta Insights
-              </div>
             </GlassPanel>
-          </Link>
+          ) : null}
 
           <div className="grid gap-6 md:grid-cols-2">
             {dashboardMetrics.map((metric, index) => {
-              const Icon = metricIcons[index] ?? fallbackMetricIcon;
+              const Icon = metricIcons[index];
 
               return (
                 <DashboardMetricCard
@@ -452,8 +340,6 @@ export function DashboardPage() {
                   value={metric.value}
                   change={metric.change}
                   detail={metric.highlight}
-                  to={metric.to}
-                  destinationLabel={metric.destinationLabel}
                   darkMode={isDark}
                 />
               );
@@ -479,12 +365,12 @@ export function DashboardPage() {
             }
           >
             <SectionTitle
-              title="Top 5 conteÃºdos"
-              description="Os posts que mais puxaram alcance, saves e conversa nas Ãºltimas semanas."
+              title="Top 5 conteúdos"
+              description="Os posts que mais puxaram alcance, saves e conversa nas últimas semanas."
             />
             <div className="mt-5 space-y-3">
               {topPosts.length > 0 ? topPosts.map((post, index) => {
-                const member = teamMembers.find((item) => item.id === post.authorId) ?? fallbackMember;
+                const member = teamMembers.find((item) => item.id === post.authorId)!;
 
                 return (
                   <Link
@@ -531,7 +417,7 @@ export function DashboardPage() {
               }) : (
                 <EmptyState
                   title="Nenhum post cadastrado"
-                  description="Assim que vocÃª inserir conteÃºdos na tabela `posts`, eles aparecem aqui."
+                  description="Assim que você inserir conteúdos na tabela `posts`, eles aparecem aqui."
                 />
               )}
             </div>
@@ -554,12 +440,12 @@ export function DashboardPage() {
             }
           >
             <SectionTitle
-              title="ConteÃºdos com baixa performance"
-              description="PeÃ§as que pedem ajuste imediato de gancho, CTA ou proposta editorial."
+              title="Conteúdos com baixa performance"
+              description="Peças que pedem ajuste imediato de gancho, CTA ou proposta editorial."
             />
             <div className="mt-5 grid gap-4">
               {worstPosts.length > 0 ? worstPosts.map((post) => {
-                const member = teamMembers.find((item) => item.id === post.authorId) ?? fallbackMember;
+                const member = teamMembers.find((item) => item.id === post.authorId)!;
 
                 return (
                   <div
@@ -582,7 +468,7 @@ export function DashboardPage() {
                         {post.type}
                       </span>
                       <span className="inline-flex items-center rounded-full border border-[#F56040]/14 bg-[#F56040]/8 px-3 py-1 text-xs font-semibold text-[#B94A2D] dark:border-[#ffab8c]/18 dark:bg-[#251913] dark:text-[#ffab8c]">
-                        AtenÃ§Ã£o suave
+                        Atenção suave
                       </span>
                     </div>
                     <h3 className="mt-4 text-lg font-semibold text-foreground">{post.title}</h3>
@@ -599,8 +485,8 @@ export function DashboardPage() {
                 );
               }) : (
                 <EmptyState
-                  title="Sem conteÃºdo para comparar"
-                  description="Quando houver posts no Supabase, esta Ã¡rea mostra os que precisam de atenÃ§Ã£o."
+                  title="Sem conteúdo para comparar"
+                  description="Quando houver posts no Supabase, esta área mostra os que precisam de atenção."
                 />
               )}
             </div>
@@ -625,8 +511,8 @@ export function DashboardPage() {
             }
           >
             <SectionTitle
-              title="ComparaÃ§Ã£o meta vs resultado"
-              description="As trÃªs metas mais crÃ­ticas do ciclo atual."
+              title="Comparação meta vs resultado"
+              description="As três metas mais críticas do ciclo atual."
             />
               <div className="mt-5 space-y-5">
                 {dashboardGoals.length > 0 ? dashboardGoals.map((goal) => {
@@ -663,7 +549,7 @@ export function DashboardPage() {
               }) : (
                 <EmptyState
                   title="Nenhuma meta cadastrada"
-                  description="Adicione metas no Supabase para ver a comparaÃ§Ã£o por aqui."
+                  description="Adicione metas no Supabase para ver a comparação por aqui."
                 />
               )}
             </div>
@@ -686,8 +572,8 @@ export function DashboardPage() {
             }
           >
             <SectionTitle
-              title="EvoluÃ§Ã£o nos Ãºltimos 30 dias"
-              description="A curva conjunta de alcance e engajamento mostra aceleraÃ§Ã£o sustentÃ¡vel."
+              title="Evolução nos últimos 30 dias"
+              description="A curva conjunta de alcance e engajamento mostra aceleração sustentável."
             />
             <div className="mt-4 flex items-center gap-4 text-xs text-muted-foreground">
               {chartLegend.map((item) => (
@@ -734,8 +620,8 @@ export function DashboardPage() {
                 </ResponsiveContainer>
               ) : (
                 <EmptyState
-                  title="Sem evoluÃ§Ã£o registrada"
-                  description="Os grÃ¡ficos aparecem quando houver posts cadastrados no Supabase."
+                  title="Sem evolução registrada"
+                  description="Os gráficos aparecem quando houver posts cadastrados no Supabase."
                 />
               )}
             </div>

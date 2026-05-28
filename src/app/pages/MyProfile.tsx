@@ -159,7 +159,7 @@ export function MyProfilePage() {
 
   const detailItems = [
     { label: "Login", value: member.email },
-    { label: "Senha", value: "••••••••••" },
+    { label: "Senha", value: "" },
     { label: "Função", value: member.role },
     { label: "Especialidade", value: member.specialty },
     { label: "Cor", value: member.color },
@@ -297,7 +297,7 @@ export function MyProfilePage() {
               </div>
               <div className={`${surfaceClass} p-4`}>
                 <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Senha</p>
-                <p className="mt-2 text-sm font-semibold text-foreground">••••••••••</p>
+                <p className="mt-2 text-sm font-semibold text-foreground"></p>
               </div>
               <div className={`${surfaceClass} p-4`}>
                 <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Especialidade</p>

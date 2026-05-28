@@ -70,6 +70,8 @@ export function GlassPanel({
   style,
   index = 0,
 }: PropsWithChildren<{ className?: string; index?: number; style?: CSSProperties }>) {
+  const { isDark } = useThemeMode();
+
   return (
     <motion.section
       custom={index}
@@ -77,7 +79,9 @@ export function GlassPanel({
       initial="hidden"
       animate="visible"
       className={cn(
-        "rounded-3xl border border-border/70 bg-card p-5 text-card-foreground shadow-[0_18px_48px_rgba(15,23,42,0.06)] backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_60px_rgba(15,23,42,0.08)]",
+        isDark
+          ? "rounded-[2rem] border border-white/10 bg-[#111723] p-5 text-slate-100 shadow-[0_18px_48px_rgba(0,0,0,0.28)] backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_60px_rgba(0,0,0,0.38)]"
+          : "rounded-[2rem] border border-border/70 bg-card p-5 text-card-foreground shadow-[0_18px_48px_rgba(15,23,42,0.06)] backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_60px_rgba(15,23,42,0.08)]",
         className,
       )}
       style={style}
@@ -142,11 +146,13 @@ export function ActionButton({
   className,
   variant = "primary",
   onClick,
+  dataCy,
 }: {
   children: ReactNode;
   className?: string;
   variant?: "primary" | "secondary" | "ghost";
   onClick?: () => void;
+  dataCy?: string;
 }) {
   const { isDark } = useThemeMode();
   const variants = {
@@ -167,6 +173,7 @@ export function ActionButton({
     <button
       type="button"
       onClick={onClick}
+      data-cy={dataCy}
       className={cn(
         "inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium transition duration-200",
         variants[variant],
@@ -191,17 +198,20 @@ export function RoundedDropdown<T extends string | number>({
   options,
   onChange,
   placeholder = "Selecionar",
+  forceLight = false,
 }: {
   label: string;
   value: T;
   options: Array<RoundedDropdownOption<T>>;
   onChange: (value: T) => void;
   placeholder?: string;
+  forceLight?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const selectedOption = options.find((option) => option.value === value) ?? options[0];
   const { isDark } = useThemeMode();
+  const lightSurface = forceLight || !isDark;
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
@@ -219,23 +229,30 @@ export function RoundedDropdown<T extends string | number>({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 px-4 py-3 text-sm text-foreground transition hover:border-primary/25 hover:shadow-sm dark:border-white/8"
+        className="flex w-full items-center justify-between gap-3 rounded-[1.5rem] border px-4 py-3.5 text-sm text-foreground transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)]"
         style={{
-          backgroundColor: isDark ? "rgb(var(--sidebar) / 1)" : "#ffffff",
+          backgroundColor: lightSurface ? "#ffffff" : "rgb(var(--sidebar) / 1)",
+          borderColor: lightSurface ? "rgb(var(--border) / 0.85)" : "rgb(255 255 255 / 0.08)",
         }}
       >
-        <span className="flex items-center gap-3 text-left">
+        <span className="flex min-w-0 items-center gap-3 text-left">
           {selectedOption?.color ? (
-            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: selectedOption.color }} />
-          ) : null}
-          <span className="font-medium text-foreground">
-            {selectedOption?.label ?? placeholder}
-          </span>
+            <span
+              className="inline-flex h-8 min-w-0 items-center rounded-full px-3 text-xs font-semibold text-white shadow-sm"
+              style={{ backgroundColor: selectedOption.color }}
+            >
+              {selectedOption?.label ?? placeholder}
+            </span>
+          ) : (
+            <span className="font-medium text-foreground">{selectedOption?.label ?? placeholder}</span>
+          )}
         </span>
         <span
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border/60 text-muted-foreground transition dark:border-white/8 dark:bg-[#1f2631] dark:text-slate-200"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-muted-foreground transition duration-200"
           style={{
-            backgroundColor: isDark ? "rgb(var(--sidebar) / 1)" : "#ffffff",
+            backgroundColor: lightSurface ? "#ffffff" : "rgb(var(--sidebar) / 1)",
+            borderColor: lightSurface ? "rgb(var(--border) / 0.75)" : "rgb(255 255 255 / 0.08)",
+            color: lightSurface ? "rgb(var(--muted-foreground) / 1)" : "rgb(226 232 240 / 1)",
           }}
         >
           <ChevronDown className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`} />
@@ -243,10 +260,15 @@ export function RoundedDropdown<T extends string | number>({
       </button>
 
       {open ? (
-        <div
-          className="absolute left-0 top-full z-50 mt-2 w-full rounded-[1.75rem] border border-border/70 p-2 shadow-[0_24px_60px_rgba(15,23,42,0.14)] dark:border-white/8 dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]"
+        <motion.div
+          initial={{ opacity: 0, y: -6, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.16, ease: "easeOut" }}
+          className="absolute left-0 top-full z-50 mt-2 w-full rounded-[1.75rem] border p-2 shadow-[0_24px_60px_rgba(15,23,42,0.14)]"
           style={{
-            backgroundColor: isDark ? "rgb(var(--background) / 1)" : "#ffffff",
+            backgroundColor: lightSurface ? "#ffffff" : "rgb(var(--background) / 1)",
+            borderColor: lightSurface ? "rgb(var(--border) / 0.85)" : "rgb(255 255 255 / 0.08)",
+            boxShadow: lightSurface ? "0 24px 60px rgba(15,23,42,0.14)" : "0 24px 60px rgba(0,0,0,0.28)",
           }}
         >
           <p className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
@@ -264,37 +286,36 @@ export function RoundedDropdown<T extends string | number>({
                     onChange(option.value);
                     setOpen(false);
                   }}
-                  className="flex w-full items-center justify-between rounded-full px-4 py-3 text-left text-sm transition"
+                  className="flex w-full items-center justify-between rounded-full px-4 py-3 text-left text-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-sm"
                   style={{
                     backgroundColor: selected
-                      ? "rgb(var(--muted) / 1)"
-                      : isDark
-                        ? "rgb(var(--background) / 1)"
-                        : "#ffffff",
+                      ? lightSurface
+                        ? "rgb(var(--muted) / 1)"
+                        : "rgb(var(--muted) / 1)"
+                      : lightSurface
+                        ? "#ffffff"
+                        : "rgb(var(--background) / 1)",
                     boxShadow: selected ? "inset 0 0 0 1px rgb(var(--border) / 0.7)" : undefined,
                   }}
                 >
                   <span className="flex items-center gap-3">
                     {option.color ? (
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: option.color }} />
+                      <span
+                        className="inline-flex h-7 min-w-0 items-center rounded-full px-3 text-xs font-semibold text-white shadow-sm"
+                        style={{ backgroundColor: option.color }}
+                      >
+                        {option.label}
+                      </span>
                     ) : (
-                      <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/40" />
+                      <span className="font-medium text-foreground">{option.label}</span>
                     )}
-                    <span
-                      className="font-medium"
-                      style={{
-                        color: option.color ?? "rgb(var(--foreground) / 1)",
-                      }}
-                    >
-                      {option.label}
-                    </span>
                   </span>
-                  {selected ? <span className="text-xs font-semibold text-muted-foreground">Ativo</span> : null}
+                  {selected ? <span className="text-xs font-semibold text-muted-foreground">Selecionado</span> : null}
                 </button>
               );
             })}
           </div>
-        </div>
+        </motion.div>
       ) : null}
     </div>
   );
@@ -739,6 +760,7 @@ export function IconActionButton({
   className,
   tone = "neutral",
   title,
+  dataCy,
 }: {
   icon: LucideIcon;
   label: string;
@@ -746,6 +768,7 @@ export function IconActionButton({
   className?: string;
   tone?: "neutral" | "danger";
   title?: string;
+  dataCy?: string;
 }) {
   const { isDark } = useThemeMode();
   const tones = {
@@ -770,6 +793,7 @@ export function IconActionButton({
       onClick={onClick}
       title={title ?? label}
       aria-label={label}
+      data-cy={dataCy}
       className={cn(
         "inline-flex h-9 w-9 items-center justify-center rounded-full border transition duration-200",
         tones[tone],
@@ -785,11 +809,13 @@ export function IconActionButton({
 export function DeleteIconButton({
   onClick,
   className,
+  dataCy,
 }: {
   onClick?: () => void;
   className?: string;
+  dataCy?: string;
 }) {
-  return <IconActionButton icon={Trash2} label="Apagar" onClick={onClick} tone="danger" className={className} />;
+  return <IconActionButton icon={Trash2} label="Apagar" onClick={onClick} tone="danger" className={className} dataCy={dataCy} />;
 }
 
 export function ConfirmDialog({
@@ -1059,12 +1085,12 @@ export function ProgressBar({
   return (
     <div className="space-y-2">
       {label ? <div className="flex items-center justify-between text-sm text-muted-foreground"><span>{label}</span><span>{progress.toFixed(0)}%</span></div> : null}
-      <div className="h-2.5 overflow-hidden rounded-full bg-muted">
+      <div className="h-2.5 overflow-hidden rounded-full bg-slate-200/80 dark:bg-white/10">
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${Math.min(progress, 100)}%` }}
           transition={{ duration: 0.7, ease: "easeOut" }}
-          className={cn("h-full rounded-full", getProgressTone(progress))}
+          className={cn("h-full rounded-full", getProgressTone(progress), "shadow-[0_0_20px_rgba(139,92,246,0.22)]")}
         />
       </div>
     </div>

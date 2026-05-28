@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { CalendarClock, ChevronDown, SlidersHorizontal, Target, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { historyTimeline } from "../data/mockData";
@@ -219,7 +219,7 @@ export function HistoryPage() {
   return (
     <PageTransition>
       <PageHeader
-        eyebrow="Audit Trail"
+        eyebrow="Linha do tempo"
         title="Histórico completo da operação"
         description="Acompanhe publicações, metas e movimentações do calendário em ordem cronológica ou em formato de tabela."
         actions={
@@ -411,3 +411,4 @@ export function HistoryPage() {
     </PageTransition>
   );
 }
+

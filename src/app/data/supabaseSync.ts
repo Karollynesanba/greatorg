@@ -234,3 +234,160 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
 
   return [value, setValue, hydrated, reload] as const;
 }
+
+type SharedStateRow<T> = {
+  key: string;
+  value: T;
+  updated_at?: string;
+};
+
+export function useSupabaseSharedState<T>(options: {
+  key: string;
+  fallback: T;
+}) {
+  const sharedState = useSharedState(options.key, options.fallback);
+  const [value, setValue] = sharedState;
+  const [hydrated, setHydrated] = useState(!isSupabaseConfigured());
+  const hydratedRef = useRef(false);
+  const lastRemoteSnapshotRef = useRef<string | null>(null);
+  const supabaseClient = supabase;
+
+  useEffect(() => {
+    if (!isSupabaseConfigured() || !supabaseClient) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadRemote = async () => {
+      const { data, error } = await supabaseClient
+        .from("shared_state")
+        .select("key, value, updated_at")
+        .eq("key", options.key)
+        .maybeSingle();
+
+      if (cancelled) {
+        return;
+      }
+
+      if (error) {
+        console.warn("Supabase shared_state load failed:", error.message);
+        hydratedRef.current = true;
+        setHydrated(true);
+        return;
+      }
+
+      const remoteValue = (data as SharedStateRow<T> | null)?.value;
+      if (typeof remoteValue !== "undefined") {
+        lastRemoteSnapshotRef.current = JSON.stringify(remoteValue);
+        setValue(remoteValue);
+        hydratedRef.current = true;
+        setHydrated(true);
+        return;
+      }
+
+      const { error: seedError } = await supabaseClient.from("shared_state").upsert(
+        {
+          key: options.key,
+          value: options.fallback,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "key" },
+      );
+
+      if (cancelled) {
+        return;
+      }
+
+      if (seedError) {
+        console.warn("Supabase shared_state seed failed:", seedError.message);
+      }
+
+      lastRemoteSnapshotRef.current = JSON.stringify(options.fallback);
+      setValue(options.fallback);
+      hydratedRef.current = true;
+      setHydrated(true);
+    };
+
+    void loadRemote();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [options.fallback, options.key, supabaseClient, setValue]);
+
+  useEffect(() => {
+    if (!hydratedRef.current || !isSupabaseConfigured() || !supabaseClient) {
+      return;
+    }
+
+    const snapshot = JSON.stringify(value);
+    if (snapshot === lastRemoteSnapshotRef.current) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const persistRemote = async () => {
+      const { error } = await supabaseClient.from("shared_state").upsert(
+        {
+          key: options.key,
+          value,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "key" },
+      );
+
+      if (cancelled) {
+        return;
+      }
+
+      if (error) {
+        console.warn("Supabase shared_state save failed:", error.message);
+        return;
+      }
+
+      lastRemoteSnapshotRef.current = snapshot;
+    };
+
+    void persistRemote();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [options.key, supabaseClient, value]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured() || !supabaseClient) {
+      return;
+    }
+
+    const channel = supabaseClient
+      .channel(`shared_state:${options.key}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "shared_state", filter: `key=eq.${options.key}` },
+        (payload) => {
+          const nextValue = (payload.new as SharedStateRow<T> | null)?.value;
+          if (typeof nextValue === "undefined") {
+            return;
+          }
+
+          const snapshot = JSON.stringify(nextValue);
+          if (snapshot === lastRemoteSnapshotRef.current) {
+            return;
+          }
+
+          lastRemoteSnapshotRef.current = snapshot;
+          setValue(nextValue);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabaseClient.removeChannel(channel);
+    };
+  }, [options.key, supabaseClient, setValue]);
+
+  return [...sharedState, hydrated] as const;
+}

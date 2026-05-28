@@ -1,4 +1,4 @@
-export const metaPeriods = ["Dia", "Semana", "Mês"] as const;
+﻿export const metaPeriods = ["Dia", "Semana", "Mês"] as const;
 
 export type MetaPeriod = (typeof metaPeriods)[number];
 
@@ -97,3 +97,4 @@ export const emptyMetaInsightsPayload: MetaInsightsPayload = {
   media: [],
   notes: [],
 };
+

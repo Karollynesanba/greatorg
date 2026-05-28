@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CartesianGrid,
   Legend,
@@ -522,6 +522,7 @@ export function MetaInsightsPage() {
                       "group overflow-hidden rounded-[1.75rem] border border-border/60 transition hover:-translate-y-1 hover:shadow-[0_24px_50px_rgba(15,23,42,0.14)]",
                       isDark ? "bg-background/90" : "bg-white/96 shadow-[0_14px_32px_rgba(15,23,42,0.05)]",
                     )}
+                    style={{ borderRadius: "2.25rem" }}
                   >
                     <div className="relative aspect-[4/3] overflow-hidden bg-muted/50">
                       {item.thumbnailUrl ? (

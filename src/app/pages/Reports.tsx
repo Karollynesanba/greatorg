@@ -10,11 +10,11 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   BarChart3,
   CalendarRange,
+  CheckCircle2,
   Download,
   Eye,
   ChevronDown,
@@ -23,22 +23,28 @@ import {
   Printer,
   Rocket,
   Sparkles,
+  Share2,
+  Plus,
+  PencilLine,
+  Trash2,
   TrendingDown,
   TrendingUp,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
+  calendarEvents,
   getGoalResponsibleIds,
-  goals as seedGoals,
   insights,
+  type CalendarEvent,
   type ContentType,
   type Goal,
+  type PostStatus,
 } from "../data/mockData";
+import { createStorageKey } from "../data/sharedState";
 import { useTeamProfiles } from "../data/profiles";
 import { usePosts, type Post } from "../data/posts";
-import { useSupabaseSyncedListState } from "../data/supabaseSync";
-import { useSupabasePreference } from "../data/userPreferences";
+import { useSupabaseSharedState, useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import {
   ActionButton,
@@ -66,7 +72,8 @@ const contentTypeOptions: Array<{ label: string; value: ContentType | "todos" }>
   { label: "Feed", value: "Feed" },
 ];
 
-type ReportPeriod = (typeof reportPeriods)[number]["value"];
+type ReportPeriod = "7" | "30" | "custom";
+type CustomPeriodMode = "month" | "range" | "past";
 type SavedReport = {
   id: string;
   label: string;
@@ -82,17 +89,57 @@ type SavedReport = {
   postsCount: number;
 };
 type MetricKey = "reach" | "engagement" | "posts" | "avgEngagement";
+type ReportCardItem = {
+  title: string;
+  metric: string;
+  accent: string;
+  image: string;
+};
+type ReportCardRow = {
+  title: string;
+  description: string;
+  action: string;
+  items: ReportCardItem[];
+};
+type ReportOverview = {
+  badge: string;
+  title: string;
+  description: string;
+  note: string;
+};
+type ReportSectionEditor = {
+  scope: "overview" | "row";
+  rowIndex?: number;
+} | null;
+
+const monthlyContentTarget = 120;
+const finalContentStatuses = new Set<PostStatus | "Concluído" | "Finalizado">(["Aprovado", "Publicado", "Concluído", "Finalizado"]);
+
+function isFinalContentStatus(status?: string) {
+  return Boolean(status && finalContentStatuses.has(status as PostStatus | "Concluído" | "Finalizado"));
+}
+
+function getCalendarResponsibleIds(event: CalendarEvent) {
+  const ids = event.responsibleIds?.length ? event.responsibleIds : [event.responsibleId];
+  return Array.from(new Set(ids.filter((id) => Number.isFinite(id))));
+}
+
+function isCompletedCalendarEvent(event: CalendarEvent) {
+  return event.completed || isFinalContentStatus(event.status);
+}
 
 function RoundedDropdown<T extends string | number>({
   label,
   value,
   options,
   onChange,
+  placeholder,
 }: {
   label: string;
   value: T;
   options: Array<{ label: string; value: T; color?: string }>;
   onChange: (value: T) => void;
+  placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -126,7 +173,7 @@ function RoundedDropdown<T extends string | number>({
           className="truncate font-medium"
           style={selected?.color ? { color: selected.color } : undefined}
         >
-          {selected?.label ?? label}
+          {selected?.label ?? placeholder ?? label}
         </span>
           <span
             className={cn(
@@ -206,6 +253,10 @@ function startOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
+function endOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+}
+
 function addMonths(date: Date, amount: number) {
   return new Date(date.getFullYear(), date.getMonth() + amount, 1);
 }
@@ -250,6 +301,89 @@ function rangeFromPeriod(period: ReportPeriod, anchorDate: Date, customDays: num
   };
 }
 
+function rangeFromMonth(month: number, year: number) {
+  const start = new Date(year, month, 1);
+  return {
+    start,
+    end: endOfMonth(start),
+  };
+}
+
+function normalizeRange(startValue: string, endValue: string, fallback: Date) {
+  const start = startValue ? parseDate(startValue) : null;
+  const end = endValue ? parseDate(endValue) : null;
+
+  if (start && end) {
+    return start <= end ? { start, end } : { start: end, end: start };
+  }
+
+  return {
+    start: addDays(fallback, -29),
+    end: fallback,
+  };
+}
+
+function resolveReportRange(params: {
+  period: ReportPeriod;
+  anchorDate: Date;
+  customMode: CustomPeriodMode;
+  customMonth: number;
+  customYear: number;
+  customStart: string;
+  customEnd: string;
+  customPastMonths: number;
+}) {
+  const { period, anchorDate, customMode, customMonth, customYear, customStart, customEnd, customPastMonths } = params;
+
+  if (period === "7" || period === "30") {
+    return rangeFromPeriod(period, anchorDate, 30);
+  }
+
+  if (customMode === "month") {
+    return rangeFromMonth(customMonth, customYear);
+  }
+
+  if (customMode === "range") {
+    return normalizeRange(customStart, customEnd, anchorDate);
+  }
+
+  const safeMonths = Math.max(1, Math.floor(customPastMonths || 1));
+  const start = startOfMonth(addMonths(anchorDate, -(safeMonths - 1)));
+  return { start, end: new Date(anchorDate) };
+}
+
+function formatMonthYear(date: Date) {
+  return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(date);
+}
+
+function describeReportPeriod(params: {
+  period: ReportPeriod;
+  customMode: CustomPeriodMode;
+  customMonth: number;
+  customYear: number;
+  customStart: string;
+  customEnd: string;
+  customPastMonths: number;
+  currentRange: { start: Date; end: Date };
+}) {
+  const { period, customMode, customMonth, customYear, customStart, customEnd, customPastMonths, currentRange } = params;
+
+  if (period === "7") return "7 dias";
+  if (period === "30") return "30 dias";
+
+  if (customMode === "month") {
+    return formatMonthYear(new Date(customYear, customMonth, 1));
+  }
+
+  if (customMode === "range") {
+    const start = customStart ? parseDate(customStart) : currentRange.start;
+    const end = customEnd ? parseDate(customEnd) : currentRange.end;
+    return `${formatDateKey(start)} - ${formatDateKey(end)}`;
+  }
+
+  return `Últimos ${Math.max(1, Math.floor(customPastMonths || 1))} meses`;
+}
+
 function shiftRange(start: Date, end: Date) {
   const days = diffDays(start, end) + 1;
   return {
@@ -285,6 +419,106 @@ function downloadText(filename: string, content: string, mimeType: string) {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error ?? new Error("Não foi possível ler o arquivo."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImage(src: string) {
+  return new Promise<HTMLImageElement | null>((resolve) => {
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = src;
+  });
+}
+
+function drawRoundedRect(context: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
+  const safeRadius = Math.min(radius, width / 2, height / 2);
+  context.beginPath();
+  context.moveTo(x + safeRadius, y);
+  context.arcTo(x + width, y, x + width, y + height, safeRadius);
+  context.arcTo(x + width, y + height, x, y + height, safeRadius);
+  context.arcTo(x, y + height, x, y, safeRadius);
+  context.arcTo(x, y, x + width, y, safeRadius);
+  context.closePath();
+}
+
+function drawCoverCard(
+  context: CanvasRenderingContext2D,
+  image: HTMLImageElement | null,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  title: string,
+  subtitle: string,
+  metric: string,
+) {
+  context.save();
+  drawRoundedRect(context, x, y, width, height, 14);
+  context.clip();
+
+  context.fillStyle = "#111";
+  context.fillRect(x, y, width, height);
+
+  if (image) {
+    const imageRatio = image.width / image.height;
+    const cardRatio = width / height;
+    let drawWidth = width;
+    let drawHeight = height;
+    let offsetX = x;
+    let offsetY = y;
+
+    if (imageRatio > cardRatio) {
+      drawHeight = height;
+      drawWidth = height * imageRatio;
+      offsetX = x - (drawWidth - width) / 2;
+    } else {
+      drawWidth = width;
+      drawHeight = width / imageRatio;
+      offsetY = y - (drawHeight - height) / 2;
+    }
+
+    context.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
+  }
+
+  const overlay = context.createLinearGradient(0, y, 0, y + height);
+  overlay.addColorStop(0, "rgba(0,0,0,0.12)");
+  overlay.addColorStop(0.55, "rgba(0,0,0,0.18)");
+  overlay.addColorStop(1, "rgba(0,0,0,0.80)");
+  context.fillStyle = overlay;
+  context.fillRect(x, y, width, height);
+
+  context.strokeStyle = "rgba(255,255,255,0.08)";
+  context.lineWidth = 2;
+  context.strokeRect(x + 1, y + 1, width - 2, height - 2);
+
+  context.fillStyle = "rgba(255,255,255,0.18)";
+  drawRoundedRect(context, x + 14, y + 12, 88, 26, 12);
+  context.fill();
+  context.fillStyle = "#ffffff";
+  context.font = "700 12px Inter, Arial, sans-serif";
+  context.fillText("DESTAQUE", x + 28, y + 29);
+
+  context.fillStyle = "rgba(255,255,255,0.88)";
+  context.font = "700 16px Inter, Arial, sans-serif";
+  context.fillText(title, x + 16, y + height - 42);
+  context.fillStyle = "rgba(255,255,255,0.76)";
+  context.font = "400 12px Inter, Arial, sans-serif";
+  context.fillText(subtitle, x + 16, y + height - 20);
+
+  context.fillStyle = "#ffffff";
+  context.font = "700 12px Inter, Arial, sans-serif";
+  context.fillText(metric, x + width - 54, y + 28);
+  context.restore();
 }
 
 function DateRangePicker({
@@ -476,24 +710,198 @@ function DateRangePicker({
 
 export function ReportsPage() {
   const { isDark } = useThemeMode();
-  const navigate = useNavigate();
-  const anchorDate = useMemo(() => {
-    const date = new Date();
-    date.setHours(12, 0, 0, 0);
-    return date;
-  }, []);
+  const anchorDate = useMemo(() => new Date("2026-04-30T12:00:00"), []);
   const [period, setPeriod] = useState<ReportPeriod>("30");
+  const [customPeriodMode, setCustomPeriodMode] = useState<CustomPeriodMode>("month");
+  const [customMonth, setCustomMonth] = useState(anchorDate.getMonth());
+  const [customYear, setCustomYear] = useState(anchorDate.getFullYear());
+  const [customStartDate, setCustomStartDate] = useState(formatDateKey(addDays(anchorDate, -29)));
+  const [customEndDate, setCustomEndDate] = useState(formatDateKey(anchorDate));
+  const [customPastMonths, setCustomPastMonths] = useState(3);
   const [typeFilter, setTypeFilter] = useState<ContentType | "todos">("todos");
   const [responsibleFilter, setResponsibleFilter] = useState<number | "todos">("todos");
-  const [customStartDate, setCustomStartDate] = useState(() => formatDateKey(addDays(anchorDate, -29)));
-  const [customEndDate, setCustomEndDate] = useState(() => formatDateKey(anchorDate));
   const [teamMembers] = useTeamProfiles();
   const [posts] = usePosts();
-  const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: seedGoals });
+  const [calendarItems] = useSupabaseSyncedListState<CalendarEvent>({
+    key: "calendar-events",
+    table: "calendar_events",
+    fallback: calendarEvents,
+  });
+  const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
   const [teamScope] = useTeamScope();
-  const emptySavedReports = useMemo<SavedReport[]>(() => [], []);
-  const [savedReports, setSavedReports] = useSupabasePreference<SavedReport[]>("reports-history", emptySavedReports);
+  const [savedReports, setSavedReports] = useSupabaseSharedState<SavedReport[]>({
+    key: createStorageKey("reports-history"),
+    fallback: [],
+  });
   const [selectedMetric, setSelectedMetric] = useState<MetricKey>("reach");
+  const [overviewDraft, setOverviewDraft] = useSupabaseSharedState<ReportOverview>({
+    key: createStorageKey("reports-overview"),
+    fallback: {
+      badge: "Visão geral",
+      title: "Resumo executivo",
+      description:
+        "O perfil mantém saúde alta, acelera o crescimento de alcance e encontra mais eficiência quando combina peças de autoridade, prova social e materiais prontos para publicação.",
+      note: "Pré-visualização local",
+    },
+  });
+  const [overviewForm, setOverviewForm] = useState(overviewDraft);
+  const [isOverviewModalOpen, setIsOverviewModalOpen] = useState(false);
+  const [editingSection, setEditingSection] = useState<ReportSectionEditor>(null);
+  const [sectionForm, setSectionForm] = useState<{ title: string; description: string; action: string } | null>(null);
+  const [cardDraft, setCardDraft] = useState<{
+    rowIndex: number;
+    itemIndex: number | null;
+    title: string;
+    metric: string;
+    accent: string;
+    image: string;
+    imageName: string;
+  } | null>(null);
+  const [reportRows, setReportRows] = useSupabaseSharedState<ReportCardRow[]>({
+    key: createStorageKey("reports-rows"),
+    fallback: [
+      {
+        title: "Capas em destaque",
+        description: "Visual forte para escalar o clique no feed e nos destaques.",
+        action: "Ver todas",
+        items: [
+          {
+            title: "Dra. Alessandra",
+            metric: "2,4k",
+            accent: "#D10000",
+            image:
+              "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=900&q=80",
+          },
+          {
+            title: "Dra. Raquel Castro",
+            metric: "2,1k",
+            accent: "#991B1B",
+            image:
+              "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=900&q=80",
+          },
+          {
+            title: "Dra. Camila Prado",
+            metric: "1,8k",
+            accent: "#7F1D1D",
+            image:
+              "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80",
+          },
+          {
+            title: "Dr. Felipe Souza",
+            metric: "1,7k",
+            accent: "#5B1414",
+            image:
+              "https://images.unsplash.com/photo-1516321497487-e288fb19713f?auto=format&fit=crop&w=900&q=80",
+          },
+          {
+            title: "Dr. Mauro Lima",
+            metric: "1,6k",
+            accent: "#8B1531",
+            image:
+              "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80",
+          },
+        ],
+      },
+      {
+        title: "20 depoimentos",
+        description: "Prova social com rostos, frases curtas e leitura rápida.",
+        action: "Ver todas",
+        items: [
+          {
+            title: "Larissa M.",
+            metric: "947",
+            accent: "#D10000",
+            image:
+              "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=900&q=80",
+          },
+          {
+            title: "Equipe Great",
+            metric: "921",
+            accent: "#991B1B",
+            image:
+              "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=900&q=80",
+          },
+          {
+            title: "Depoimento 03",
+            metric: "867",
+            accent: "#991B1B",
+            image:
+              "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=900&q=80",
+          },
+          {
+            title: "Depoimento 04",
+            metric: "842",
+            accent: "#5B1414",
+            image:
+              "https://images.unsplash.com/photo-1489424731084-a5d8b219a5bb?auto=format&fit=crop&w=900&q=80",
+          },
+          {
+            title: "Depoimento 05",
+            metric: "764",
+            accent: "#8B1531",
+            image:
+              "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=900&q=80",
+          },
+          {
+            title: "Depoimento 06",
+            metric: "721",
+            accent: "#D10000",
+            image:
+              "https://images.unsplash.com/photo-1504593811423-6dd665756598?auto=format&fit=crop&w=900&q=80",
+          },
+        ],
+      },
+      {
+        title: "10 entregas de material",
+        description: "Peças finais, capas, cortes e materiais prontos para publicação.",
+        action: "Ver todas",
+        items: [
+          {
+            title: "Material 01",
+            metric: "1,2k",
+            accent: "#991B1B",
+            image:
+              "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80",
+          },
+          {
+            title: "Material 02",
+            metric: "1,0k",
+            accent: "#7F1D1D",
+            image:
+              "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80",
+          },
+          {
+            title: "Material 03",
+            metric: "987",
+            accent: "#991B1B",
+            image:
+              "https://images.unsplash.com/photo-1554774853-719586f82d77?auto=format&fit=crop&w=900&q=80",
+          },
+          {
+            title: "Material 04",
+            metric: "947",
+            accent: "#5B1414",
+            image:
+              "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80",
+          },
+          {
+            title: "Material 05",
+            metric: "912",
+            accent: "#8B1531",
+            image:
+              "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=900&q=80",
+          },
+          {
+            title: "Material 06",
+            metric: "876",
+            accent: "#D10000",
+            image:
+              "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80",
+          },
+        ],
+      },
+    ],
+  });
 
   const heroSurfaceClass = isDark
     ? "overflow-hidden bg-[linear-gradient(135deg,rgba(131,58,180,0.96),rgba(180,97,214,0.9),rgba(225,48,108,0.82))] text-white"
@@ -516,29 +924,37 @@ export function ReportsPage() {
   const softCardCompactClass = isDark
     ? "rounded-3xl bg-muted/35 p-5 dark:bg-card/90"
     : "rounded-3xl border border-border/60 bg-card/95 p-5 shadow-[0_14px_32px_rgba(15,23,42,0.05)]";
-  const previewSearch = useMemo(() => {
-    const params = new URLSearchParams();
-    params.set("period", period);
-    params.set("type", typeFilter);
-    params.set("responsible", String(responsibleFilter));
-
-    if (period === "custom") {
-      params.set("start", customStartDate);
-      params.set("end", customEndDate);
-    }
-
-    return params.toString();
-  }, [customEndDate, customStartDate, period, responsibleFilter, typeFilter]);
+  const monthOptions = [
+    { label: "Janeiro", value: 0, color: "#EF4444" },
+    { label: "Fevereiro", value: 1, color: "#F97316" },
+    { label: "Março", value: 2, color: "#F59E0B" },
+    { label: "Abril", value: 3, color: "#10B981" },
+    { label: "Maio", value: 4, color: "#3B82F6" },
+    { label: "Junho", value: 5, color: "#8B5CF6" },
+    { label: "Julho", value: 6, color: "#EC4899" },
+    { label: "Agosto", value: 7, color: "#F43F5E" },
+    { label: "Setembro", value: 8, color: "#14B8A6" },
+    { label: "Outubro", value: 9, color: "#6366F1" },
+    { label: "Novembro", value: 10, color: "#E11D48" },
+    { label: "Dezembro", value: 11, color: "#0EA5E9" },
+  ];
+  const yearOptions = Array.from({ length: 6 }, (_, index) => {
+    const year = anchorDate.getFullYear() - 2 + index;
+    return { label: String(year), value: year, color: year === customYear ? "#D10000" : "#64748B" };
+  });
 
   const currentRange = useMemo(() => {
-    if (period === "custom") {
-      const start = customStartDate ? parseDate(customStartDate) : addDays(anchorDate, -29);
-      const end = customEndDate ? parseDate(customEndDate) : start;
-      return start <= end ? { start, end } : { start: end, end: start };
-    }
-
-    return rangeFromPeriod(period, anchorDate, 30);
-  }, [anchorDate, customEndDate, customStartDate, period]);
+    return resolveReportRange({
+      period,
+      anchorDate,
+      customMode: customPeriodMode,
+      customMonth,
+      customYear,
+      customStart: customStartDate,
+      customEnd: customEndDate,
+      customPastMonths,
+    });
+  }, [anchorDate, customEndDate, customMonth, customPastMonths, customPeriodMode, customStartDate, customYear, period]);
   const previousRange = useMemo(() => shiftRange(currentRange.start, currentRange.end), [currentRange]);
 
   const filteredPosts = useMemo(
@@ -569,6 +985,34 @@ export function ReportsPage() {
     [previousRange.end, previousRange.start, responsibleFilter, teamScope, typeFilter],
   );
 
+  const filteredCalendarItems = useMemo(
+    () =>
+      calendarItems.filter((event) => {
+        const responsibleIds = getCalendarResponsibleIds(event);
+        const matchesDate = inRange(event.date, currentRange.start, currentRange.end);
+        const matchesResponsible =
+          responsibleFilter === "todos" || responsibleIds.includes(responsibleFilter);
+        const matchesScope = responsibleIds.some((id) => matchesTeamScope(id, teamScope));
+
+        return matchesDate && matchesResponsible && matchesScope;
+      }),
+    [calendarItems, currentRange.end, currentRange.start, responsibleFilter, teamScope],
+  );
+
+  const previousCalendarItems = useMemo(
+    () =>
+      calendarItems.filter((event) => {
+        const responsibleIds = getCalendarResponsibleIds(event);
+        const matchesDate = inRange(event.date, previousRange.start, previousRange.end);
+        const matchesResponsible =
+          responsibleFilter === "todos" || responsibleIds.includes(responsibleFilter);
+        const matchesScope = responsibleIds.some((id) => matchesTeamScope(id, teamScope));
+
+        return matchesDate && matchesResponsible && matchesScope;
+      }),
+    [calendarItems, previousRange.end, previousRange.start, responsibleFilter, teamScope],
+  );
+
   const filteredGoals = useMemo(() => {
     const byResponsible = goals.filter((goal) => {
       if (responsibleFilter === "todos") {
@@ -590,17 +1034,24 @@ export function ReportsPage() {
     const likes = filteredPosts.reduce((sum, post) => sum + post.metrics.likes, 0);
     const comments = filteredPosts.reduce((sum, post) => sum + post.metrics.comments, 0);
     const avgEngagement = filteredPosts.length > 0 ? engagement / filteredPosts.length : 0;
+    const finalizedPosts = filteredPosts.filter((post) => isFinalContentStatus(post.status)).length;
+    const finalizedCalendarItems = filteredCalendarItems.filter((event) => isCompletedCalendarEvent(event)).length;
+    const postsCount = finalizedPosts + finalizedCalendarItems;
+    const monthlyProgress = Math.min(100, Math.round((postsCount / monthlyContentTarget) * 100));
 
-    return { reach, engagement, saves, shares, likes, comments, avgEngagement, postsCount: filteredPosts.length };
-  }, [filteredPosts]);
+    return { reach, engagement, saves, shares, likes, comments, avgEngagement, postsCount, finalizedPosts, finalizedCalendarItems, monthlyProgress };
+  }, [filteredCalendarItems, filteredPosts]);
 
   const previousSummary = useMemo(() => {
     const reach = previousPosts.reduce((sum, post) => sum + post.reach, 0);
     const engagement = previousPosts.reduce((sum, post) => sum + post.engagement, 0);
     const avgEngagement = previousPosts.length > 0 ? engagement / previousPosts.length : 0;
+    const finalizedPosts = previousPosts.filter((post) => isFinalContentStatus(post.status)).length;
+    const finalizedCalendarItems = previousCalendarItems.filter((event) => isCompletedCalendarEvent(event)).length;
+    const postsCount = finalizedPosts + finalizedCalendarItems;
 
-    return { reach, engagement, avgEngagement, postsCount: previousPosts.length };
-  }, [previousPosts]);
+    return { reach, engagement, avgEngagement, postsCount };
+  }, [previousCalendarItems, previousPosts]);
 
   const comparison = {
     reach:
@@ -704,12 +1155,12 @@ export function ReportsPage() {
         detail: "Soma de interações principais no recorte atual.",
       },
       posts: {
-        title: "Publicações",
+        title: "Conteúdos finalizados",
         icon: Sparkles,
         current: String(currentSummary.postsCount),
         previous: String(previousSummary.postsCount),
         delta: comparison.posts,
-        detail: "Quantidade de peças publicadas no período.",
+        detail: `Quantidade de conteúdos finalizados no período. Meta mensal: ${monthlyContentTarget}.`,
       },
       avgEngagement: {
         title: "Engajamento médio",
@@ -743,7 +1194,7 @@ export function ReportsPage() {
     },
     {
       key: "posts" as const,
-      label: "Publicações",
+      label: "Conteúdos",
       value: String(currentSummary.postsCount),
       delta: comparison.posts,
       icon: Sparkles,
@@ -832,14 +1283,16 @@ export function ReportsPage() {
   const handleSaveReport = () => {
     const snapshot: SavedReport = {
       id: `${Date.now()}`,
-      label:
-        period === "custom"
-          ? `Relatório ${new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(currentRange.start)} - ${new Intl.DateTimeFormat("pt-BR", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            }).format(currentRange.end)}`
-          : `Relatório ${reportPeriods.find((item) => item.value === period)?.label ?? period}`,
+      label: `Relatório ${describeReportPeriod({
+        period,
+        customMode: customPeriodMode,
+        customMonth,
+        customYear,
+        customStart: customStartDate,
+        customEnd: customEndDate,
+        customPastMonths,
+        currentRange,
+      })}`,
       generatedAt: new Intl.DateTimeFormat("pt-BR", {
         day: "2-digit",
         month: "short",
@@ -848,7 +1301,6 @@ export function ReportsPage() {
         minute: "2-digit",
       }).format(new Date()),
       period,
-      days: period === "custom" ? diffDays(currentRange.start, currentRange.end) + 1 : undefined,
       typeFilter,
       responsibleId: responsibleFilter,
       startDate: formatDateKey(currentRange.start),
@@ -864,10 +1316,13 @@ export function ReportsPage() {
 
   const handleRestoreReport = (snapshot: SavedReport) => {
     setPeriod(snapshot.period);
+    if (snapshot.period === "custom") {
+      setCustomPeriodMode("range");
+      setCustomStartDate(snapshot.startDate);
+      setCustomEndDate(snapshot.endDate);
+    }
     setTypeFilter(snapshot.typeFilter);
     setResponsibleFilter(snapshot.responsibleId);
-    setCustomStartDate(snapshot.startDate);
-    setCustomEndDate(snapshot.endDate);
     toast.success("Relatório antigo carregado.");
   };
 
@@ -898,8 +1353,8 @@ export function ReportsPage() {
 
   const handleExportImage = async () => {
     const canvas = document.createElement("canvas");
-    canvas.width = 1400;
-    canvas.height = 900;
+    canvas.width = 2200;
+    canvas.height = 1600;
     const context = canvas.getContext("2d");
 
     if (!context) {
@@ -907,48 +1362,119 @@ export function ReportsPage() {
       return;
     }
 
-    context.fillStyle = "#0b0f17";
+    context.fillStyle = "#d40000";
     context.fillRect(0, 0, canvas.width, canvas.height);
 
-    const gradient = context.createLinearGradient(0, 0, canvas.width, canvas.height);
-    gradient.addColorStop(0, "#D10000");
-    gradient.addColorStop(1, "#FF7A59");
-    context.fillStyle = gradient;
-    context.fillRect(0, 0, canvas.width, 220);
+    const pageMargin = 70;
 
-    context.fillStyle = "rgba(255,255,255,0.95)";
-    context.font = "700 46px Inter, Arial, sans-serif";
-    context.fillText("Relatório Great Orgânico", 70, 90);
+    context.fillStyle = "rgba(255,255,255,0.12)";
+    context.beginPath();
+    context.arc(canvas.width - 240, 180, 180, 0, Math.PI * 2);
+    context.fill();
+
+    context.fillStyle = "rgba(255,255,255,0.06)";
+    context.beginPath();
+    context.arc(220, 260, 220, 0, Math.PI * 2);
+    context.fill();
+
+    context.fillStyle = "rgba(255,255,255,0.9)";
+    context.font = "700 44px Inter, Arial, sans-serif";
+    context.fillText("Relatório Great Orgânico", pageMargin, 96);
     context.font = "400 22px Inter, Arial, sans-serif";
-    context.fillText(`Período: ${formatDateKey(currentRange.start)} a ${formatDateKey(currentRange.end)}`, 70, 136);
+    context.fillText(`Período: ${formatDateKey(currentRange.start)} a ${formatDateKey(currentRange.end)}`, pageMargin, 136);
 
-    const summaryBlocks = [
-      { label: "Alcance", value: formatLongNumber(currentSummary.reach) },
-      { label: "Engajamento", value: formatLongNumber(currentSummary.engagement) },
-      { label: "Publicações", value: String(currentSummary.postsCount) },
-      { label: "Engajamento médio", value: formatPercent(currentSummary.avgEngagement, 2) },
-    ];
+    const posterRows = reportRows.slice(0, 3);
+    const rowImages = await Promise.all(
+      posterRows.map(async (row) => Promise.all(row.items.map(async (item) => loadImage(item.image)))),
+    );
 
-    summaryBlocks.forEach((block, index) => {
-      const x = 70 + (index % 2) * 310;
-      const y = 260 + Math.floor(index / 2) * 130;
-      context.fillStyle = "rgba(255,255,255,0.08)";
-      context.fillRect(x, y, 280, 94);
-      context.fillStyle = "rgba(255,255,255,0.8)";
-      context.font = "500 18px Inter, Arial, sans-serif";
-      context.fillText(block.label, x + 20, y + 34);
-      context.fillStyle = "#ffffff";
-      context.font = "700 30px Inter, Arial, sans-serif";
-      context.fillText(block.value, x + 20, y + 70);
+    const topRowY = 180;
+    const topCardW = 220;
+    const topCardH = 330;
+    const topGap = 14;
+    const topRowWidth = topCardW * 5 + topGap * 4;
+    const topStartX = Math.round((canvas.width - topRowWidth) / 2);
+    const topItems = posterRows[0]?.items.slice(0, 5) ?? [];
+
+    topItems.forEach((item, index) => {
+      drawCoverCard(
+        context,
+        rowImages[0]?.[index] ?? null,
+        topStartX + index * (topCardW + topGap),
+        topRowY,
+        topCardW,
+        topCardH,
+        item.title,
+        "Conteúdo pronto para publicação",
+        item.metric,
+      );
     });
 
     context.fillStyle = "#ffffff";
-    context.font = "700 24px Inter, Arial, sans-serif";
-    context.fillText("Top conteúdos", 760, 272);
-    context.font = "400 18px Inter, Arial, sans-serif";
-    filteredPosts.slice(0, 5).forEach((post, index) => {
-      context.fillText(`${index + 1}. ${post.title}`, 760, 320 + index * 42);
+    context.font = "800 104px Inter, Arial, sans-serif";
+    context.textAlign = "center";
+    context.fillText("5 CAPAS", canvas.width / 2, topRowY + 220);
+    context.textAlign = "left";
+
+    const sectionConfigs = [
+      {
+        rowIndex: 1,
+        title: "20 DEPOIMENTOS",
+        y: 610,
+        cardW: 182,
+        cardH: 240,
+        gap: 14,
+        columns: 10,
+      },
+      {
+        rowIndex: 2,
+        title: "10 ENTREGAS DE MATERIAL",
+        y: 1000,
+        cardW: 182,
+        cardH: 240,
+        gap: 14,
+        columns: 10,
+      },
+    ] as const;
+
+    sectionConfigs.forEach((section) => {
+      const row = posterRows[section.rowIndex];
+      const images = rowImages[section.rowIndex] ?? [];
+      if (!row) {
+        return;
+      }
+
+      const sectionWidth = section.cardW * section.columns + section.gap * (section.columns - 1);
+      const startX = Math.round((canvas.width - sectionWidth) / 2);
+
+      Array.from({ length: section.columns }, (_, index) => row.items[index % row.items.length]).forEach((item, index) => {
+        drawCoverCard(
+          context,
+          images[index % images.length] ?? null,
+          startX + index * (section.cardW + section.gap),
+          section.y,
+          section.cardW,
+          section.cardH,
+          item.title,
+          "Conteúdo pronto para publicação",
+          item.metric,
+        );
+      });
+
+      context.fillStyle = "#ffffff";
+      context.font = "800 72px Inter, Arial, sans-serif";
+      context.textAlign = "center";
+      context.fillText(section.title, canvas.width / 2, section.y + section.cardH - 28);
+      context.textAlign = "left";
     });
+
+    context.fillStyle = "rgba(255,255,255,0.9)";
+    context.font = "600 20px Inter, Arial, sans-serif";
+    context.fillText(
+      `Alcance ${formatLongNumber(currentSummary.reach)} • Engajamento ${formatLongNumber(currentSummary.engagement)} • Conteúdos ${currentSummary.postsCount}/${monthlyContentTarget}`,
+      pageMargin,
+      canvas.height - 36,
+    );
 
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
 
@@ -986,7 +1512,7 @@ export function ReportsPage() {
       ],
     },
     posts: {
-      title: "Quantidade de publicações",
+      title: "Conteúdos finalizados",
       description: "Leitura rápida do volume entregue pela operação.",
       breakdown: [
         { label: "Atual", value: String(currentSummary.postsCount) },
@@ -1005,422 +1531,937 @@ export function ReportsPage() {
     },
   } as const;
 
+  const completedGoalsCount = filteredGoals.filter((goal) => goal.current >= goal.target).length;
+  const goalCompletionRate = filteredGoals.length > 0 ? completedGoalsCount / filteredGoals.length : 0;
+  const healthScore = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        50 +
+          (comparison.reach > 0 ? 12 : -4) +
+          (comparison.engagement > 0 ? 12 : -4) +
+          goalCompletionRate * 22 +
+          Math.min(8, currentSummary.monthlyProgress * 0.08),
+      ),
+    ),
+  );
+  const displaySummary = {
+    health: healthScore,
+    reach: currentSummary.reach,
+    engagement: currentSummary.engagement,
+    posts: currentSummary.postsCount,
+    avgEngagement: currentSummary.avgEngagement,
+    monthlyProgress: currentSummary.monthlyProgress,
+  };
+  const heroSummaryCards = [
+    {
+      label: "Saúde total",
+      value: `${displaySummary.health}`,
+      delta: formatPercent(Math.max(0, comparison.engagement), 1),
+      icon: Sparkles,
+      tone: "good" as const,
+    },
+    {
+      label: "Alcance total",
+      value: formatLongNumber(displaySummary.reach),
+      delta: formatPercent(comparison.reach, 1),
+      icon: Eye,
+      tone: "good" as const,
+    },
+    {
+      label: "Engajamento",
+      value: formatLongNumber(displaySummary.engagement),
+      delta: formatPercent(comparison.engagement, 1),
+      icon: BarChart3,
+      tone: "good" as const,
+    },
+    {
+      label: "Conteúdos finalizados",
+      value: formatLongNumber(displaySummary.posts),
+      delta: formatPercent(comparison.posts, 1),
+      icon: Rocket,
+      tone: "good" as const,
+      note: `Meta de ${monthlyContentTarget} conteúdos/mês`,
+    },
+    {
+      label: "Progresso mensal",
+      value: `${displaySummary.monthlyProgress}%`,
+      delta: formatPercent(comparison.posts, 1),
+      icon: CheckCircle2,
+      tone: "good" as const,
+      note: `${formatLongNumber(displaySummary.posts)} de ${monthlyContentTarget} conteúdos`,
+    },
+  ];
+  const bottomSummary = [
+    { label: "Alcance total", value: formatLongNumber(currentSummary.reach), icon: Eye, tone: "#D10000" },
+    { label: "Engajamento total", value: formatLongNumber(currentSummary.engagement), icon: BarChart3, tone: "#E11D48" },
+    {
+      label: "Conteúdos finalizados",
+      value: formatLongNumber(currentSummary.postsCount),
+      icon: Rocket,
+      tone: "#2563EB",
+    },
+    {
+      label: "Progresso mensal",
+      value: `${currentSummary.monthlyProgress}%`,
+      icon: CheckCircle2,
+      tone: "#16A34A",
+    },
+  ];
+  const openAddReportCard = (rowIndex: number) => {
+    const accent = reportRows[rowIndex]?.items[0]?.accent ?? "#D10000";
+    setCardDraft({
+      rowIndex,
+      itemIndex: null,
+      title: "",
+      metric: "",
+      accent,
+      image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=900&q=80",
+      imageName: "",
+    });
+  };
+  const openEditReportCard = (rowIndex: number, itemIndex: number) => {
+    const target = reportRows[rowIndex]?.items[itemIndex];
+    if (!target) {
+      return;
+    }
+
+    setCardDraft({
+      rowIndex,
+      itemIndex,
+      title: target.title,
+      metric: target.metric,
+      accent: target.accent,
+      image: target.image,
+      imageName: "",
+    });
+  };
+  const saveCardDraft = () => {
+    if (!cardDraft?.title.trim()) {
+      toast.error("Informe o título do card.");
+      return;
+    }
+
+    if (!cardDraft.image.trim()) {
+      toast.error("Adicione a imagem do card.");
+      return;
+    }
+
+    setReportRows((previous) =>
+      previous.map((row, rowIndex) =>
+        rowIndex === cardDraft.rowIndex
+          ? {
+              ...row,
+              items:
+                cardDraft.itemIndex === null
+                  ? [
+                      ...row.items,
+                      {
+                        title: cardDraft.title.trim(),
+                        metric: cardDraft.metric.trim() || "0",
+                        accent: cardDraft.accent.trim() || "#D10000",
+                        image: cardDraft.image.trim(),
+                      },
+                    ]
+                  : row.items.map((item, itemIndex) =>
+                      itemIndex === cardDraft.itemIndex
+                        ? {
+                            ...item,
+                            title: cardDraft.title.trim(),
+                            metric: cardDraft.metric.trim() || item.metric,
+                            accent: cardDraft.accent.trim() || item.accent,
+                            image: cardDraft.image.trim(),
+                          }
+                        : item,
+                    ),
+            }
+          : row,
+      ),
+    );
+
+    setCardDraft(null);
+    toast.success(cardDraft.itemIndex === null ? "Card adicionado." : "Card atualizado.");
+  };
+  const handleDeleteReportCard = (rowIndex: number, itemIndex: number) => {
+    const target = reportRows[rowIndex]?.items[itemIndex];
+    if (!target) {
+      return;
+    }
+
+    const confirmed = window.confirm(`Apagar o card "${target.title}"?`);
+    if (!confirmed) {
+      return;
+    }
+
+    setReportRows((previous) =>
+      previous.map((row, index) =>
+        index === rowIndex
+          ? {
+              ...row,
+              items: row.items.filter((_, currentIndex) => currentIndex !== itemIndex),
+            }
+          : row,
+      ),
+    );
+    toast.success("Card apagado.");
+  };
+  const openOverviewEditor = () => {
+    setOverviewForm(overviewDraft);
+    setIsOverviewModalOpen(true);
+  };
+  const openRowSectionEditor = (rowIndex: number) => {
+    const target = reportRows[rowIndex];
+    if (!target) {
+      return;
+    }
+
+    setEditingSection({ scope: "row", rowIndex });
+    setSectionForm({
+      title: target.title,
+      description: target.description,
+      action: target.action,
+    });
+  };
+  const saveSectionForm = () => {
+    if (!editingSection || !sectionForm) {
+      return;
+    }
+
+    if (editingSection.scope === "row" && typeof editingSection.rowIndex === "number") {
+      setReportRows((previous) =>
+        previous.map((row, rowIndex) =>
+          rowIndex === editingSection.rowIndex
+            ? {
+                ...row,
+                title: sectionForm.title.trim() || row.title,
+                description: sectionForm.description.trim() || row.description,
+                action: sectionForm.action.trim() || row.action,
+              }
+            : row,
+        ),
+      );
+      toast.success("Seção atualizada.");
+    }
+
+    setEditingSection(null);
+    setSectionForm(null);
+  };
+  const restoreSectionDefaults = () => {
+    if (!editingSection || typeof editingSection.rowIndex !== "number") {
+      return;
+    }
+
+    const defaults = [
+      {
+        title: "Capas em destaque",
+        description: "Visual forte para escalar o clique no feed e nos destaques.",
+        action: "Ver todas",
+      },
+      {
+        title: "20 depoimentos",
+        description: "Prova social com rostos, frases curtas e leitura rápida.",
+        action: "Ver todas",
+      },
+      {
+        title: "10 entregas de material",
+        description: "Peças finais, capas, cortes e materiais prontos para publicação.",
+        action: "Ver todas",
+      },
+    ];
+
+    const fallback = defaults[editingSection.rowIndex];
+    if (!fallback) {
+      return;
+    }
+
+    setReportRows((previous) =>
+      previous.map((row, rowIndex) => (rowIndex === editingSection.rowIndex ? { ...row, ...fallback } : row)),
+    );
+    setSectionForm(fallback);
+    toast.success("Título restaurado para o padrão.");
+  };
+  void [
+    Area,
+    AreaChart,
+    AlertTriangle,
+    CartesianGrid,
+    FileDown,
+    FileImage,
+    Line,
+    LineChart,
+    ProgressBar,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis,
+    GlassPanel,
+    PageHeader,
+    SectionTitle,
+    FilterPill,
+    contentTypeOptions,
+    RoundedDropdown,
+    DateRangePicker,
+    savedReports,
+    setSelectedMetric,
+    heroSurfaceClass,
+    heroStatClass,
+    filtersBarClass,
+    softSectionClass,
+    softTileClass,
+    softCardClass,
+    softCardCompactClass,
+    comparisonSeries,
+    selectedMetricCard,
+    metricCards,
+    alerts,
+    automaticInsights,
+    handleSaveReport,
+    handleRestoreReport,
+    selectedMetricDetails,
+    openAddReportCard,
+    openEditReportCard,
+    saveCardDraft,
+    TrendingDown,
+  ];
+
   return (
     <PageTransition>
-      <PageHeader
-        eyebrow="Report"
-        title="Relatório executivo da Great Orgânico"
-        description="Filtre o período, compare com a janela anterior, desça para os detalhes e salve versões antigas sem sair da tela."
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <ActionButton variant="secondary" onClick={() => navigate(`/reports/preview?${previewSearch}`)}>
-              <Eye className="h-4 w-4" />
-              Pré-visualização
-            </ActionButton>
-            <ActionButton variant="secondary" onClick={handleSaveReport}>
-              <FileDown className="h-4 w-4" />
-              Salvar relatório
-            </ActionButton>
-            <ActionButton variant="secondary" onClick={handleExportCsv}>
-              <Download className="h-4 w-4" />
-              CSV
-            </ActionButton>
-            <ActionButton variant="secondary" onClick={handleExportImage}>
-              <FileImage className="h-4 w-4" />
-              Imagem
-            </ActionButton>
-            <ActionButton onClick={() => window.print()}>
-              <Printer className="h-4 w-4" />
-              PDF
-            </ActionButton>
-          </div>
-        }
-      />
+      <div className="space-y-6">
+        <section className="rounded-[2.4rem] border border-border/70 bg-white/96 p-6 shadow-[0_20px_55px_rgba(15,23,42,0.07)] backdrop-blur-xl">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+            <div className="max-w-3xl space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">Relatório executivo</p>
+              <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-[2.45rem]">Relatório executivo da Great Orgânico</h1>
+              <p className="max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
+                Acompanhe os destaques do período, compare com a janela anterior e visualize os conteúdos que mais puxaram a operação.
+              </p>
+            </div>
 
-      <GlassPanel
-        index={1}
-        className={heroSurfaceClass}
-      >
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-3xl">
-            <p
-              className={cn(
-                "inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em]",
-                isDark
-                  ? "bg-card/20 text-card-foreground/90 ring-1 ring-border/30"
-                  : "border border-border/60 bg-card text-muted-foreground shadow-sm",
-              )}
-            >
-              Visão geral
-            </p>
-            <h2 className="mt-3 text-2xl font-semibold">Resumo executivo</h2>
-            <p className={cn("mt-2 text-sm leading-6", isDark ? "text-white/88" : "text-muted-foreground")}>
-              O perfil mantém saúde alta, acelera crescimento de alcance e encontra melhor eficiência quando combina reels educativos com repertório prático de operação.
-            </p>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[420px]">
-            {[
-              { label: "Saúde do Instagram", value: String(87) },
-              { label: "Alcance total", value: formatLongNumber(currentSummary.reach) },
-              { label: "Engajamento", value: formatLongNumber(currentSummary.engagement) },
-              { label: "Publicações", value: String(currentSummary.postsCount) },
-            ].map((item) => (
-              <div key={item.label} className={heroStatClass}>
-                <p className={cn("text-xs uppercase tracking-[0.16em]", isDark ? "text-white/74" : "text-muted-foreground")}>
-                  {item.label}
-                </p>
-                <p className="mt-3 text-3xl font-semibold">{item.value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </GlassPanel>
-
-      <GlassPanel index={2} className="relative z-[70] overflow-visible">
-        <SectionTitle
-          title="Filtros"
-          description="Período, tipo de conteúdo e responsável alteram toda a leitura."
-        />
-        <div className={filtersBarClass}>
-          <div className="flex flex-wrap gap-2">
-            {reportPeriods.map((item) => (
-              <FilterPill key={item.value} label={item.label} active={period === item.value} onClick={() => setPeriod(item.value)} />
-            ))}
-          </div>
-
-          <div className="grid flex-1 gap-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr]">
-            <label className="grid gap-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Tipo de conteúdo</span>
-              <RoundedDropdown
-                label="Tipo de conteúdo"
-                value={typeFilter}
-                options={contentTypeOptions}
-                onChange={(value) => setTypeFilter(value as ContentType | "todos")}
-              />
-            </label>
-
-            <label className="grid gap-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Responsável</span>
-              <RoundedDropdown
-                label="Responsável"
-                value={responsibleFilter}
-                options={[
-                  { label: "Todos os responsáveis", value: "todos" as const },
-                  ...teamMembers.map((member) => ({ label: member.name, value: member.id, color: member.color })),
-                ]}
-                onChange={(value) => setResponsibleFilter(value)}
-              />
-            </label>
-
-            {period === "custom" ? (
-              <div className="grid gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Data</span>
-                <DateRangePicker
-                  label="Data"
-                  startValue={customStartDate}
-                  endValue={customEndDate}
-                  onChange={({ startValue, endValue }) => {
-                    setCustomStartDate(startValue);
-                    setCustomEndDate(endValue);
-                  }}
-                />
-              </div>
-            ) : (
-              <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-                <CalendarRange className="h-4 w-4" />
-                <span>
-                  {new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(currentRange.start)} -{" "}
-                  {new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).format(currentRange.end)}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      </GlassPanel>
-
-      <div className="relative z-0 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-        {metricCards.map((metric, index) => {
-          const Icon = metric.icon;
-          const active = selectedMetric === metric.key;
-
-          return (
-            <button
-              key={metric.key}
-              type="button"
-              onClick={() => setSelectedMetric(metric.key)}
-              className="text-left"
-            >
-              <GlassPanel
-                index={index + 3}
-                className={`relative z-0 h-full overflow-hidden transition ${active ? "ring-2 ring-primary/25" : ""}`}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <span
-                    className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
-                      metric.delta >= 0 ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive"
-                    }`}
+            <div className="flex flex-col gap-3 xl:items-end">
+              <div className="inline-flex w-fit rounded-full border border-border/70 bg-card p-1 shadow-sm">
+                {reportPeriods.map((item) => (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => setPeriod(item.value)}
+                    className={cn(
+                      "rounded-full px-4 py-2 text-sm font-medium transition",
+                      period === item.value
+                        ? "bg-primary text-primary-foreground shadow-[0_10px_20px_rgba(209,0,0,0.18)]"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
                   >
-                    {metric.delta >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-                    {formatPercent(metric.delta, 1)}
-                  </span>
-                </div>
-                <div className="mt-5 space-y-2">
-                  <p className="text-sm text-muted-foreground">{metric.label}</p>
-                  <p className="text-3xl font-semibold tracking-tight text-foreground">{metric.value}</p>
-                  <p className="text-sm text-muted-foreground">{metric.helper}</p>
-                </div>
-              </GlassPanel>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <GlassPanel index={7} className="overflow-hidden p-6">
-          <SectionTitle title="Comparação" description="Olhando o período atual ao lado do período anterior." />
-          <div className="mt-6 h-[320px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={comparisonSeries} margin={{ top: 10, right: 10, left: -14, bottom: 0 }}>
-                <CartesianGrid stroke="rgb(var(--border) / 0.5)" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "rgb(var(--muted-foreground) / 1)", fontSize: 12 }} />
-                <YAxis tickLine={false} axisLine={false} tick={{ fill: "rgb(var(--muted-foreground) / 1)", fontSize: 12 }} />
-                <Tooltip />
-                <Line type="monotone" dataKey="currentReach" stroke="#D10000" strokeWidth={3} dot={false} />
-                <Line type="monotone" dataKey="previousReach" stroke="#94A3B8" strokeWidth={2} strokeDasharray="6 6" dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </GlassPanel>
-
-        <GlassPanel index={8}>
-          <SectionTitle title="Drill-down" description="Clique em uma métrica para abrir a leitura detalhada." />
-          <div className={softSectionClass}>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground">{selectedMetricDetails[selectedMetric].title}</p>
-                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{selectedMetricCard.current}</h3>
+                    {item.label}
+                  </button>
+                ))}
               </div>
-              <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-                {selectedMetricCard.previous} anterior
+
+              {period === "custom" ? (
+                <div className="w-full max-w-[560px] rounded-[1.5rem] border border-border/70 bg-white p-4 shadow-[0_18px_42px_rgba(15,23,42,0.05)]">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                        Personalizado
+                      </p>
+                      <p className="mt-1 text-sm font-medium text-foreground">
+                        {describeReportPeriod({
+                          period,
+                          customMode: customPeriodMode,
+                          customMonth,
+                          customYear,
+                          customStart: customStartDate,
+                          customEnd: customEndDate,
+                          customPastMonths,
+                          currentRange,
+                        })}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomPeriodMode("month");
+                        setCustomMonth(anchorDate.getMonth());
+                        setCustomYear(anchorDate.getFullYear());
+                        setCustomStartDate(formatDateKey(addDays(anchorDate, -29)));
+                        setCustomEndDate(formatDateKey(anchorDate));
+                        setCustomPastMonths(3);
+                      }}
+                      className="rounded-full border border-border/60 bg-muted/30 px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:border-primary/30 hover:text-foreground"
+                    >
+                      Restaurar padrão
+                    </button>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {[
+                      { label: "Mês específico", value: "month" as const },
+                      { label: "Intervalo", value: "range" as const },
+                      { label: "Meses passados", value: "past" as const },
+                    ].map((item) => (
+                      <button
+                        key={item.value}
+                        type="button"
+                        onClick={() => setCustomPeriodMode(item.value)}
+                        className={cn(
+                          "rounded-full px-3 py-2 text-xs font-semibold transition",
+                          customPeriodMode === item.value
+                            ? "bg-primary text-primary-foreground shadow-[0_10px_20px_rgba(209,0,0,0.18)]"
+                            : "border border-border/60 bg-white text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    {customPeriodMode === "month" ? (
+                      <>
+                        <RoundedDropdown
+                          label="Mês"
+                          value={customMonth}
+                          options={monthOptions}
+                          onChange={(value) => setCustomMonth(Number(value))}
+                          placeholder="Selecionar mês"
+                        />
+                        <RoundedDropdown
+                          label="Ano"
+                          value={customYear}
+                          options={yearOptions}
+                          onChange={(value) => setCustomYear(Number(value))}
+                          placeholder="Selecionar ano"
+                        />
+                      </>
+                    ) : null}
+
+                    {customPeriodMode === "past" ? (
+                      <div className="sm:col-span-2">
+                        <label className="grid gap-2">
+                          <span className="text-sm font-medium text-slate-700">Meses passados</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={12}
+                            value={customPastMonths}
+                            onChange={(event) => setCustomPastMonths(Number(event.target.value) || 1)}
+                            className="rounded-[1.5rem] border border-border/70 bg-white px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+                            placeholder="Ex.: 3"
+                          />
+                        </label>
+                      </div>
+                    ) : null}
+
+                    {customPeriodMode === "range" ? (
+                      <div className="sm:col-span-2">
+                        <DateRangePicker
+                          label="Intervalo de datas"
+                          startValue={customStartDate}
+                          endValue={customEndDate}
+                          onChange={({ startValue, endValue }) => {
+                            setCustomStartDate(startValue);
+                            setCustomEndDate(endValue);
+                          }}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="flex flex-wrap gap-2">
+                <ActionButton variant="secondary" onClick={handleExportCsv}>
+                  <Download className="h-4 w-4" />
+                  Exportar
+                </ActionButton>
+                <ActionButton variant="secondary" onClick={handleExportImage}>
+                  <Share2 className="h-4 w-4" />
+                  Compartilhar
+                </ActionButton>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-6 xl:grid-cols-[minmax(0,1.12fr)_minmax(390px,0.88fr)]">
+          <div className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.06)]">
+            <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+              <div className="max-w-2xl">
+                <span className="inline-flex rounded-full border border-border/60 bg-muted/30 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  {overviewDraft.badge}
+                </span>
+                <div className="mt-4 flex items-start justify-between gap-4">
+                  <h2 className="max-w-xl text-2xl font-semibold tracking-tight text-foreground">{overviewDraft.title}</h2>
+                  <button
+                    type="button"
+                    onClick={openOverviewEditor}
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border/70 bg-white text-foreground shadow-sm transition hover:border-primary/25 hover:shadow-md"
+                    aria-label="Editar visão geral"
+                  >
+                    <PencilLine className="h-4 w-4" />
+                  </button>
+                </div>
+                <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{overviewDraft.description}</p>
+                <div className="mt-6 inline-flex rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-primary">
+                  {overviewDraft.note}
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[470px]">
+                {heroSummaryCards.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <div key={item.label} className="rounded-[1.6rem] border border-border/60 bg-card p-4 shadow-[0_10px_26px_rgba(15,23,42,0.04)]">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-600">
+                          <TrendingUp className="h-3.5 w-3.5" />
+                          {item.delta}
+                        </span>
+                      </div>
+                      <p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{item.label}</p>
+                      <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{item.value}</p>
+                      {item.note ? <p className="mt-2 text-xs text-muted-foreground">{item.note}</p> : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.06)]">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Resumo rápido</p>
+                <h3 className="mt-2 text-lg font-semibold text-foreground">Indicadores principais</h3>
+              </div>
+              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-600">
+                Saúde {displaySummary.health}
               </span>
             </div>
-            <p className="mt-4 text-sm leading-6 text-muted-foreground">{selectedMetricCard.detail}</p>
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              {selectedMetricDetails[selectedMetric].breakdown.map((item) => (
-                <div key={item.label} className={softTileClass}>
-                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{item.label}</p>
-                  <p className="mt-2 text-base font-semibold text-foreground">{item.value}</p>
+
+            <div className="mt-5 grid gap-3">
+              {[
+                { label: "Alcance total", value: formatLongNumber(displaySummary.reach), note: "+32% vs. período anterior" },
+                { label: "Engajamento", value: formatLongNumber(displaySummary.engagement), note: "+12% vs. período anterior" },
+                { label: "Conteúdos finalizados", value: formatLongNumber(displaySummary.posts), note: "Peças finalizadas no período" },
+                {
+                  label: "Progresso mensal",
+                  value: `${displaySummary.monthlyProgress}%`,
+                  note: `Meta de ${monthlyContentTarget} conteúdos`,
+                },
+              ].map((item) => (
+                <div key={item.label} className="flex items-center justify-between gap-4 rounded-[1.4rem] border border-border/60 bg-muted/20 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{item.label}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{item.note}</p>
+                  </div>
+                  <p className="text-xl font-semibold tracking-tight text-foreground">{item.value}</p>
                 </div>
               ))}
             </div>
           </div>
-        </GlassPanel>
-      </div>
+        </section>
 
-      <div className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
-        <GlassPanel index={9}>
-          <SectionTitle title="Metas" description="Valor atual / meta / restante." />
-          <div className="mt-5 space-y-4">
-            {filteredGoals.map((goal) => {
-              const remaining = Math.max(goal.target - goal.current, 0);
-              const responsibleIds = getGoalResponsibleIds(goal);
-              const member = teamMembers.find((item) => item.id === responsibleIds[0]) ?? teamMembers[0];
-
-              return (
-                <div
-                  key={goal.id}
-                  className={softCardClass}
-                >
-                  <div className="flex items-start justify-between gap-4">
+        <div className="space-y-6">
+              {reportRows.map((row, rowIndex) => (
+                <section key={row.title} className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.05)]">
+                  <div className="flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-sm font-medium text-foreground">{goal.name}</p>
-                      <p className="text-xs text-muted-foreground">{goal.category}</p>
+                      <h2 className="text-lg font-semibold tracking-tight text-foreground">{row.title}</h2>
+                      <p className="mt-1 text-sm text-muted-foreground">{row.description}</p>
                     </div>
-                    <span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: `${member.color}12`, color: member.color }}>
-                      {member.name}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openRowSectionEditor(rowIndex)}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 bg-white text-muted-foreground transition hover:border-primary/25 hover:text-foreground hover:shadow-sm"
+                        aria-label={`Editar ${row.title}`}
+                      >
+                        <PencilLine className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openAddReportCard(rowIndex)}
+                        className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-white px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/25 hover:shadow-md"
+                      >
+                    <Plus className="h-4 w-4" />
+                    Adicionar card
+                  </button>
+                  <button type="button" className="text-sm font-medium text-muted-foreground transition hover:text-foreground">
+                    {row.action}
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-5 flex gap-4 overflow-x-auto pb-1">
+                {row.items.map((item, itemIndex) => (
+                  <article
+                    key={`${row.title}-${item.title}`}
+                    className="group relative h-[170px] min-w-[250px] overflow-hidden rounded-[1.8rem] border border-border/60 bg-slate-100 shadow-[0_14px_34px_rgba(15,23,42,0.08)]"
+                  >
+                    <div
+                      className="absolute inset-0 bg-cover bg-center transition duration-500 group-hover:scale-105"
+                      style={{
+                        backgroundImage: `linear-gradient(180deg, rgba(8,10,16,0.06) 0%, rgba(8,10,16,0.78) 100%), url(${item.image})`,
+                      }}
+                    />
+                    <div
+                      className="absolute inset-0 opacity-70"
+                      style={{
+                        background: `linear-gradient(135deg, ${item.accent}33 0%, transparent 45%, rgba(255,255,255,0.04) 100%)`,
+                      }}
+                    />
+                    <div className="absolute left-4 right-4 top-4 flex items-center justify-between">
+                      <span className="rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/90 backdrop-blur">
+                        Destaque
+                      </span>
+                      <span className="rounded-full bg-black/20 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur">
+                        {item.metric}
+                      </span>
+                    </div>
+                    <div className="absolute inset-x-0 bottom-0 p-4 text-white">
+                      <p className="text-sm font-semibold leading-5">{item.title}</p>
+                      <p className="mt-1 text-xs text-white/75">Conteúdo pronto para publicação</p>
+                    </div>
+                    <div className="absolute right-3 top-3 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openEditReportCard(rowIndex, itemIndex)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/92 text-foreground shadow-md transition hover:bg-white hover:text-primary"
+                        aria-label={`Editar ${item.title}`}
+                      >
+                        <PencilLine className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteReportCard(rowIndex, itemIndex)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/92 text-destructive shadow-md transition hover:bg-white"
+                        aria-label={`Apagar ${item.title}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+                </section>
+              ))}
+            </div>
+
+        <section className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.06)]">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Resumo do período</p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Fechamento rápido da operação</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                Uma visão curta do que a equipe entregou neste recorte, com números que ajudam a tomar decisão sem sair da página.
+              </p>
+            </div>
+            <ActionButton variant="secondary" onClick={() => window.print()}>
+              <Printer className="h-4 w-4" />
+              Ver análise completa
+            </ActionButton>
+          </div>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {bottomSummary.map((item) => {
+              const Icon = item.icon;
+              return (
+                <div key={item.label} className="rounded-[1.6rem] border border-border/60 bg-muted/20 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white shadow-sm">
+                      <Icon className="h-5 w-5" style={{ color: item.tone }} />
+                    </div>
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                      Agora
                     </span>
                   </div>
-                  <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
-                    <div className={softTileClass}>
-                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Atual</p>
-                      <p className="mt-2 font-semibold text-foreground">{formatLongNumber(goal.current)}</p>
-                    </div>
-                    <div className={softTileClass}>
-                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Meta</p>
-                      <p className="mt-2 font-semibold text-foreground">{formatLongNumber(goal.target)}</p>
-                    </div>
-                    <div className={softTileClass}>
-                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Restante</p>
-                      <p className="mt-2 font-semibold text-foreground">{formatLongNumber(remaining)}</p>
-                    </div>
-                  </div>
-                  <div className="mt-4">
-                    <ProgressBar value={goal.current} max={goal.target} label={goal.period} />
-                  </div>
+                  <p className="mt-4 text-sm font-medium text-foreground">{item.label}</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{item.value}</p>
                 </div>
               );
             })}
           </div>
-        </GlassPanel>
+        </section>
+      </div>
 
-        <GlassPanel index={10}>
-          <SectionTitle title="Alertas" description="Sinais para agir antes do próximo ciclo." />
-          <div className="mt-5 space-y-3">
-            {alerts.map((alert) => (
-              <div
-                key={alert.title}
-                className={cn(
-                  "flex items-start gap-3 rounded-3xl border border-border/60 p-4",
-                  isDark ? "bg-muted/30 dark:bg-card/95" : "bg-card/95 shadow-[0_10px_24px_rgba(15,23,42,0.04)]",
-                )}
+      {isOverviewModalOpen ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-sm">
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] border border-border/70 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.22)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Visão geral</p>
+                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Ajuste o texto principal</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsOverviewModalOpen(false)}
+                className="rounded-full border border-border/60 bg-card px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/25"
               >
-                <div
-                  className={`mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-2xl ${
-                    alert.tone === "danger" ? "bg-destructive/15 text-destructive" : "bg-warning/20 text-warning"
-                  }`}
-                >
-                  <AlertTriangle className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="font-medium text-foreground">{alert.title}</p>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">{alert.description}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </GlassPanel>
-      </div>
+                Fechar
+              </button>
+            </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
-        <GlassPanel index={11}>
-          <SectionTitle title="Insights automáticos" description="Leituras geradas com base no recorte filtrado." />
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            {automaticInsights.map((item) => (
-              <div key={item.title} className={softCardCompactClass}>
-                <p className="text-sm text-muted-foreground">{item.title}</p>
-                <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{item.value}</p>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.detail}</p>
-              </div>
-            ))}
-          </div>
-        </GlassPanel>
+            <div className="mt-6 grid gap-4">
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-foreground">Faixa superior</span>
+                <input
+                  value={overviewForm.badge}
+                  onChange={(event) => setOverviewForm((previous) => ({ ...previous, badge: event.target.value }))}
+                  className="rounded-2xl border border-border/60 bg-white px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary/30"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-foreground">Título</span>
+                <input
+                  value={overviewForm.title}
+                  onChange={(event) => setOverviewForm((previous) => ({ ...previous, title: event.target.value }))}
+                  className="rounded-2xl border border-border/60 bg-white px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary/30"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-foreground">Descrição</span>
+                <textarea
+                  value={overviewForm.description}
+                  onChange={(event) => setOverviewForm((previous) => ({ ...previous, description: event.target.value }))}
+                  rows={4}
+                  className="rounded-2xl border border-border/60 bg-white px-4 py-3 text-sm leading-6 text-foreground outline-none transition focus:border-primary/30"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-foreground">Selo inferior</span>
+                <input
+                  value={overviewForm.note}
+                  onChange={(event) => setOverviewForm((previous) => ({ ...previous, note: event.target.value }))}
+                  className="rounded-2xl border border-border/60 bg-white px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary/30"
+                />
+              </label>
+            </div>
 
-        <GlassPanel index={12}>
-          <SectionTitle title="Relatório por responsável" description="Desempenho individual e comparação entre usuários." />
-          <div className="mt-5 space-y-4">
-            {memberPerformance.map((entry) => (
-              <div key={entry.member.id} className={softCardClass}>
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="font-medium text-foreground">{entry.member.name}</p>
-                    <p className="text-sm text-muted-foreground">{entry.member.role}</p>
-                  </div>
-                  <div className="text-right text-sm text-muted-foreground">
-                    <p>{formatLongNumber(entry.reach)} alcance</p>
-                    <p>{formatLongNumber(entry.engagement)} engajamento</p>
-                  </div>
-                </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                  <div className={softTileClass}>
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Publicações</p>
-                    <p className="mt-2 text-xl font-semibold text-foreground">{entry.posts}</p>
-                  </div>
-                  <div className={softTileClass}>
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Engajamento</p>
-                    <p className="mt-2 text-xl font-semibold text-foreground">{formatLongNumber(entry.engagement)}</p>
-                  </div>
-                  <div className={softTileClass}>
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Concluído</p>
-                    <p className="mt-2 text-xl font-semibold text-foreground">{formatPercent(entry.completionRate * 100, 0)}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </GlassPanel>
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-        <GlassPanel index={13}>
-          <SectionTitle title="Histórico" description="Relatórios salvos por período." />
-          <div className="mt-5 space-y-3">
-            {savedReports.length > 0 ? (
-              savedReports.map((snapshot) => (
-                <div
-                  key={snapshot.id}
-                className={cn(
-                  "flex flex-col gap-4 rounded-3xl border border-border/60 p-4 md:flex-row md:items-center md:justify-between",
-                    isDark ? "bg-muted/30 dark:bg-card/95" : "bg-card/95 shadow-[0_10px_24px_rgba(15,23,42,0.04)]",
-                )}
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsOverviewModalOpen(false)}
+                className="rounded-full border border-border/60 bg-card px-4 py-2 text-sm font-medium text-muted-foreground transition hover:text-foreground"
               >
-                  <div>
-                    <p className="font-medium text-foreground">{snapshot.label}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {snapshot.generatedAt} • {snapshot.startDate} até {snapshot.endDate}
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {snapshot.reach} alcance • {snapshot.engagement} engajamento • {snapshot.postsCount} posts
-                    </p>
-                  </div>
-                  <ActionButton variant="secondary" onClick={() => handleRestoreReport(snapshot)}>
-                    <FileDown className="h-4 w-4" />
-                    Abrir
-                  </ActionButton>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">Nenhum relatório salvo ainda.</p>
-            )}
-          </div>
-        </GlassPanel>
-
-        <GlassPanel index={14}>
-          <SectionTitle title="Resumo das decisões" description="O que o recorte atual está sugerindo." />
-          <div className="mt-5 space-y-3">
-            <div className={softCardCompactClass}>
-              <p className="text-sm text-muted-foreground">Melhor horário</p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">
-                {insights.bestTime.day}, {insights.bestTime.hour}
-              </p>
-            </div>
-            <div className={softCardCompactClass}>
-              <p className="text-sm text-muted-foreground">Melhor conteúdo</p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">{automaticInsights[1].value}</p>
-            </div>
-            <div className={softCardCompactClass}>
-              <p className="text-sm text-muted-foreground">Tendência</p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">
-                {comparison.reach >= 0 ? "Crescimento consistente" : "Pressão de queda"}
-              </p>
+                Cancelar
+              </button>
+              <ActionButton
+                onClick={() => {
+                  setOverviewDraft(overviewForm);
+                  setIsOverviewModalOpen(false);
+                  toast.success("Visão geral atualizada.");
+                }}
+              >
+                Salvar alterações
+              </ActionButton>
             </div>
           </div>
-        </GlassPanel>
-      </div>
-
-      <GlassPanel index={15}>
-        <SectionTitle title="Evolução de alcance" description="Comparação entre período atual e anterior." />
-        <div className="mt-6 h-[320px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={comparisonSeries} margin={{ top: 10, right: 10, left: -14, bottom: 0 }}>
-              <defs>
-                <linearGradient id="reportReach" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0%" stopColor="#D10000" stopOpacity={0.36} />
-                  <stop offset="100%" stopColor="#D10000" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke="rgb(var(--border) / 0.5)" strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "rgb(var(--muted-foreground) / 1)", fontSize: 12 }} />
-              <YAxis tickLine={false} axisLine={false} tick={{ fill: "rgb(var(--muted-foreground) / 1)", fontSize: 12 }} />
-              <Tooltip />
-              <Area type="monotone" dataKey="currentReach" stroke="#D10000" strokeWidth={3} fill="url(#reportReach)" />
-              <Area type="monotone" dataKey="previousReach" stroke="#94A3B8" strokeWidth={2} fill="transparent" />
-            </AreaChart>
-          </ResponsiveContainer>
         </div>
-      </GlassPanel>
+      ) : null}
+
+      {editingSection && sectionForm ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-sm">
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] border border-border/70 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.22)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Seção</p>
+                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Personalize o nome e a ação</h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  Ajuste o texto visível do bloco sem perder o padrão da plataforma.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingSection(null);
+                  setSectionForm(null);
+                }}
+                className="rounded-full border border-border/60 bg-card px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/25"
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-4">
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-foreground">Título da seção</span>
+                <input
+                  value={sectionForm.title}
+                  onChange={(event) => setSectionForm((previous) => (previous ? { ...previous, title: event.target.value } : previous))}
+                  className="rounded-2xl border border-border/60 bg-white px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+                  placeholder="Ex.: Capas em destaque"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-foreground">Descrição</span>
+                <textarea
+                  value={sectionForm.description}
+                  onChange={(event) =>
+                    setSectionForm((previous) => (previous ? { ...previous, description: event.target.value } : previous))
+                  }
+                  rows={4}
+                  className="rounded-2xl border border-border/60 bg-white px-4 py-3 text-sm leading-6 text-foreground outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+                  placeholder="Explique brevemente o objetivo do bloco."
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-foreground">Texto da ação</span>
+                <input
+                  value={sectionForm.action}
+                  onChange={(event) => setSectionForm((previous) => (previous ? { ...previous, action: event.target.value } : previous))}
+                  className="rounded-2xl border border-border/60 bg-white px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+                  placeholder="Ex.: Ver todas"
+                />
+              </label>
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-between gap-3">
+              <button
+                type="button"
+                onClick={restoreSectionDefaults}
+                className="rounded-full border border-border/60 bg-card px-4 py-2 text-sm font-medium text-muted-foreground transition hover:text-foreground"
+              >
+                Restaurar padrão
+              </button>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingSection(null);
+                    setSectionForm(null);
+                  }}
+                  className="rounded-full border border-border/60 bg-card px-4 py-2 text-sm font-medium text-muted-foreground transition hover:text-foreground"
+                >
+                  Cancelar
+                </button>
+                <ActionButton onClick={saveSectionForm}>Salvar alterações</ActionButton>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {cardDraft ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-sm">
+          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[2rem] border border-border/70 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.22)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  {cardDraft.itemIndex === null ? "Adicionar card" : "Ajustar card"}
+                </p>
+                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Preencha os detalhes do card</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCardDraft(null)}
+                className="rounded-full border border-border/60 bg-card px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/25"
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
+              <div className="grid gap-4">
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-foreground">Título</span>
+                  <input
+                    value={cardDraft.title}
+                    onChange={(event) => setCardDraft((previous) => (previous ? { ...previous, title: event.target.value } : previous))}
+                    className="rounded-2xl border border-border/60 bg-white px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary/30"
+                    placeholder="Ex.: Dra. Alessandra"
+                  />
+                </label>
+
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-foreground">Métrica</span>
+                  <input
+                    value={cardDraft.metric}
+                    onChange={(event) => setCardDraft((previous) => (previous ? { ...previous, metric: event.target.value } : previous))}
+                    className="rounded-2xl border border-border/60 bg-white px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary/30"
+                    placeholder="Ex.: 2,4k"
+                  />
+                </label>
+
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-foreground">Cor de destaque</span>
+                  <input
+                    value={cardDraft.accent}
+                    onChange={(event) => setCardDraft((previous) => (previous ? { ...previous, accent: event.target.value } : previous))}
+                    className="rounded-2xl border border-border/60 bg-white px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary/30"
+                    placeholder="#D10000"
+                  />
+                </label>
+
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-foreground">Arquivo da imagem</span>
+                  <div className="rounded-2xl border border-dashed border-border/70 bg-muted/20 px-4 py-4 transition hover:border-primary/30">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={async (event) => {
+                        const file = event.target.files?.[0];
+                        if (!file) {
+                          return;
+                        }
+
+                        try {
+                          const nextImage = await readFileAsDataUrl(file);
+                          setCardDraft((previous) =>
+                            previous
+                              ? {
+                                  ...previous,
+                                  image: nextImage,
+                                  imageName: file.name,
+                                }
+                              : previous,
+                          );
+                        } catch {
+                          toast.error("Não foi possível ler o arquivo selecionado.");
+                        }
+                      }}
+                      className="block w-full text-sm text-muted-foreground file:mr-4 file:rounded-full file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-semibold file:text-primary-foreground file:shadow-sm hover:file:bg-primary/95"
+                    />
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      {cardDraft.imageName ? `Arquivo selecionado: ${cardDraft.imageName}` : "Escolha uma imagem para salvar junto do card."}
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              <div className="rounded-[1.8rem] border border-border/60 bg-muted/20 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Prévia</p>
+                <div className="mt-4 overflow-hidden rounded-[1.4rem] border border-border/60 bg-slate-100" style={{ minHeight: 260 }}>
+                  <div
+                    className="h-[210px] bg-cover bg-center"
+                    style={{
+                      backgroundImage: `linear-gradient(180deg, rgba(8,10,16,0.06) 0%, rgba(8,10,16,0.78) 100%), url(${cardDraft.image || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=900&q=80"})`,
+                    }}
+                  />
+                  <div className="p-4 text-white" style={{ backgroundColor: cardDraft.accent || "#D10000" }}>
+                    <p className="text-sm font-semibold">{cardDraft.title || "Título do card"}</p>
+                    <p className="mt-1 text-xs text-white/80">Métrica: {cardDraft.metric || "0"}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setCardDraft(null)}
+                className="rounded-full border border-border/60 bg-card px-4 py-2 text-sm font-medium text-muted-foreground transition hover:text-foreground"
+              >
+                Cancelar
+              </button>
+              <ActionButton onClick={saveCardDraft}>{cardDraft.itemIndex === null ? "Adicionar card" : "Salvar card"}</ActionButton>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </PageTransition>
   );
 }

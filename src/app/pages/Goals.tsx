@@ -1,11 +1,25 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, PencilLine, Plus, Users, X } from "lucide-react";
+﻿import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  CheckCircle2,
+  Eye,
+  Info,
+  Flag,
+  MoreVertical,
+  PencilLine,
+  Plus,
+  Target,
+  Trash2,
+  Users,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
-import { goals, getGoalResponsibleIds, historyTimeline, type Goal, type GoalChecklistItem, type HistoryEvent } from "../data/mockData";
+import { goals, getGoalResponsibleIds, type Goal, type GoalChecklistItem, type GoalValueEntry } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
-import { buildGoalHistoryEvent, getGoalHistoryId, removeHistoryEvent, upsertHistoryEvent } from "../data/historyEvents";
 import {
   ActionButton,
   ConfirmDialog,
@@ -14,6 +28,7 @@ import {
   MemberChip,
   PageHeader,
   PageTransition,
+  RoundedDropdown,
   cn,
 } from "../components/ui";
 import { useThemeMode } from "../theme";
@@ -21,9 +36,11 @@ import { useThemeMode } from "../theme";
 type GoalFormState = {
   name: string;
   category: string;
+  status: "Em andamento" | "Concluída" | "Atrasada" | "Pausada";
+  priority: "Alta" | "Média" | "Baixa";
   description: string;
+  notes: string;
   target: string;
-  current: string;
   period: string;
   deadline: string;
   deadlineTime: string;
@@ -33,27 +50,47 @@ type GoalFormState = {
 
 type TeamMemberCard = { id: number; name: string; role: string; color: string; avatarUrl: string };
 type GoalView = "all" | "individual" | "group";
+type GoalModalMode = "detail" | "form";
+
+const goalModalFieldClass =
+  "rounded-[1.25rem] border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 outline-none shadow-sm transition duration-200 hover:border-slate-300 hover:shadow-[0_10px_24px_rgba(15,23,42,0.04)] focus:border-primary focus:ring-4 focus:ring-primary/10";
+
+const goalModalShellClass =
+  "w-full max-w-[min(96vw,940px)] max-h-[calc(100vh-24px)] overflow-y-auto overscroll-contain rounded-[2.5rem] border border-slate-200 bg-[#fbfbfd] text-slate-900 shadow-[0_34px_110px_rgba(15,23,42,0.18)] sm:max-h-[calc(100vh-32px)] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden";
+
+const goalSectionCardClass =
+  "rounded-[2rem] border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.06)]";
+
+const goalBadgeClass =
+  "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset";
+
+const goalStatusOptions = [
+  { label: "Em andamento", value: "Em andamento" as const, color: "#3B82F6" },
+  { label: "Concluída", value: "Concluída" as const, color: "#22C55E" },
+  { label: "Atrasada", value: "Atrasada" as const, color: "#EF4444" },
+  { label: "Pausada", value: "Pausada" as const, color: "#EAB308" },
+];
+
+const goalPriorityOptions = [
+  { label: "Alta", value: "Alta" as const, color: "#EF4444" },
+  { label: "Média", value: "Média" as const, color: "#F59E0B" },
+  { label: "Baixa", value: "Baixa" as const, color: "#22C55E" },
+];
 
 function createInitialGoalForm(teamMembers: TeamMemberCard[]): GoalFormState {
   return {
     name: "",
     category: "Alcance",
+    status: "Em andamento",
+    priority: "Média",
     description: "",
+    notes: "",
     target: "",
-    current: "",
     period: "Mês",
     deadline: formatDateKey(new Date()),
     deadlineTime: "18:00",
     responsibleIds: teamMembers[0] ? [teamMembers[0].id] : [],
     checklist: [],
-  };
-}
-
-function createChecklistItem(label: string): GoalChecklistItem {
-  return {
-    id: `goal-check-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    label,
-    done: false,
   };
 }
 
@@ -165,47 +202,47 @@ function GoalDatePicker({
         type="button"
         onClick={() => setOpen((current) => !current)}
         className={cn(
-          "flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left text-sm transition",
-          "border-border/70 bg-background shadow-sm hover:border-primary/25 hover:shadow-md dark:bg-card/85",
+          "flex w-full items-center justify-between gap-3 rounded-[1.5rem] border px-4 py-3.5 text-left text-sm transition duration-200",
+          "border-slate-200 bg-white text-slate-900 shadow-sm hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_12px_28px_rgba(15,23,42,0.06)]",
         )}
       >
         <span className="flex items-center gap-3">
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm">
             <CalendarDays className="h-4 w-4" />
           </span>
           <span>
-            <span className="block text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Prazo</span>
-            <span className="block font-medium text-foreground">{value ? formatDeadlineLabel(value) : "Escolher data"}</span>
+            <span className="block text-[11px] uppercase tracking-[0.16em] text-slate-500">Prazo</span>
+            <span className="block font-semibold text-slate-900">{value ? formatDeadlineLabel(value) : "Escolher data"}</span>
           </span>
         </span>
-        <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition", open && "rotate-90")} />
+        <ChevronRight className={cn("h-4 w-4 text-slate-400 transition", open && "rotate-90")} />
       </button>
 
       {open ? (
-        <div className="absolute right-0 top-full z-50 mt-3 w-[340px] overflow-hidden rounded-[1.5rem] border border-border/70 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.16)] dark:border-white/10 dark:bg-card/98">
-          <div className="flex items-center justify-between border-b border-border/60 px-4 py-4">
+        <div className="absolute right-0 top-full z-50 mt-3 w-[340px] overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.14)]">
+          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
             <button
               type="button"
               onClick={() => setCursor((current) => addMonths(current, -1))}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted text-foreground transition hover:bg-muted/80"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
             <div className="text-center">
-              <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Selecionar prazo</p>
-              <p className="mt-1 text-sm font-semibold text-foreground">{formatMonthTitle(cursor)}</p>
+              <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Selecionar prazo</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">{formatMonthTitle(cursor)}</p>
             </div>
             <button
               type="button"
               onClick={() => setCursor((current) => addMonths(current, 1))}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted text-foreground transition hover:bg-muted/80"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
 
           <div className="px-4 pb-4 pt-3">
-            <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
               {["S", "T", "Q", "Q", "S", "S", "D"].map((day) => (
                 <span key={day}>{day}</span>
               ))}
@@ -225,14 +262,14 @@ function GoalDatePicker({
                       onChange(key);
                       setOpen(false);
                     }}
-                    className={cn(
-                      "flex h-10 items-center justify-center rounded-full text-sm transition",
-                      isSelected && "bg-primary text-primary-foreground shadow-lg shadow-primary/20",
-                      !isSelected && isToday && "bg-primary/10 text-primary",
-                      !isSelected && !isToday && isCurrentMonth && "text-foreground hover:bg-muted/80",
-                      !isCurrentMonth && "text-muted-foreground/35",
-                    )}
-                  >
+                  className={cn(
+                    "flex h-10 items-center justify-center rounded-full text-sm transition",
+                    isSelected && "bg-primary text-primary-foreground shadow-lg shadow-primary/20",
+                    !isSelected && isToday && "bg-primary/10 text-primary",
+                    !isSelected && !isToday && isCurrentMonth && "text-slate-700 hover:bg-slate-100",
+                    !isCurrentMonth && "text-slate-400/50",
+                  )}
+                >
                     {date.getDate()}
                   </button>
                 );
@@ -248,14 +285,14 @@ function GoalDatePicker({
                   setCursor(now);
                   setOpen(false);
                 }}
-                className="rounded-full border border-border/60 bg-muted/40 px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-muted/70"
+                className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
               >
                 Hoje
               </button>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-full border border-border/60 bg-background px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:text-foreground dark:bg-card/80"
+                className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
               >
                 Fechar
               </button>
@@ -276,12 +313,12 @@ function GoalTimeInput({
 }) {
   return (
     <label className="grid gap-2">
-      <span className="text-sm font-medium text-foreground">Horário limite</span>
+      <span className="text-sm font-medium text-slate-700">Horário limite</span>
       <input
         type="time"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:bg-white/5"
+        className={goalModalFieldClass}
       />
     </label>
   );
@@ -323,13 +360,15 @@ function GoalAssigneeChips({
             type="button"
             onClick={() => onToggle(member.id)}
             className={cn(
-              "group flex items-center justify-between rounded-2xl px-3 py-3 text-left transition",
-              selected ? "bg-primary/10 shadow-sm" : "bg-background hover:bg-primary/5 dark:bg-card/80",
+              "group flex items-center justify-between rounded-[1.5rem] border px-3 py-3 text-left transition duration-200",
+              selected
+                ? "border-primary/25 bg-primary/5 shadow-[0_12px_30px_rgba(59,130,246,0.08)]"
+                : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_12px_24px_rgba(15,23,42,0.05)]",
             )}
           >
             <span className="flex items-center gap-3">
               <span
-                className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl text-sm font-semibold text-white shadow-sm"
+                className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl text-sm font-semibold text-white shadow-sm ring-1 ring-slate-200"
                 style={{ backgroundColor: member.color }}
               >
                 {member.avatarUrl ? (
@@ -339,14 +378,14 @@ function GoalAssigneeChips({
                 )}
               </span>
               <span>
-                <span className="block text-sm font-semibold text-foreground">{member.name}</span>
-                <span className="block text-xs text-muted-foreground">{member.role}</span>
+                <span className="block text-sm font-semibold text-slate-900">{member.name}</span>
+                <span className="block text-xs text-slate-500">{member.role}</span>
               </span>
             </span>
             <span
               className={cn(
                 "inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold transition",
-                selected ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted text-transparent group-hover:bg-primary/10",
+                selected ? "bg-primary text-primary-foreground shadow-sm" : "bg-slate-100 text-transparent group-hover:bg-primary/10",
               )}
             >
               ✓
@@ -383,6 +422,496 @@ function GoalMemberStack({
   );
 }
 
+function GoalResponsibleAvatars({ members }: { members: TeamMemberCard[] }) {
+  const visibleMembers = members.slice(0, 3);
+  const extraCount = Math.max(members.length - visibleMembers.length, 0);
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex -space-x-2">
+        {visibleMembers.map((member) => (
+          <span
+            key={member.id}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-white text-xs font-bold text-white shadow-[0_6px_18px_rgba(15,23,42,0.14)] dark:border-card"
+            style={{ backgroundColor: member.color }}
+          >
+            {member.name.charAt(0)}
+          </span>
+        ))}
+        {extraCount > 0 ? (
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-slate-100 text-xs font-bold text-slate-600 shadow-[0_6px_18px_rgba(15,23,42,0.08)] dark:border-card dark:bg-white/10 dark:text-slate-300">
+            +{extraCount}
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function formatGoalEntryDate(value: string) {
+  const date = parseDateKey(value);
+  if (!date) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
+function getGoalUnitLabel(goal: Goal) {
+  const text = `${goal.name} ${goal.category}`.toLowerCase();
+
+  if (text.includes("story") || text.includes("visual")) {
+    return "visualizações";
+  }
+
+  if (text.includes("engaj")) {
+    return "interações";
+  }
+
+  if (text.includes("public")) {
+    return "publicações";
+  }
+
+  return "visualizações";
+}
+
+function GoalStatCard({
+  icon,
+  label,
+  value,
+  subtitle,
+  className,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: ReactNode;
+  subtitle?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("rounded-[1.4rem] border border-slate-200 bg-slate-50/90 px-4 py-4 shadow-sm dark:border-white/10 dark:bg-white/[0.04]", className)}>
+      <div className="flex items-start gap-4">
+        <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-violet-100 text-violet-700 shadow-sm dark:bg-violet-500/15 dark:text-violet-300">
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-700 dark:text-slate-400">{label}</p>
+          <p className="mt-1 text-[34px] font-semibold leading-none tracking-tight text-slate-950 dark:text-slate-300">{value}</p>
+          {subtitle ? <p className="mt-1 text-sm text-slate-700 dark:text-slate-400">{subtitle}</p> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GoalDetailModal({
+  goal,
+  teamMembers,
+  onClose,
+  onDeleteGoal,
+  onAddDailyValue,
+  formatValue,
+}: {
+  goal: Goal;
+  teamMembers: TeamMemberCard[];
+  onClose: () => void;
+  onDeleteGoal: () => void;
+  onAddDailyValue: (payload: { date: string; value: number }) => void;
+  formatValue: (value: number) => string;
+}) {
+  const { isDark } = useThemeMode();
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [showAllHistory, setShowAllHistory] = useState(false);
+  const [dailyDate, setDailyDate] = useState(() => formatDateKey(new Date()));
+  const [dailyValue, setDailyValue] = useState("");
+
+  const assigneeIds = getGoalResponsibleIds(goal);
+  const assignees = teamMembers.filter((member) => assigneeIds.includes(member.id));
+  const unitLabel = getGoalUnitLabel(goal);
+  const target = Math.max(goal.target, 1);
+  const current = Math.max(goal.current, 0);
+  const remaining = Math.max(target - current, 0);
+  const progress = Math.min((current / target) * 100, 100);
+  const history = [...(goal.history ?? [])].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+  const visibleHistory = showAllHistory ? history : history.slice(0, 4);
+  const parsedDailyValue = Number(dailyValue || 0);
+  const projectedTotal = current + (Number.isFinite(parsedDailyValue) ? Math.max(parsedDailyValue, 0) : 0);
+  const projectedProgress = Math.min((projectedTotal / target) * 100, 100);
+  const currentProgress = Math.min((current / target) * 100, 100);
+  const progressDelta = Math.max(projectedProgress - currentProgress, 0);
+  const deadlineLabel = formatDeadlineLabel(goal.deadline);
+  const deadlineTimeLabel = goal.deadlineTime ? formatDeadlineTimeLabel(goal.deadlineTime) : "Sem horário";
+  const historyCountLabel = `${history.length} lançamento${history.length === 1 ? "" : "s"}`;
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
+  useEffect(() => {
+    setMenuOpen(false);
+    setShowAllHistory(false);
+    setDailyDate(formatDateKey(new Date()));
+    setDailyValue("");
+  }, [goal.id]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 backdrop-blur-md sm:p-4" onClick={onClose}>
+      <div
+        ref={rootRef}
+        onClick={(event) => event.stopPropagation()}
+        className={cn(
+          "w-full max-w-[min(96vw,1120px)] max-h-[calc(100vh-24px)] overflow-y-auto overscroll-contain rounded-[2.5rem] shadow-[0_34px_110px_rgba(15,23,42,0.18)] sm:max-h-[calc(100vh-32px)] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
+          isDark
+            ? "border border-white/8 bg-card/98"
+            : "border border-slate-200/90 bg-[#f4f7fb]",
+        )}
+      >
+        <div className="p-5 sm:p-6 lg:p-8">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex min-w-0 items-start gap-4">
+              <span className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm">
+                <Eye className="h-7 w-7" />
+              </span>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-3">
+                  <h3 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-300 sm:text-[28px]">
+                    Lançar valor diário
+                  </h3>
+                  <span className="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+                    {goal.name}
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                  Registre o valor diário para atualizar automaticamente o acumulado da meta.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen((value) => !value)}
+                    className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-primary/20 hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-400 dark:hover:text-slate-200"
+                >
+                  <MoreVertical className="h-5 w-5" />
+                </button>
+                {menuOpen ? (
+                  <div className="absolute right-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl dark:border-white/10 dark:bg-card">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onDeleteGoal();
+                      }}
+                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-medium text-rose-600 transition hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-500/10"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Excluir meta
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-400 dark:hover:text-slate-200"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-6 rounded-[2rem] border border-slate-200 bg-white p-0 shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="grid gap-0 lg:grid-cols-3 lg:divide-x lg:divide-slate-200 lg:dark:divide-white/10">
+              <div className="px-5 py-5 sm:px-6">
+                <GoalStatCard
+                  className="h-full"
+                  icon={<Target className="h-5 w-5" />}
+                  label="Meta (objetivo)"
+                  value={formatValue(goal.target)}
+                  subtitle={<span className="font-medium text-violet-600 dark:text-slate-400">{unitLabel}</span>}
+                />
+              </div>
+              <div className="px-5 py-5 sm:px-6">
+                <GoalStatCard
+                  className="h-full"
+                  icon={<Eye className="h-5 w-5" />}
+                  label="Valor atual (acumulado)"
+                  value={formatValue(current)}
+                  subtitle={
+                    <span className="flex items-center gap-2">
+                  <span className="text-slate-700 dark:text-slate-400">{progress.toFixed(2).replace(".", ",")}% da meta</span>
+                      <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-slate-400">
+                        +{Math.max(Math.round(progressDelta), 0)}%
+                      </span>
+                    </span>
+                  }
+                />
+              </div>
+              <div className="px-5 py-5 sm:px-6">
+                <GoalStatCard
+                  className="h-full"
+                  icon={<Flag className="h-5 w-5" />}
+                  label="Faltam"
+                  value={formatValue(remaining)}
+                  subtitle={<span className="text-slate-700 dark:text-slate-400">{Math.max(100 - progress, 0).toFixed(2).replace(".", ",")}% para concluir</span>}
+                />
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <div className="relative h-4 overflow-hidden rounded-full bg-slate-300/90 dark:bg-white/10">
+                <div
+                  className="relative h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${progress}%`,
+                    background: "linear-gradient(90deg, #6d28d9 0%, #7c3aed 55%, #8b5cf6 100%)",
+                  }}
+                >
+                  <span className="absolute right-0 top-1/2 inline-flex -translate-y-1/2 translate-x-1/2 rounded-full bg-violet-700 px-3 py-1 text-xs font-semibold text-white shadow-lg shadow-violet-700/20">
+                    {progress.toFixed(2).replace(".", ",")}%
+                  </span>
+                </div>
+              </div>
+              <div className="mt-3 flex items-center justify-between text-sm font-medium text-slate-700 dark:text-slate-300">
+                <span>0 {unitLabel}</span>
+                <span>
+                  {formatValue(goal.target)} {unitLabel}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-6 flex items-center justify-between gap-3 rounded-[1.4rem] border border-violet-200 bg-violet-50/80 px-4 py-4 text-sm text-slate-800 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+              <span className="flex items-center gap-3">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-violet-600/10 text-violet-700 dark:text-slate-400">
+                  <Info className="h-3.5 w-3.5" />
+                </span>
+                O valor atual é atualizado automaticamente conforme você adiciona valores diários.
+              </span>
+              <span className="inline-flex items-center gap-2 font-semibold text-violet-700 dark:text-slate-400">
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                Meta contínua
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-6 rounded-[2rem] border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.03] sm:p-6">
+            <div className="grid gap-6 lg:grid-cols-4 lg:divide-x lg:divide-slate-200 lg:dark:divide-white/10">
+              <div className="pr-0 lg:pr-6">
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Categoria</p>
+                <p className="mt-1 text-lg font-semibold text-slate-950 dark:text-slate-300">{goal.category}</p>
+              </div>
+              <div className="pr-0 lg:px-6">
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Período</p>
+                <p className="mt-1 text-lg font-semibold text-slate-950 dark:text-slate-300">{goal.period}</p>
+              </div>
+              <div className="pr-0 lg:px-6">
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Responsáveis</p>
+                <div className="mt-2">
+                  <GoalResponsibleAvatars members={assignees.length > 0 ? assignees : teamMembers.slice(0, 1)} />
+                </div>
+              </div>
+              <div className="lg:pl-6">
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Data limite</p>
+                <p className="mt-1 text-lg font-semibold text-slate-950 dark:text-slate-300">{deadlineLabel}</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">{deadlineTimeLabel}</p>
+              </div>
+            </div>
+          </div>
+
+            <div className="mt-6 rounded-[2rem] border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.03] sm:p-6">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <h4 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-300">Adicionar visualizações do dia</h4>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                  Registre o valor conquistado hoje para atualizar o progresso da meta.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 rounded-[1.75rem] border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/5">
+              <div className="grid gap-4 lg:grid-cols-[0.95fr_1.2fr_auto] lg:items-end">
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Data</span>
+                  <input
+                    data-cy="goal-daily-date-input"
+                    type="date"
+                    value={dailyDate}
+                    onChange={(event) => setDailyDate(event.target.value)}
+                    className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-950 placeholder:text-slate-400 outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-300 dark:placeholder:text-slate-500"
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Visualizações de hoje</span>
+                  <input
+                    data-cy="goal-daily-value-input"
+                    type="number"
+                    min="0"
+                    inputMode="numeric"
+                    value={dailyValue}
+                    onChange={(event) => setDailyValue(event.target.value)}
+                    placeholder="6000"
+                    className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-950 placeholder:text-slate-400 outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-300 dark:placeholder:text-slate-500"
+                  />
+                </label>
+                <button
+                  type="button"
+                  data-cy="goal-daily-submit"
+                  onClick={() => {
+                    onAddDailyValue({
+                      date: dailyDate || formatDateKey(new Date()),
+                      value: Number(dailyValue),
+                    });
+                    setDailyValue("");
+                  }}
+                  disabled={!dailyValue || Number(dailyValue) <= 0}
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-700 to-violet-600 px-5 text-sm font-semibold text-white shadow-lg shadow-violet-700/20 transition hover:from-violet-600 hover:to-violet-500 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Plus className="h-4 w-4" />
+                  Adicionar valor
+                </button>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-[1.4rem] border border-emerald-200 bg-emerald-50/90 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-100">
+                <span className="flex items-center gap-2 font-medium">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                  </span>
+                  Após adicionar este valor, o total acumulado será:
+                </span>
+                <span className="inline-flex items-center gap-3 text-base font-semibold text-emerald-800 dark:text-emerald-100">
+                  {formatValue(projectedTotal)} {unitLabel}
+                  <span className="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-emerald-700 shadow-sm dark:bg-white/10 dark:text-emerald-100">
+                    ↑ {Math.max(progressDelta, 0).toFixed(2).replace(".", ",")}%
+                  </span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 rounded-[2rem] border border-slate-200 bg-slate-50/80 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-white/[0.03] sm:p-6">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <h4 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-300">Histórico de valores</h4>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Acompanhe todos os valores adicionados à meta.</p>
+              </div>
+              <span className="rounded-full bg-slate-200/80 px-3 py-1 text-xs font-semibold text-slate-700 dark:bg-white/5 dark:text-slate-400">
+                {historyCountLabel}
+              </span>
+            </div>
+
+            <div className="mt-5 overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.04]">
+              <div className="grid grid-cols-[1.1fr_.9fr_.9fr_1fr_auto] gap-4 border-b border-slate-200 bg-slate-100/80 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300">
+                <span>Data</span>
+                <span>Visualizações adicionadas</span>
+                <span>Total acumulado</span>
+                <span>Adicionado por</span>
+                <span />
+              </div>
+
+              <div className="divide-y divide-slate-200 dark:divide-white/10">
+                {visibleHistory.length > 0 ? (
+                  visibleHistory.map((entry, index) => {
+                    const member = teamMembers.find((item) => item.id === entry.addedById) ?? teamMembers[0];
+                    const isNewest = index === 0;
+
+                    return (
+                      <div
+                        key={entry.id}
+                        data-cy="goal-history-row"
+                        className={cn(
+                          "grid grid-cols-[1.1fr_.9fr_.9fr_1fr_auto] items-center gap-4 px-4 py-4 text-sm",
+                          isNewest && "bg-violet-50/70 dark:bg-white/[0.03]",
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-slate-950 dark:text-slate-300">
+                            {formatGoalEntryDate(entry.date)}
+                          </span>
+                          {isNewest ? (
+                            <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200">
+                              Mais recente
+                            </span>
+                          ) : null}
+                        </div>
+                        <span className="font-semibold text-slate-950 dark:text-slate-300">{formatValue(entry.value)}</span>
+                        <span className="font-semibold text-slate-950 dark:text-slate-300">{formatValue(entry.total)}</span>
+                        <div className="flex items-center gap-3">
+                          <span
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold text-white shadow-sm"
+                            style={{ backgroundColor: member?.color ?? "#7c3aed" }}
+                          >
+                            {member?.name?.charAt(0) ?? "A"}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-slate-950 dark:text-slate-300">{member?.name ?? "Autor"}</p>
+                            <p className="text-xs text-slate-600 dark:text-slate-400">{member?.role ?? "Responsável"}</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-600 transition hover:border-slate-400 hover:text-slate-900 dark:border-white/10 dark:bg-slate-950/30 dark:text-slate-300 dark:hover:text-slate-100"
+                          aria-label="Mais opções"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </button>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="px-4 py-8 text-sm text-slate-600 dark:text-slate-300">
+                    Nenhum valor foi adicionado ainda.
+                  </div>
+                )}
+              </div>
+
+              {history.length > visibleHistory.length ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAllHistory((value) => !value)}
+                  className="flex w-full items-center justify-center gap-2 border-t border-slate-200 bg-slate-100/70 px-4 py-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-200/70 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-400 dark:hover:bg-white/[0.06]"
+                >
+                  {showAllHistory ? "Mostrar menos" : "Ver todos os lançamentos"}
+                  <ChevronRight className={cn("h-4 w-4 transition", showAllHistory && "rotate-90")} />
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-slate-200 pt-5 dark:border-white/10">
+              <ActionButton variant="secondary" onClick={onClose}>
+                Cancelar
+              </ActionButton>
+            </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function getGoalView(goal: Goal) {
   return getGoalResponsibleIds(goal).length > 1 ? "group" : "individual";
 }
@@ -391,19 +920,14 @@ export function GoalsPage() {
   const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
   const [items, setItems] = useSupabaseSyncedListState({ key: "goals", table: "goals", fallback: goals });
-  const [, setHistoryEvents] = useSupabaseSyncedListState<HistoryEvent>({
-    key: "history",
-    table: "history_events",
-    fallback: historyTimeline,
-  });
   const [teamScope] = useTeamScope();
   const [goalView, setGoalView] = useState<GoalView>("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingGoalId, setEditingGoalId] = useState<number | null>(null);
+  const [goalModalMode, setGoalModalMode] = useState<GoalModalMode>("form");
   const [pendingDelete, setPendingDelete] = useState<{ goalId: number; goalName: string } | null>(null);
   const [form, setForm] = useState<GoalFormState>(() => createInitialGoalForm(teamMembers));
-  const [checklistDraft, setChecklistDraft] = useState("");
-  const goalSeedMigrationAppliedRef = useRef(false);
+  const migratedGoalsRef = useRef(false);
 
   const teamCards = teamMembers as TeamMemberCard[];
   const editingGoal = useMemo(() => items.find((goal) => goal.id === editingGoalId) ?? null, [editingGoalId, items]);
@@ -451,57 +975,44 @@ export function GoalsPage() {
   }, [isCreateOpen]);
 
   useEffect(() => {
-    if (!isCreateOpen || !editingGoal) {
-      return;
-    }
-
-    setForm({
-      name: editingGoal.name,
-      category: editingGoal.category,
-      description: editingGoal.description,
-      target: String(editingGoal.target),
-      current: String(editingGoal.current),
-      period: editingGoal.period,
-      deadline: editingGoal.deadline,
-      deadlineTime: editingGoal.deadlineTime ?? "18:00",
-      responsibleIds: getGoalResponsibleIds(editingGoal),
-      checklist: editingGoal.checklist ?? [],
-    });
-  }, [editingGoal, isCreateOpen]);
-
-  useEffect(() => {
-    if (goalSeedMigrationAppliedRef.current || items.length === 0) {
+    if (migratedGoalsRef.current || teamCards.length < 2 || items.length === 0) {
       return;
     }
 
     if (items.some((goal) => getGoalView(goal) === "group")) {
-      goalSeedMigrationAppliedRef.current = true;
+      migratedGoalsRef.current = true;
       return;
     }
 
-    const legacyResponsibleMap = new Map<number, number[]>([
-      [1, [1, 2]],
-      [2, [2, 3]],
-      [4, [1, 2, 3]],
-    ]);
-
-    const nextItems = items.map((goal) => {
-      const nextResponsibleIds = legacyResponsibleMap
-        .get(goal.id)
-        ?.filter((memberId) => teamCards.some((member) => member.id === memberId));
-
-      if (!nextResponsibleIds || nextResponsibleIds.length === 0) {
-        return goal;
+    const nextItems = items.map((goal, index) => {
+      if (index === 0) {
+        return {
+          ...goal,
+          responsibleId: teamCards[0].id,
+          responsibleIds: [teamCards[0].id, teamCards[1].id],
+        };
       }
 
-      return {
-        ...goal,
-        responsibleId: nextResponsibleIds[0],
-        responsibleIds: nextResponsibleIds,
-      };
+      if (index === 1 && teamCards[2]) {
+        return {
+          ...goal,
+          responsibleId: teamCards[1].id,
+          responsibleIds: [teamCards[1].id, teamCards[2].id],
+        };
+      }
+
+      if (index === 4) {
+        return {
+          ...goal,
+          responsibleId: teamCards[1].id,
+          responsibleIds: teamCards.map((member) => member.id),
+        };
+      }
+
+      return goal;
     });
 
-    goalSeedMigrationAppliedRef.current = true;
+    migratedGoalsRef.current = true;
     setItems(nextItems);
   }, [items, setItems, teamCards]);
 
@@ -517,39 +1028,27 @@ export function GoalsPage() {
 
   function openCreateGoal() {
     setEditingGoalId(null);
+    setGoalModalMode("form");
     setForm(createInitialGoalForm(teamCards));
-    setChecklistDraft("");
     setIsCreateOpen(true);
   }
 
-  function openEditGoal(goalId: number) {
+  function openGoalDetail(goalId: number) {
     const goal = items.find((item) => item.id === goalId);
     if (!goal) {
       return;
     }
 
     setEditingGoalId(goalId);
-    setForm({
-      name: goal.name,
-      category: goal.category,
-      description: goal.description,
-      target: String(goal.target),
-      current: String(goal.current),
-      period: goal.period,
-      deadline: goal.deadline,
-      deadlineTime: goal.deadlineTime ?? "18:00",
-      responsibleIds: getGoalResponsibleIds(goal),
-      checklist: goal.checklist ?? [],
-    });
-    setChecklistDraft("");
+    setGoalModalMode("detail");
     setIsCreateOpen(true);
   }
 
   function closeModal() {
     setIsCreateOpen(false);
     setEditingGoalId(null);
+    setGoalModalMode("form");
     setForm(createInitialGoalForm(teamCards));
-    setChecklistDraft("");
   }
 
   const toggleResponsible = (memberId: number) => {
@@ -574,45 +1073,9 @@ export function GoalsPage() {
     }));
   };
 
-  const addChecklistItem = (label: string) => {
-    const normalizedLabel = label.trim();
-
-    if (!normalizedLabel) {
-      return;
-    }
-
-    setForm((previous) => ({
-      ...previous,
-      checklist: [...previous.checklist, createChecklistItem(normalizedLabel)],
-    }));
-  };
-
-  const updateChecklistItem = (itemId: string, nextLabel: string) => {
-    setForm((previous) => ({
-      ...previous,
-      checklist: previous.checklist.map((item) => (item.id === itemId ? { ...item, label: nextLabel } : item)),
-    }));
-  };
-
-  const toggleChecklistItem = (itemId: string) => {
-    setForm((previous) => ({
-      ...previous,
-      checklist: previous.checklist.map((item) => (item.id === itemId ? { ...item, done: !item.done } : item)),
-    }));
-  };
-
-  const removeChecklistItem = (itemId: string) => {
-    setForm((previous) => ({
-      ...previous,
-      checklist: previous.checklist.filter((item) => item.id !== itemId),
-    }));
-  };
-
   const handleSaveGoal = () => {
     const target = Number(form.target);
-    const current = Number(form.current);
     const selectedResponsibleIds = form.responsibleIds.length > 0 ? form.responsibleIds : teamCards[0] ? [teamCards[0].id] : [];
-    const uniqueResponsibleIds = selectedResponsibleIds.filter((value, index, array) => array.indexOf(value) === index);
 
     if (
       !form.name.trim() ||
@@ -620,63 +1083,41 @@ export function GoalsPage() {
       !form.deadline.trim() ||
       !form.deadlineTime.trim() ||
       Number.isNaN(target) ||
-      Number.isNaN(current) ||
-      !Number.isInteger(target) ||
-      !Number.isInteger(current) ||
-      target <= 0 ||
-      current < 0 ||
-      uniqueResponsibleIds.length === 0
+      selectedResponsibleIds.length === 0
     ) {
-      toast.error("Preencha nome, responsáveis, descrição, data, horário, meta e atual com valores válidos.");
+      toast.error("Preencha nome, responsáveis, descrição, data, horário e meta.");
       return;
     }
 
     const goalPayload: Omit<Goal, "id"> = {
       name: form.name.trim(),
       category: form.category,
-      responsibleId: uniqueResponsibleIds[0],
-      responsibleIds: uniqueResponsibleIds,
+      status: form.status,
+      priority: form.priority,
+      notes: form.notes.trim(),
+      responsibleId: selectedResponsibleIds[0],
+      responsibleIds: selectedResponsibleIds,
       target,
-      current,
+      current: 0,
       period: form.period,
       deadline: form.deadline,
       deadlineTime: form.deadlineTime,
       description: form.description.trim(),
       checklist: form.checklist.map((item) => ({ ...item, label: item.label.trim() })).filter((item) => item.label.length > 0),
+      history: undefined,
     };
 
     if (editingGoalId !== null) {
       setItems((previous) => previous.map((goal) => (goal.id === editingGoalId ? { ...goal, ...goalPayload } : goal)));
-      setHistoryEvents((previous) =>
-        upsertHistoryEvent(
-          previous,
-          buildGoalHistoryEvent(
-            { id: editingGoalId, ...goalPayload },
-            teamCards.find((member) => member.id === uniqueResponsibleIds[0])?.name ?? "Equipe",
-            "updated",
-          ),
-        ),
-      );
       toast.success("Meta atualizada com sucesso.");
     } else {
-      const nextGoalId = Math.max(...items.map((goal) => goal.id), 0) + 1;
       setItems((previous) => [
         {
-          id: nextGoalId,
+          id: Math.max(...previous.map((goal) => goal.id), 0) + 1,
           ...goalPayload,
         },
         ...previous,
       ]);
-      setHistoryEvents((previous) =>
-        upsertHistoryEvent(
-          previous,
-          buildGoalHistoryEvent(
-            { id: nextGoalId, ...goalPayload },
-            teamCards.find((member) => member.id === uniqueResponsibleIds[0])?.name ?? "Equipe",
-            "created",
-          ),
-        ),
-      );
       toast.success("Meta criada com sucesso.");
     }
 
@@ -691,7 +1132,6 @@ export function GoalsPage() {
     }
 
     setItems((previous) => previous.filter((goal) => goal.id !== goalId));
-    setHistoryEvents((previous) => removeHistoryEvent(previous, getGoalHistoryId(goalId)));
     setPendingDelete(null);
     toast.success("Meta apagada com sucesso.", {
       action: {
@@ -704,19 +1144,47 @@ export function GoalsPage() {
 
             return [removedGoal, ...previous];
           });
-          setHistoryEvents((previous) =>
-            upsertHistoryEvent(
-              previous,
-              buildGoalHistoryEvent(
-                removedGoal,
-                teamCards.find((member) => member.id === getGoalResponsibleIds(removedGoal)[0])?.name ?? "Equipe",
-                "updated",
-              ),
-            ),
-          );
         },
       },
     });
+  };
+
+  const handleAddDailyValue = ({ date, value }: { date: string; value: number }) => {
+    if (editingGoalId === null || !Number.isFinite(value) || value <= 0) {
+      toast.error("Informe um valor diário válido.");
+      return;
+    }
+
+    const selectedGoal = items.find((goal) => goal.id === editingGoalId);
+    if (!selectedGoal) {
+      return;
+    }
+
+    const currentTotal = Math.max(selectedGoal.current, 0);
+    const nextTotal = currentTotal + value;
+    const responsibleIds = getGoalResponsibleIds(selectedGoal);
+    const addedById = responsibleIds[0] ?? teamCards[0]?.id ?? 1;
+    const nextEntry: GoalValueEntry = {
+      id: `goal-entry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      date,
+      value,
+      total: nextTotal,
+      addedById,
+    };
+
+    setItems((previous) =>
+      previous.map((goal) =>
+        goal.id === editingGoalId
+          ? {
+              ...goal,
+              current: nextTotal,
+              history: [nextEntry, ...(goal.history ?? [])],
+            }
+          : goal,
+      ),
+    );
+
+    toast.success("Valor diário adicionado com sucesso.");
   };
 
   return (
@@ -726,7 +1194,7 @@ export function GoalsPage() {
           eyebrow="Execution"
           title="Metas vivas e conectadas ao time"
           actions={
-            <ActionButton onClick={openCreateGoal}>
+            <ActionButton dataCy="goal-create-open" onClick={openCreateGoal}>
               <Plus className="h-4 w-4" />
               Nova Meta
             </ActionButton>
@@ -740,9 +1208,9 @@ export function GoalsPage() {
               isDark
                 ? undefined
                 : {
-                    background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246,252,245,0.96))",
-                    borderColor: "rgba(209,233,204,0.82)",
-                    boxShadow: "0 18px 48px rgba(34,197,94,0.06)",
+                    background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(251,251,253,0.96))",
+                    borderColor: "rgba(229,231,238,0.82)",
+                    boxShadow: "0 18px 48px rgba(15,23,42,0.08)",
                   }
             }
           >
@@ -755,9 +1223,9 @@ export function GoalsPage() {
               isDark
                 ? undefined
                 : {
-                    background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246,252,245,0.96))",
-                    borderColor: "rgba(209,233,204,0.82)",
-                    boxShadow: "0 18px 48px rgba(34,197,94,0.06)",
+                    background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(251,251,253,0.96))",
+                    borderColor: "rgba(229,231,238,0.82)",
+                    boxShadow: "0 18px 48px rgba(15,23,42,0.08)",
                   }
             }
           >
@@ -770,9 +1238,9 @@ export function GoalsPage() {
               isDark
                 ? undefined
                 : {
-                    background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246,252,245,0.96))",
-                    borderColor: "rgba(209,233,204,0.82)",
-                    boxShadow: "0 18px 48px rgba(34,197,94,0.06)",
+                    background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(251,251,253,0.96))",
+                    borderColor: "rgba(229,231,238,0.82)",
+                    boxShadow: "0 18px 48px rgba(15,23,42,0.08)",
                   }
             }
           >
@@ -797,14 +1265,14 @@ export function GoalsPage() {
         </div>
 
         <GlassPanel
-          className="border-emerald-200/60 bg-white/80 p-4 shadow-[0_14px_40px_rgba(34,197,94,0.06)]"
+          className="border-primary/10 bg-white/80 p-4 shadow-[0_14px_40px_rgba(15,23,42,0.06)]"
           style={
             isDark
               ? undefined
               : {
-                  background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246,252,245,0.96))",
-                  borderColor: "rgba(209,233,204,0.82)",
-                  boxShadow: "0 16px 42px rgba(34,197,94,0.06)",
+                  background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(251,251,253,0.96))",
+                  borderColor: "rgba(229,231,238,0.82)",
+                  boxShadow: "0 16px 42px rgba(15,23,42,0.08)",
                 }
           }
         >
@@ -855,7 +1323,7 @@ export function GoalsPage() {
             const progress = checklistProgress ?? (goal.current / goal.target) * 100;
             const progressDone = Math.min(Math.max(progress, 0), 100);
             const progressLeft = Math.max(0, 100 - progressDone);
-            const statusText = `${progressDone.toFixed(0)}% feito · ${progressLeft.toFixed(0)}% faltam`;
+            const statusText = `${progressDone.toFixed(0)}% feito • ${progressLeft.toFixed(0)}% faltam`;
             const deadline = parseDateKey(goal.deadline);
             const deadlineLabel = deadline
               ? `${new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).format(deadline)}${goal.deadlineTime ? ` • ${formatDeadlineTimeLabel(goal.deadlineTime)}` : ""}`
@@ -867,16 +1335,7 @@ export function GoalsPage() {
             return (
               <div
                 key={goal.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => openEditGoal(goal.id)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    openEditGoal(goal.id);
-                  }
-                }}
-                className="group relative h-full cursor-pointer transition hover:-translate-y-0.5"
+                className="group relative h-full"
               >
                 <GlassPanel
                   index={index + 1}
@@ -913,11 +1372,12 @@ export function GoalsPage() {
                     type="button"
                     onClick={(event) => {
                       event.stopPropagation();
-                      openEditGoal(goal.id);
+                      openGoalDetail(goal.id);
                     }}
+                    data-cy="goal-daily-open"
                     className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-white text-muted-foreground shadow-sm transition hover:border-primary/25 hover:text-foreground dark:border-white/8 dark:bg-card/90"
-                    aria-label="Editar meta"
-                    title="Editar meta"
+                    aria-label="Lançar valor diário"
+                    title="Lançar valor diário"
                   >
                     <PencilLine className="h-4 w-4" />
                   </button>
@@ -926,7 +1386,7 @@ export function GoalsPage() {
                       event.stopPropagation();
                     }}
                   >
-                    <DeleteIconButton onClick={() => setPendingDelete({ goalId: goal.id, goalName: goal.name })} />
+                    <DeleteIconButton dataCy="goal-delete-button" onClick={() => setPendingDelete({ goalId: goal.id, goalName: goal.name })} />
                   </div>
                 </div>
 
@@ -935,7 +1395,7 @@ export function GoalsPage() {
                     <div className="min-w-0 space-y-3">
                       <h2 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">{goal.name}</h2>
                       {assignees.length > 0 ? (
-                        <GoalMemberStack members={assignees} color={primaryMember?.color ?? "#e50914"} />
+                          <GoalMemberStack members={assignees} color={primaryMember?.color ?? "#e50914"} />
                       ) : null}
                     </div>
 
@@ -972,293 +1432,314 @@ export function GoalsPage() {
           })}
         </div>
 
-        {isCreateOpen ? (
+        {isCreateOpen && editingGoalId !== null && goalModalMode === "detail" && editingGoal ? (
+          <GoalDetailModal
+            goal={editingGoal}
+            teamMembers={teamCards}
+            onClose={closeModal}
+            onDeleteGoal={() => handleDeleteGoal(editingGoal.id)}
+            onAddDailyValue={handleAddDailyValue}
+            formatValue={formatValue}
+          />
+        ) : null}
+
+        {isCreateOpen && goalModalMode === "form" ? (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 backdrop-blur-md sm:p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/25 p-3 backdrop-blur-sm sm:p-4"
             onClick={closeModal}
           >
             <div
-            className="w-full max-w-[min(94vw,920px)] max-h-[calc(100vh-24px)] overflow-y-auto overscroll-contain rounded-[2.5rem] border border-border/60 bg-white shadow-[0_34px_110px_rgba(15,23,42,0.24)] dark:border-white/8 dark:bg-card/98 sm:max-h-[calc(100vh-32px)] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+              className={goalModalShellClass}
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="block">
-                <div className="p-5 sm:p-6">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h3 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-                        Nova Meta
+              <div className="p-5 sm:p-6 lg:p-8">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="flex min-w-0 items-start gap-4">
+                    <span className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.5rem] bg-primary/10 text-primary shadow-sm ring-1 ring-primary/10">
+                      <Target className="h-7 w-7" />
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-[28px]">
+                        Nova meta
                       </h3>
+                      <p className="mt-1 text-sm text-slate-600">
+                        Crie uma meta e acompanhe os resultados da equipe com clareza.
+                      </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={closeModal}
-                      className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
                   </div>
 
-                  <div className="mt-5 grid gap-4 md:grid-cols-2">
-                    <label className="grid gap-2 md:col-span-2">
-                      <span className="text-sm font-medium text-foreground">Nome da meta</span>
-                      <input
-                        value={form.name}
-                        onChange={(event) => setForm((previous) => ({ ...previous, name: event.target.value }))}
-                        placeholder="Ex.: Lançar 12 reels no mês"
-                        className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:bg-white/5"
-                      />
-                    </label>
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
 
-                    <label className="grid gap-2">
-                      <span className="text-sm font-medium text-foreground">Categoria</span>
-                      <input
-                        value={form.category}
-                        onChange={(event) => setForm((previous) => ({ ...previous, category: event.target.value }))}
-                        className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:bg-white/5"
-                      />
-                    </label>
+                <label className="mt-6 grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">Nome da meta</span>
+                  <input
+                    data-cy="goal-name-input"
+                    value={form.name}
+                    onChange={(event) => setForm((previous) => ({ ...previous, name: event.target.value }))}
+                    placeholder="Ex.: Aumentar alcance do mês"
+                    className={goalModalFieldClass}
+                  />
+                </label>
 
-                    <label className="grid gap-2">
-                      <span className="text-sm font-medium text-foreground">Período</span>
-                      <select
-                        value={form.period}
-                        onChange={(event) => setForm((previous) => ({ ...previous, period: event.target.value }))}
-                        className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:bg-white/5"
-                      >
-                        <option value="Semana">Semana</option>
-                        <option value="Mês">Mês</option>
-                        <option value="Trimestre">Trimestre</option>
-                        <option value="Ano">Ano</option>
-                      </select>
-                    </label>
-
-                    <div className="md:col-span-2">
-                      <span className="mb-2 block text-sm font-medium text-foreground">Responsáveis</span>
-                      <div className="rounded-[2.25rem] border border-border/70 bg-muted/20 p-4">
-                        <div className="mb-4 flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-foreground">Selecione uma ou várias pessoas</p>
-                            <p className="text-xs text-muted-foreground">
-                              A meta pode ser individual ou compartilhada por 2 ou 3 pessoas.
-                            </p>
-                          </div>
-                          <span className="inline-flex items-center gap-2 rounded-full bg-background px-3 py-1 text-xs font-semibold text-muted-foreground shadow-sm dark:bg-card/80">
-                            <Users className="h-3.5 w-3.5" />
-                            {form.responsibleIds.length} selecionado{form.responsibleIds.length === 1 ? "" : "s"}
-                          </span>
-                        </div>
-                        <div className="mb-4 flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setQuickResponsibleCount(1)}
-                            className={cn(
-                              "rounded-full border px-3 py-2 text-xs font-semibold transition",
-                              form.responsibleIds.length === 1
-                                ? "border-primary bg-primary text-primary-foreground"
-                                : "border-border/60 bg-background text-foreground hover:border-primary/25 hover:bg-primary/5",
-                            )}
-                          >
-                            1 pessoa
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setQuickResponsibleCount(2)}
-                            className={cn(
-                              "rounded-full border px-3 py-2 text-xs font-semibold transition",
-                              form.responsibleIds.length === 2
-                                ? "border-primary bg-primary text-primary-foreground"
-                                : "border-border/60 bg-background text-foreground hover:border-primary/25 hover:bg-primary/5",
-                            )}
-                          >
-                            2 pessoas
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setQuickResponsibleCount(3)}
-                            className={cn(
-                              "rounded-full border px-3 py-2 text-xs font-semibold transition",
-                              form.responsibleIds.length >= 3
-                                ? "border-primary bg-primary text-primary-foreground"
-                                : "border-border/60 bg-background text-foreground hover:border-primary/25 hover:bg-primary/5",
-                            )}
-                          >
-                            3 pessoas
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setForm((previous) => ({ ...previous, responsibleIds: [] }))}
-                            className="rounded-full border border-border/60 bg-background px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:border-primary/20 hover:text-foreground"
-                          >
-                            Limpar
-                          </button>
-                        </div>
-                        <GoalAssigneeChips members={teamCards} selectedIds={form.responsibleIds} onToggle={toggleResponsible} />
-                      </div>
-                      {form.responsibleIds.length > 0 ? (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {teamCards
-                            .filter((member) => form.responsibleIds.includes(member.id))
-                            .map((member) => (
-                              <button
-                                key={member.id}
-                                type="button"
-                                onClick={() => toggleResponsible(member.id)}
-                                className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-rose-50 dark:bg-card/80 dark:hover:bg-white/5"
-                              >
-                                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: member.color }} />
-                                {member.name}
-                                <X className="h-3 w-3 text-muted-foreground" />
-                              </button>
-                            ))}
-                        </div>
-                      ) : null}
+                <div className={cn(goalSectionCardClass, "mt-6 p-5 sm:p-6")}>
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-violet-500">Meta contínua</p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        Defina o objetivo da meta. Depois, cada valor diário adicionado aumenta automaticamente o acumulado.
+                      </p>
                     </div>
+                    <span className="inline-flex items-center rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-600 ring-1 ring-violet-100">
+                      Acúmulo automático
+                    </span>
+                  </div>
 
-                    <div className="md:col-span-2">
-                      <div className="mb-2 flex items-center justify-between gap-3">
-                        <div>
-                          <span className="block text-sm font-medium text-foreground">Data limite</span>
-                        </div>
-                      </div>
-                      <div className="grid gap-3 md:grid-cols-[1.3fr_0.7fr]">
-                        <GoalDatePicker
-                          value={form.deadline}
-                          onChange={(value) => setForm((previous) => ({ ...previous, deadline: value }))}
-                        />
-                        <GoalTimeInput
-                          value={form.deadlineTime}
-                          onChange={(value) => setForm((previous) => ({ ...previous, deadlineTime: value }))}
+                  <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_0.9fr]">
+                    <label className="grid gap-2">
+                      <span className="text-sm font-medium text-slate-700">Meta (objetivo)</span>
+                      <div className="relative">
+                        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-violet-500">
+                          <Target className="h-4 w-4" />
+                        </span>
+                        <input
+                          data-cy="goal-target-input"
+                          value={form.target}
+                          onChange={(event) => setForm((previous) => ({ ...previous, target: event.target.value }))}
+                          inputMode="decimal"
+                          placeholder="Ex.: 12000"
+                          className={cn(goalModalFieldClass, "w-full py-3 pl-11 pr-4 font-semibold")}
                         />
                       </div>
-                    </div>
-
-                    <label className="grid gap-2">
-                      <span className="text-sm font-medium text-foreground">Meta</span>
-                      <input
-                        value={form.target}
-                        onChange={(event) => setForm((previous) => ({ ...previous, target: event.target.value }))}
-                        inputMode="numeric"
-                        placeholder="Ex.: 120000"
-                        className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:bg-white/5"
-                      />
                     </label>
 
-                    <label className="grid gap-2">
-                      <span className="text-sm font-medium text-foreground">Atual</span>
-                      <input
-                        value={form.current}
-                        onChange={(event) => setForm((previous) => ({ ...previous, current: event.target.value }))}
-                        inputMode="numeric"
-                        placeholder="Ex.: 84500"
-                        className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:bg-white/5"
-                      />
-                    </label>
-
-                    <label className="grid gap-2 md:col-span-2">
-                      <span className="text-sm font-medium text-foreground">Descrição</span>
-                      <textarea
-                        value={form.description}
-                        onChange={(event) => setForm((previous) => ({ ...previous, description: event.target.value }))}
-                        rows={5}
-                        placeholder="Explique o objetivo, o contexto e o que precisa acontecer para a meta ser concluída."
-                        className="rounded-[1.5rem] border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:bg-white/5"
-                      />
-                    </label>
-
-                    <div className="grid gap-3 md:col-span-2">
+                    <div className="rounded-[1.6rem] border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-slate-50 p-4 shadow-sm">
                       <div className="flex items-center justify-between gap-3">
                         <div>
-                          <span className="text-sm font-medium text-foreground">Checklist da meta</span>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-500">Após criar</p>
+                          <p className="mt-1 text-lg font-semibold text-slate-900">Contínuo</p>
                         </div>
-                        <span className="rounded-full bg-muted/50 px-3 py-1 text-xs font-semibold text-muted-foreground">
-                          {form.checklist.filter((item) => item.done).length}/{form.checklist.length || 0} concluídas
+                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-violet-100 text-violet-600 shadow-sm ring-1 ring-violet-200">
+                          <Plus className="h-5 w-5" />
                         </span>
                       </div>
-
-                      <div className="flex flex-col gap-2 rounded-[1.5rem] border border-border/70 bg-background p-3 sm:flex-row">
-                        <input
-                          value={checklistDraft}
-                          onChange={(event) => setChecklistDraft(event.target.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") {
-                              event.preventDefault();
-                              addChecklistItem(checklistDraft);
-                              setChecklistDraft("");
-                            }
-                          }}
-                          placeholder="Ex.: Escrever roteiro da etapa 1"
-                          className="min-w-0 flex-1 rounded-2xl border border-border/70 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:bg-white/5"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            addChecklistItem(checklistDraft);
-                            setChecklistDraft("");
-                          }}
-                          className="inline-flex items-center justify-center rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90"
-                        >
-                          Adicionar item
-                        </button>
-                      </div>
-
-                      {form.checklist.length > 0 ? (
-                        <div className="space-y-2">
-                          {form.checklist.map((item) => (
-                            <div
-                              key={item.id}
-                              className="flex items-center gap-3 rounded-[1.35rem] border border-border/60 bg-white p-3 shadow-sm dark:bg-card/80"
-                            >
-                              <button
-                                type="button"
-                                onClick={() => toggleChecklistItem(item.id)}
-                                className={cn(
-                                  "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition",
-                                  item.done
-                                    ? "border-primary bg-primary text-primary-foreground"
-                                    : "border-border/60 bg-background text-transparent hover:border-primary/30",
-                                )}
-                                aria-label={item.done ? "Desmarcar item" : "Marcar item"}
-                              >
-                                ✓
-                              </button>
-                              <input
-                                value={item.label}
-                                onChange={(event) => updateChecklistItem(item.id, event.target.value)}
-                                className={cn(
-                                  "min-w-0 flex-1 bg-transparent text-sm outline-none",
-                                  item.done && "text-muted-foreground line-through",
-                                )}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => removeChecklistItem(item.id)}
-                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                                aria-label="Remover item"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
+                      <p className="mt-3 text-sm leading-6 text-slate-600">
+                        O valor atual fica zerado no início e cresce conforme os valores diários são lançados.
+                      </p>
                     </div>
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between gap-3 rounded-[1.35rem] border border-violet-100 bg-violet-50/60 px-4 py-3 text-sm text-slate-700">
+                    <span className="flex items-center gap-3">
+                      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-violet-100 text-violet-600">
+                        <Info className="h-3.5 w-3.5" />
+                      </span>
+                      O valor atual será atualizado automaticamente conforme você adicionar valores diários no card.
+                    </span>
+                    <span className="inline-flex items-center gap-2 font-semibold text-violet-600">
+                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                      Meta contínua
+                    </span>
                   </div>
                 </div>
 
-                  <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-border/60 pt-5">
-                    <ActionButton variant="secondary" onClick={closeModal}>
-                      Cancelar
-                    </ActionButton>
-                    <ActionButton onClick={handleSaveGoal}>
-                      <Plus className="h-4 w-4" />
-                      {editingGoalId !== null ? "Salvar alterações" : "Criar meta"}
-                    </ActionButton>
+                <div className="mt-6 grid gap-4 md:grid-cols-2">
+                  <label className="grid gap-2">
+                    <span className="text-sm font-medium text-slate-700">Categoria</span>
+                    <RoundedDropdown
+                      label="Categoria"
+                      value={form.category}
+                      forceLight
+                      options={[
+                        { label: "Alcance", value: "Alcance", color: "#3B82F6" },
+                        { label: "Engajamento", value: "Engajamento", color: "#8B5CF6" },
+                        { label: "Conversão", value: "Conversão", color: "#EF4444" },
+                        { label: "Autoridade", value: "Autoridade", color: "#F59E0B" },
+                      ]}
+                      onChange={(value) => setForm((previous) => ({ ...previous, category: value }))}
+                    />
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span className="text-sm font-medium text-slate-700">Período</span>
+                    <RoundedDropdown
+                      label="Período"
+                      value={form.period}
+                      forceLight
+                      options={[
+                        { label: "Semana", value: "Semana", color: "#60A5FA" },
+                        { label: "Mês", value: "Mês", color: "#A78BFA" },
+                        { label: "Trimestre", value: "Trimestre", color: "#F59E0B" },
+                        { label: "Ano", value: "Ano", color: "#34D399" },
+                      ]}
+                      onChange={(value) => setForm((previous) => ({ ...previous, period: value }))}
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <label className="grid gap-2">
+                    <span className="text-sm font-medium text-slate-700">Status</span>
+                    <RoundedDropdown
+                      label="Status"
+                      value={form.status}
+                      forceLight
+                      options={goalStatusOptions}
+                      onChange={(value) => setForm((previous) => ({ ...previous, status: value }))}
+                    />
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span className="text-sm font-medium text-slate-700">Prioridade</span>
+                    <RoundedDropdown
+                      label="Prioridade"
+                      value={form.priority}
+                      forceLight
+                      options={goalPriorityOptions}
+                      onChange={(value) => setForm((previous) => ({ ...previous, priority: value }))}
+                    />
+                  </label>
+                </div>
+
+                <div className={cn(goalSectionCardClass, "mt-6 grid gap-4 p-4 sm:p-5")}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <span className="text-sm font-medium text-slate-700">Responsáveis</span>
+                      <p className="text-xs text-slate-500">Selecione uma ou várias pessoas para acompanhar a meta.</p>
+                    </div>
+                    <span className={cn(goalBadgeClass, "gap-2 border border-slate-200 bg-slate-50 text-slate-700")}>
+                      <Users className="h-3.5 w-3.5" />
+                      {form.responsibleIds.length} selecionado{form.responsibleIds.length === 1 ? "" : "s"}
+                    </span>
                   </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setQuickResponsibleCount(1)}
+                      className={cn(
+                        "rounded-full border px-3 py-2 text-xs font-semibold transition",
+                        form.responsibleIds.length === 1
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-primary/40 hover:bg-slate-50",
+                      )}
+                    >
+                      1 pessoa
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQuickResponsibleCount(2)}
+                      className={cn(
+                        "rounded-full border px-3 py-2 text-xs font-semibold transition",
+                        form.responsibleIds.length === 2
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-primary/40 hover:bg-slate-50",
+                      )}
+                    >
+                      2 pessoas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQuickResponsibleCount(3)}
+                      className={cn(
+                        "rounded-full border px-3 py-2 text-xs font-semibold transition",
+                        form.responsibleIds.length >= 3
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-primary/40 hover:bg-slate-50",
+                      )}
+                    >
+                      3 pessoas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setForm((previous) => ({ ...previous, responsibleIds: [] }))}
+                      className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-primary/30 hover:bg-slate-50"
+                    >
+                      Limpar
+                    </button>
+                  </div>
+                  <GoalAssigneeChips members={teamCards} selectedIds={form.responsibleIds} onToggle={toggleResponsible} />
+                  {form.responsibleIds.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {teamCards
+                        .filter((member) => form.responsibleIds.includes(member.id))
+                        .map((member) => (
+                          <button
+                            key={member.id}
+                            type="button"
+                            onClick={() => toggleResponsible(member.id)}
+                            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                          >
+                            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: member.color }} />
+                            {member.name}
+                            <X className="h-3 w-3 text-slate-400" />
+                          </button>
+                        ))}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="mt-6 grid gap-3 md:grid-cols-[1.3fr_0.7fr]">
+                  <GoalDatePicker
+                    value={form.deadline}
+                    onChange={(value) => setForm((previous) => ({ ...previous, deadline: value }))}
+                  />
+                  <GoalTimeInput
+                    value={form.deadlineTime}
+                    onChange={(value) => setForm((previous) => ({ ...previous, deadlineTime: value }))}
+                  />
+                </div>
+
+                <label className="mt-6 grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">Descrição</span>
+                  <textarea
+                    data-cy="goal-description-input"
+                    value={form.description}
+                    onChange={(event) => setForm((previous) => ({ ...previous, description: event.target.value }))}
+                    rows={5}
+                    placeholder="Explique o objetivo, o contexto e o que precisa acontecer para a meta ser concluída."
+                    className={cn(goalModalFieldClass, "rounded-[1.5rem] min-h-[140px]")}
+                  />
+                </label>
+
+                <label className="mt-6 grid gap-2">
+                  <span className="text-sm font-medium text-slate-700">Observações</span>
+                  <textarea
+                    value={form.notes}
+                    onChange={(event) => setForm((previous) => ({ ...previous, notes: event.target.value }))}
+                    rows={4}
+                    placeholder="Anotações rápidas, contexto adicional ou instruções para o time."
+                    className={cn(goalModalFieldClass, "rounded-[1.5rem] min-h-[110px]")}
+                  />
+                </label>
+
+                <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-slate-200 pt-5">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition duration-200 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    data-cy="goal-save-button"
+                    onClick={handleSaveGoal}
+                    className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition duration-200 hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow-[0_18px_36px_rgba(255,59,78,0.24)]"
+                  >
+                    <Plus className="h-4 w-4" />
+                    {editingGoalId !== null ? "Salvar alterações" : "Criar meta"}
+                  </button>
                 </div>
               </div>
             </div>
+          </div>
         ) : null}
-
         {pendingDelete ? (
           <ConfirmDialog
             title="Tem certeza que deseja apagar?"

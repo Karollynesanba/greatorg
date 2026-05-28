@@ -1,0 +1,1369 @@
+﻿import { useMemo, useState, type ChangeEvent } from "react";
+import { Link } from "react-router-dom";
+import {
+  Eye,
+  FileText,
+  ImagePlus,
+  Pencil,
+  Plus,
+  Rocket,
+  Sparkles,
+  Target,
+  Trash2,
+  TrendingDown,
+  TrendingUp,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
+import { toast } from "sonner";
+import {
+  calendarEvents,
+  getGoalResponsibleIds,
+  storyLogs,
+  type CalendarEvent,
+  type ContentType,
+  type Goal,
+  type Post,
+  type PostStatus,
+  type StoryLog,
+} from "../data/mockData";
+import { usePosts } from "../data/posts";
+import { useTeamProfiles } from "../data/profiles";
+import { useSupabaseSyncedListState } from "../data/supabaseSync";
+import { matchesTeamScope, useTeamScope } from "../data/teamScope";
+import {
+  ActionButton,
+  Avatar,
+  ConfirmDialog,
+  GlassPanel,
+  PageHeader,
+  PageTransition,
+  ProgressBar,
+  RoundedDatePicker,
+  RoundedDropdown,
+  SectionTitle,
+  TypeBadge,
+  cn,
+  formatLongNumber,
+  formatPercent,
+} from "../components/ui";
+
+type OwnerFilter = "all" | 1 | 2 | 3;
+type ContentEditorMode = "create" | "edit";
+
+type MetricCard = {
+  id: string;
+  label: string;
+  value: string;
+  detail: string;
+  icon: LucideIcon;
+  delta: number;
+  onEdit?: () => void;
+};
+
+type ContentDraft = {
+  title: string;
+  description: string;
+  type: ContentType;
+  status: PostStatus;
+  authorId: number;
+  date: string;
+  thumbnail: string;
+  thumbnailName: string;
+  reach: string;
+  engagement: string;
+};
+
+type ProgressSummary = {
+  label: string;
+  score: number;
+  detail: string;
+  subtitle: string;
+};
+
+const storyGoalTarget = 168;
+const statusPalette: Record<string, { bg: string; text: string; border: string }> = {
+  Agendado: { bg: "#fff7ed", text: "#f97316", border: "#fdba74" },
+  "Em produção": { bg: "#eff6ff", text: "#2563eb", border: "#93c5fd" },
+  Aprovado: { bg: "#f0fdf4", text: "#16a34a", border: "#86efac" },
+  Publicado: { bg: "#f5f3ff", text: "#7c3aed", border: "#c4b5fd" },
+};
+
+function todayKey() {
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+function formatDate(value: string) {
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return value || "Sem data";
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return value || "Sem data";
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
+function emptyDraft(authorId: number): ContentDraft {
+  return {
+    title: "",
+    description: "",
+    type: "Reels",
+    status: "Agendado",
+    authorId,
+    date: todayKey(),
+    thumbnail: "",
+    thumbnailName: "",
+    reach: "",
+    engagement: "",
+  };
+}
+
+function StatusChip({ value }: { value: string }) {
+  const tone = statusPalette[value] ?? { bg: "#f8fafc", text: "#475569", border: "#cbd5e1" };
+
+  return (
+    <span
+      className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold"
+      style={{
+        backgroundColor: tone.bg,
+        color: tone.text,
+        borderColor: tone.border,
+      }}
+    >
+      {value}
+    </span>
+  );
+}
+
+function defaultThumbnail(type: ContentType) {
+  switch (type) {
+    case "Stories":
+      return "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=80";
+    case "Carrossel":
+      return "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=1200&q=80";
+    case "Feed":
+      return "https://images.unsplash.com/photo-1524850011238-e3d235c7d4c6?auto=format&fit=crop&w=1200&q=80";
+    default:
+      return "https://images.unsplash.com/photo-1516321497487-e288fb19713f?auto=format&fit=crop&w=1200&q=80";
+  }
+}
+
+function isImageDataUrl(value: string) {
+  return value.startsWith("data:image/");
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error ?? new Error("Falha ao ler o arquivo."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function buildPostFromDraft(draft: ContentDraft, existing?: Post): Post {
+  const reach = Math.max(0, Math.round(Number(draft.reach) || 0));
+  const engagement = Math.max(0, Math.round(Number(draft.engagement) || 0));
+  const authorId = draft.authorId;
+  const title = draft.title.trim() || "Novo conteúdo";
+  const description = draft.description.trim() || "Descrição do conteúdo";
+  const thumbnail = draft.thumbnail.trim() || existing?.thumbnail || defaultThumbnail(draft.type);
+  const approvalName = existing?.approval.approvedBy ?? "Equipe";
+
+  return {
+    id: existing?.id ?? 1,
+    title,
+    description,
+    type: draft.type,
+    authorId,
+    engagement,
+    reach,
+    date: draft.date,
+    thumbnail,
+    status: draft.status,
+    metrics: {
+      likes: Math.max(0, Math.round(engagement * 0.42)),
+      comments: Math.max(0, Math.round(engagement * 0.18)),
+      saves: Math.max(0, Math.round(engagement * 0.16)),
+      shares: Math.max(0, Math.round(engagement * 0.12)),
+    },
+    checklist: existing?.checklist ?? [],
+    comments: existing?.comments ?? [],
+    files: existing?.files ?? [],
+    script:
+      existing?.script ?? {
+        hook: "",
+        development: "",
+        solution: "",
+        cta: "",
+      },
+    approval:
+      existing?.approval ?? {
+        approvedBy: approvalName,
+        date: draft.date,
+      },
+  };
+}
+
+function computeGoalProgress(goals: Goal[]) {
+  const totalTargets = goals.reduce((sum, goal) => sum + Math.max(goal.target, 0), 0);
+  const totalCurrent = goals.reduce(
+    (sum, goal) => sum + Math.min(Math.max(goal.current, 0), Math.max(goal.target, 0)),
+    0,
+  );
+  const completed = goals.filter((goal) => goal.current >= goal.target).length;
+  const percent = totalTargets > 0 ? Math.round((totalCurrent / totalTargets) * 100) : 0;
+
+  return {
+    percent,
+    completed,
+    total: goals.length,
+    current: totalCurrent,
+    target: totalTargets,
+  };
+}
+
+function computeStoryProgress(stories: StoryLog[]) {
+  const total = stories.reduce((sum, story) => sum + Math.max(story.quantity, 0), 0);
+  const percent = storyGoalTarget > 0 ? Math.min(100, Math.round((total / storyGoalTarget) * 100)) : 0;
+
+  return {
+    percent,
+    total,
+    target: storyGoalTarget,
+  };
+}
+
+function getCalendarResponsibleIds(event: CalendarEvent) {
+  const ids = event.responsibleIds?.length ? event.responsibleIds : [event.responsibleId];
+  return Array.from(new Set(ids.filter((id) => Number.isFinite(id))));
+}
+
+function computeCalendarProgress(events: CalendarEvent[]) {
+  const total = events.length;
+  const percent = Math.min(100, total);
+
+  return {
+    percent,
+    total,
+  };
+}
+
+function isStoryMember(memberId: number) {
+  return memberId === 1;
+}
+
+function MetricTile({
+  icon: Icon,
+  label,
+  value,
+  detail,
+  delta,
+  onEdit,
+}: MetricCard) {
+  return (
+    <div className="rounded-[1.5rem] border border-slate-200/80 bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-50 text-violet-600">
+          <Icon className="h-5 w-5" />
+        </div>
+        <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold",
+              delta >= 0 ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600",
+            )}
+          >
+            {delta >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+            {formatPercent(delta, 0)}
+          </span>
+          {onEdit ? (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:border-primary/25 hover:text-primary"
+              aria-label={`Editar ${label}`}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
+        </div>
+      </div>
+      <p className="mt-4 text-sm text-slate-500">{label}</p>
+      <p className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">{value}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-500">{detail}</p>
+    </div>
+  );
+}
+
+function ContentEditorModal({
+  mode,
+  draft,
+  onChange,
+  onClose,
+  onSave,
+  teamMembers,
+}: {
+  mode: ContentEditorMode;
+  draft: ContentDraft;
+  onChange: (next: ContentDraft) => void;
+  onClose: () => void;
+  onSave: () => void;
+  teamMembers: Array<{ id: number; name: string; role: string }>;
+}) {
+  const title = mode === "create" ? "Adicionar card" : "Ajustar card";
+  const subtitle = "Edite os dados do conteúdo e salve para atualizar a plataforma inteira.";
+  const authorOptions = teamMembers.map((member) => ({
+    label: `${member.name} - ${member.role}`,
+    value: member.id,
+    color: member.id === 1 ? "#7c3aed" : member.id === 2 ? "#db2777" : "#3b82f6",
+  }));
+  const typeOptions = [
+    { label: "Reels", value: "Reels" as const, color: "#d946ef" },
+    { label: "Stories", value: "Stories" as const, color: "#f97316" },
+    { label: "Carrossel", value: "Carrossel" as const, color: "#22c55e" },
+    { label: "Feed", value: "Feed" as const, color: "#0ea5e9" },
+  ];
+  const statusOptions = [
+    { label: "Agendado", value: "Agendado" as const, color: "#f59e0b" },
+    { label: "Em produção", value: "Em produção" as PostStatus, color: "#3b82f6" },
+    { label: "Aprovado", value: "Aprovado" as const, color: "#22c55e" },
+    { label: "Publicado", value: "Publicado" as const, color: "#8b5cf6" },
+  ];
+  const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Envie um arquivo de imagem.");
+      event.target.value = "";
+      return;
+    }
+
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      onChange({ ...draft, thumbnail: dataUrl, thumbnailName: file.name });
+    } catch {
+      toast.error("Não foi possível carregar a imagem.");
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="w-full max-w-4xl overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.18)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 sm:px-8">
+          <div>
+            <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Conteúdo</p>
+            <h3 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{title}</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-500">{subtitle}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:text-slate-800"
+          >
+            <span className="text-lg leading-none">×</span>
+          </button>
+        </div>
+
+        <div className="grid gap-6 px-6 py-6 sm:px-8 lg:grid-cols-[1.05fr_0.95fr]">
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="grid gap-2 md:col-span-2">
+              <span className="text-sm font-medium text-slate-800">Título</span>
+              <input
+                value={draft.title}
+                onChange={(event) => onChange({ ...draft, title: event.target.value })}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                placeholder="Ex.: Antes e depois da landing page"
+              />
+            </label>
+
+            <label className="grid gap-2 md:col-span-2">
+              <span className="text-sm font-medium text-slate-800">Descrição</span>
+              <textarea
+                value={draft.description}
+                onChange={(event) => onChange({ ...draft, description: event.target.value })}
+                rows={4}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                placeholder="Explique o conteúdo, contexto e o objetivo..."
+              />
+            </label>
+
+            <RoundedDropdown
+              label="Tipo"
+              value={draft.type}
+              options={typeOptions}
+              onChange={(value) => onChange({ ...draft, type: value })}
+              placeholder="Selecionar tipo"
+            />
+
+            <RoundedDropdown
+              label="Status"
+              value={draft.status}
+              options={statusOptions}
+              onChange={(value) => onChange({ ...draft, status: value })}
+              placeholder="Selecionar status"
+            />
+
+            <label className="grid gap-2">
+              <span className="text-sm font-medium text-slate-800">Responsável</span>
+              <RoundedDropdown
+                label="Responsável"
+                value={draft.authorId}
+                options={authorOptions}
+                onChange={(value) => onChange({ ...draft, authorId: Number(value) })}
+                placeholder="Selecionar responsável"
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-sm font-medium text-slate-800">Data</span>
+              <RoundedDatePicker
+                label="Data"
+                value={draft.date}
+                onChange={(value) => onChange({ ...draft, date: value })}
+              />
+            </label>
+
+            <div className="grid gap-2 md:col-span-2">
+              <span className="text-sm font-medium text-slate-800">Arquivo da capa</span>
+              <label className="group flex cursor-pointer flex-col gap-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500 transition hover:border-violet-300 hover:bg-violet-50/60">
+                <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+                <div className="flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="font-medium text-slate-900">
+                      {draft.thumbnailName || "Clique para enviar uma imagem"}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      Formatos aceitos: PNG, JPG, JPEG e WEBP. A imagem fica salva junto do card.
+                    </p>
+                  </div>
+                  <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-100 text-violet-600 transition group-hover:scale-105">
+                    <ImagePlus className="h-5 w-5" />
+                  </div>
+                </div>
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                {draft.thumbnail ? (
+                  <button
+                    type="button"
+                    onClick={() => onChange({ ...draft, thumbnail: "", thumbnailName: "" })}
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:border-rose-200 hover:text-rose-600"
+                  >
+                    Remover arquivo
+                  </button>
+                ) : null}
+                {draft.thumbnailName ? (
+                  <span className="rounded-full bg-violet-50 px-3 py-2 text-xs font-medium text-violet-700">
+                    {draft.thumbnailName}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+
+            <label className="grid gap-2">
+              <span className="text-sm font-medium text-slate-800">Visualizações</span>
+              <input
+                value={draft.reach}
+                onChange={(event) => onChange({ ...draft, reach: event.target.value })}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                placeholder="235000"
+                inputMode="numeric"
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-sm font-medium text-slate-800">Engajamento</span>
+              <input
+                value={draft.engagement}
+                onChange={(event) => onChange({ ...draft, engagement: event.target.value })}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                placeholder="19600"
+                inputMode="numeric"
+              />
+            </label>
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-[1.5rem] border border-slate-200 bg-gradient-to-br from-violet-50 to-pink-50 p-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-violet-600">Ação</p>
+              <h4 className="mt-2 text-xl font-semibold text-slate-950">Conteúdo editável</h4>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                As alterações feitas aqui são salvas no mesmo conjunto compartilhado do Supabase.
+              </p>
+              <div className="mt-5 rounded-[1.2rem] border border-white/70 bg-white/80 p-4 shadow-sm">
+                <p className="text-sm font-medium text-slate-700">Resumo do card</p>
+                <div className="mt-3 space-y-2 text-sm text-slate-600">
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Tipo</span>
+                    <strong className="text-slate-900">{draft.type}</strong>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Status</span>
+                    <strong className="text-slate-900">{draft.status}</strong>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Responsável</span>
+                    <strong className="text-slate-900">
+                      {teamMembers.find((member) => member.id === draft.authorId)?.name ?? "Equipe"}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
+              <div className="flex items-center gap-3">
+                <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-100 text-violet-600">
+                  <ImagePlus className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-950">Prévia</p>
+                  <p className="text-sm text-slate-500">Como o card ficará na lista</p>
+                </div>
+              </div>
+              <div className="mt-4 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_12px_24px_rgba(15,23,42,0.05)]">
+                <div className="aspect-[16/10] bg-gradient-to-br from-violet-100 via-fuchsia-100 to-orange-100">
+                  {draft.thumbnail ? (
+                    <img src={draft.thumbnail} alt={draft.title || "Prévia"} className="h-full w-full object-cover" />
+                  ) : null}
+                </div>
+                <div className="space-y-2 p-4">
+                  <div className="flex items-center gap-2">
+                    <TypeBadge value={draft.type} />
+                    <StatusChip value={draft.status as string} />
+                  </div>
+                  <p className="text-sm font-semibold text-slate-950">{draft.title || "Novo conteúdo"}</p>
+                  <p className="text-xs leading-5 text-slate-500">{draft.description || "Descrição do conteúdo"}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 px-6 py-5 sm:px-8">
+          <ActionButton variant="secondary" onClick={onClose}>
+            Cancelar
+          </ActionButton>
+          <ActionButton onClick={onSave}>
+            <Plus className="h-4 w-4" />
+            {mode === "create" ? "Adicionar card" : "Salvar alterações"}
+          </ActionButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function ContentPage() {
+  const [teamMembers] = useTeamProfiles();
+  const [posts, setPosts] = usePosts();
+  const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
+  const [stories] = useSupabaseSyncedListState<StoryLog>({ key: "story-logs", table: "story_logs", fallback: storyLogs });
+  const [calendarItems] = useSupabaseSyncedListState<CalendarEvent>({
+    key: "calendar-events",
+    table: "calendar_events",
+    fallback: calendarEvents,
+  });
+  const [teamScope] = useTeamScope();
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>("all");
+  const [hoveredPostId, setHoveredPostId] = useState<number | null>(null);
+  const [editorMode, setEditorMode] = useState<ContentEditorMode>("create");
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingPostId, setEditingPostId] = useState<number | null>(null);
+  const [draft, setDraft] = useState<ContentDraft>(() => emptyDraft(teamMembers[0]?.id ?? 1));
+  const [postToDelete, setPostToDelete] = useState<Post | null>(null);
+
+  const visiblePosts = useMemo(
+    () =>
+      posts.filter((post) => {
+        const matchesScope = matchesTeamScope(post.authorId, teamScope);
+        const matchesOwner = ownerFilter === "all" || post.authorId === ownerFilter;
+        return matchesScope && matchesOwner;
+      }),
+    [ownerFilter, posts, teamScope],
+  );
+
+  const visibleGoals = useMemo(
+    () =>
+      goals.filter((goal) => {
+        const responsibleIds = getGoalResponsibleIds(goal);
+        const matchesScope = responsibleIds.some((id) => matchesTeamScope(id, teamScope));
+        const matchesOwner = ownerFilter === "all" || responsibleIds.includes(ownerFilter);
+        return matchesScope && matchesOwner;
+      }),
+    [goals, ownerFilter, teamScope],
+  );
+
+  const visibleStories = useMemo(
+    () =>
+      stories.filter((story) => {
+        const matchesScope = matchesTeamScope(story.madeById, teamScope) || matchesTeamScope(story.postedById, teamScope);
+        const matchesOwner = ownerFilter === "all" || story.madeById === ownerFilter || story.postedById === ownerFilter;
+        return matchesScope && matchesOwner;
+      }),
+    [ownerFilter, stories, teamScope],
+  );
+
+  const visibleCalendarItems = useMemo(
+    () =>
+      calendarItems.filter((event) => {
+        const responsibleIds = getCalendarResponsibleIds(event);
+        const matchesScope = responsibleIds.some((id) => matchesTeamScope(id, teamScope));
+        const matchesOwner = ownerFilter === "all" || responsibleIds.includes(ownerFilter);
+        return matchesScope && matchesOwner;
+      }),
+    [calendarItems, ownerFilter, teamScope],
+  );
+
+  const topPosts = useMemo(
+    () => [...visiblePosts].sort((a, b) => b.reach - a.reach || b.engagement - a.engagement).slice(0, 5),
+    [visiblePosts],
+  );
+  const lowPosts = useMemo(
+    () => [...visiblePosts].sort((a, b) => a.engagement - b.engagement).slice(0, 3),
+    [visiblePosts],
+  );
+
+  const totalReach = visiblePosts.reduce((sum, post) => sum + post.reach, 0);
+  const totalEngagement = visiblePosts.reduce((sum, post) => sum + post.engagement, 0);
+  const overallGoalProgress = computeGoalProgress(visibleGoals);
+  const overallStoryProgress = computeStoryProgress(visibleStories);
+  const previewPost = topPosts.find((post) => post.id === hoveredPostId) ?? topPosts[0] ?? visiblePosts[0] ?? null;
+
+  const selectedMember = ownerFilter === "all" ? null : teamMembers.find((member) => member.id === ownerFilter) ?? null;
+  const selectedMembers = useMemo(
+    () => teamMembers.filter((member) => member.id === 1 || member.id === 2 || member.id === 3),
+    [teamMembers],
+  );
+
+  const selectedStoryProgress = computeStoryProgress(
+    selectedMember
+      ? visibleStories.filter((story) => story.madeById === selectedMember.id || story.postedById === selectedMember.id)
+      : visibleStories,
+  );
+  const selectedCalendarProgress = computeCalendarProgress(
+    selectedMember
+      ? visibleCalendarItems.filter((event) => getCalendarResponsibleIds(event).includes(selectedMember.id))
+      : visibleCalendarItems,
+  );
+
+  const progressEntries = selectedMembers.map((member) => {
+    if (member.id === 1) {
+      return {
+        member,
+        score: computeStoryProgress(
+          visibleStories.filter((story) => story.madeById === 1 || story.postedById === 1),
+        ).percent,
+      };
+    }
+
+    const memberProgress = computeCalendarProgress(visibleCalendarItems.filter((event) => getCalendarResponsibleIds(event).includes(member.id)));
+    return { member, score: memberProgress.percent };
+  });
+  const groupProgressScore =
+    progressEntries.length > 0 ? Math.round(progressEntries.reduce((sum, entry) => sum + entry.score, 0) / progressEntries.length) : 0;
+
+  const mainProgress: ProgressSummary =
+    selectedMember && isStoryMember(selectedMember.id)
+      ? {
+          label: "Progresso em stories",
+          score: selectedStoryProgress.percent,
+          detail:
+            selectedStoryProgress.total > 0
+              ? `${formatLongNumber(selectedStoryProgress.total)} de ${formatLongNumber(selectedStoryProgress.target)} stories`
+              : "Nenhum story encontrado no recorte",
+          subtitle: "Brenda acompanha o avanço pela entrega de stories no mês.",
+        }
+      : selectedMember
+        ? {
+            label: "Progressos",
+            score: selectedCalendarProgress.percent,
+            detail:
+              selectedCalendarProgress.total > 0
+                ? `${formatLongNumber(selectedCalendarProgress.total)} atividades na agenda`
+                : "Nenhuma atividade encontrada no recorte",
+            subtitle: `O progresso de ${selectedMember.name} cresce conforme novas atividades entram na agenda.`,
+          }
+        : {
+            label: "Progresso geral do grupo",
+            score: groupProgressScore,
+            detail: `${progressEntries.length} pessoas na média`,
+            subtitle: "Média entre Brenda, Hannah e Thiago, considerando stories e atividades da agenda.",
+          };
+
+  const memberCards = selectedMembers.map((member) => {
+    const memberPosts = visiblePosts.filter((post) => post.authorId === member.id);
+    const memberGoals = visibleGoals.filter((goal) => getGoalResponsibleIds(goal).includes(member.id));
+    const memberStories = visibleStories.filter((story) => story.madeById === member.id || story.postedById === member.id);
+    const memberCalendarItems = visibleCalendarItems.filter((event) => getCalendarResponsibleIds(event).includes(member.id));
+    const storyProgress = computeStoryProgress(memberStories);
+    const isBrenda = member.id === 1;
+    const calendarProgress = computeCalendarProgress(memberCalendarItems);
+    const progressPercent = isBrenda ? storyProgress.percent : calendarProgress.percent;
+    const progressLabel = isBrenda ? "Stories" : "Progressos";
+    const progressDetail = isBrenda
+      ? `${formatLongNumber(storyProgress.total)} de ${formatLongNumber(storyProgress.target)} stories`
+      : `${formatLongNumber(calendarProgress.total)} atividades na agenda`;
+
+    return {
+      member,
+      posts: memberPosts,
+      goals: memberGoals,
+      progressPercent,
+      progressLabel,
+      progressDetail,
+      reach: memberPosts.reduce((sum, post) => sum + post.reach, 0),
+      engagement: memberPosts.reduce((sum, post) => sum + post.engagement, 0),
+    };
+  });
+
+  const openCreateEditor = () => {
+    const fallbackAuthorId = ownerFilter === "all" ? teamMembers[0]?.id ?? 1 : ownerFilter;
+    setEditorMode("create");
+    setEditingPostId(null);
+    setDraft(emptyDraft(fallbackAuthorId));
+    setEditorOpen(true);
+  };
+
+  const openEditEditor = (post: Post) => {
+    setEditorMode("edit");
+    setEditingPostId(post.id);
+    setDraft({
+      title: post.title,
+      description: post.description,
+      type: post.type,
+      status: post.status,
+      authorId: post.authorId,
+      date: post.date,
+      thumbnail: post.thumbnail,
+      thumbnailName: isImageDataUrl(post.thumbnail) ? "Imagem salva no card" : "",
+      reach: String(post.reach),
+      engagement: String(post.engagement),
+    });
+    setEditorOpen(true);
+  };
+
+  const handleSaveEditor = () => {
+    if (!draft.title.trim()) {
+      toast.error("Adicione um título para o card.");
+      return;
+    }
+
+    const author = teamMembers.find((member) => member.id === draft.authorId);
+    if (!author) {
+      toast.error("Selecione um responsável válido.");
+      return;
+    }
+
+    const current = editingPostId !== null ? posts.find((post) => post.id === editingPostId) ?? null : null;
+    const nextPost = buildPostFromDraft(draft, current ?? undefined);
+
+    if (editorMode === "create") {
+      nextPost.id = Math.max(...posts.map((post) => post.id), 0) + 1;
+      setPosts((currentPosts) => [nextPost, ...currentPosts]);
+      toast.success("Card adicionado.");
+    } else if (editingPostId !== null) {
+      nextPost.id = editingPostId;
+      setPosts((currentPosts) => currentPosts.map((post) => (post.id === editingPostId ? nextPost : post)));
+      toast.success("Card atualizado.");
+    }
+
+    setEditorOpen(false);
+    setEditingPostId(null);
+    setDraft(emptyDraft(teamMembers[0]?.id ?? 1));
+  };
+
+  const handleDeletePost = (post: Post) => {
+    setPostToDelete(post);
+  };
+
+  const confirmDeletePost = () => {
+    if (!postToDelete) {
+      return;
+    }
+
+    setPosts((currentPosts) => currentPosts.filter((post) => post.id !== postToDelete.id));
+    toast.success("Card removido.");
+    setPostToDelete(null);
+  };
+
+  const metricCards: MetricCard[] = [
+    {
+      id: "reach",
+      label: "Visualizações",
+      value: formatLongNumber(totalReach),
+      detail: "Total de visualizações dos conteúdos publicados.",
+      icon: Eye,
+      delta: 0,
+      onEdit: openCreateEditor,
+    },
+    {
+      id: "engagement",
+      label: "Engajamento",
+      value: formatLongNumber(totalEngagement),
+      detail: "Curtidas, comentários, compartilhamentos e salvos.",
+      icon: Users,
+      delta: 0,
+      onEdit: openCreateEditor,
+    },
+    {
+      id: "published",
+      label: "Conteúdos publicados",
+      value: String(visiblePosts.length),
+      detail: "Quantidade total de conteúdos visíveis.",
+      icon: FileText,
+      delta: 0,
+      onEdit: openCreateEditor,
+    },
+    {
+      id: "goals",
+      label: "Metas concluídas",
+      value: `${overallGoalProgress.completed}/${overallGoalProgress.total || 0}`,
+      detail: "Metas concluídas no período selecionado.",
+      icon: Target,
+      delta: 0,
+      onEdit: openCreateEditor,
+    },
+  ];
+
+  return (
+    <PageTransition>
+      <PageHeader
+        title="Conteúdo"
+        description="Monitore, gerencie e otimize seu conteúdo e os resultados alcançados em um único lugar."
+        actions={
+          <ActionButton onClick={openCreateEditor}>
+            <Plus className="h-4 w-4" />
+            Adicionar card
+          </ActionButton>
+        }
+      />
+
+      <div className="space-y-6">
+        <div className="flex flex-wrap gap-3">
+          {[
+            { id: "all" as const, label: "Todos", color: "#7c3aed" },
+            { id: 1 as const, label: "Brenda", color: "#7c3aed" },
+            { id: 2 as const, label: "Hannah", color: "#db2777" },
+            { id: 3 as const, label: "Thiago", color: "#f59e0b" },
+          ].map((item) => {
+            const active = ownerFilter === item.id;
+            return (
+              <button
+                key={String(item.id)}
+                type="button"
+                onClick={() => setOwnerFilter(item.id)}
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition duration-200",
+                  active
+                    ? "border-transparent bg-violet-600 text-white shadow-[0_14px_30px_rgba(124,58,237,0.25)]"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-violet-200 hover:text-violet-700",
+                )}
+              >
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="grid gap-6 2xl:grid-cols-[1.08fr_0.92fr]">
+          <GlassPanel
+            className="overflow-hidden border-slate-200/80 bg-white p-0 shadow-[0_18px_44px_rgba(15,23,42,0.06)]"
+            index={0}
+            style={{ borderRadius: "2.5rem" }}
+          >
+            <div className="grid min-h-[520px] gap-0 lg:grid-cols-[0.94fr_1.06fr]">
+              <div className="flex flex-col justify-between bg-gradient-to-br from-violet-600 via-fuchsia-600 to-orange-500 p-6 text-white sm:p-8">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-2">
+                    <div className="inline-flex items-center gap-2 rounded-full bg-white/12 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/85">
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Pontuação de desempenho
+                    </div>
+                    <h2 className="max-w-sm text-3xl font-semibold tracking-tight">{mainProgress.label}</h2>
+                    <p className="max-w-md text-sm leading-6 text-white/80">{mainProgress.subtitle}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={openCreateEditor}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/20"
+                    title="Adicionar card"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="flex flex-1 items-center justify-center py-8">
+                  <div className="relative flex h-[250px] w-[250px] items-center justify-center">
+                    <svg viewBox="0 0 180 180" className="-rotate-90 h-[250px] w-[250px]">
+                      <circle cx="90" cy="90" r="74" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="12" />
+                      <circle
+                        cx="90"
+                        cy="90"
+                        r="74"
+                        fill="none"
+                        stroke="rgba(255,255,255,0.95)"
+                        strokeLinecap="round"
+                        strokeWidth="12"
+                        strokeDasharray={2 * Math.PI * 74}
+                        strokeDashoffset={(2 * Math.PI * 74) - (mainProgress.score / 100) * (2 * Math.PI * 74)}
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/75">Excelente</p>
+                      <p className="mt-1 text-6xl font-semibold tracking-tight">{mainProgress.score}</p>
+                      <p className="text-sm text-white/80">de 100 pontos</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-3">
+                  <div className="rounded-[1.5rem] bg-white/14 p-4 backdrop-blur">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-white/75">Metas concluídas</p>
+                    <p className="mt-2 text-3xl font-semibold text-white">
+                      {`${overallGoalProgress.completed}/${overallGoalProgress.total}`}
+                    </p>
+                  </div>
+                  <div className="rounded-[1.5rem] bg-white/14 p-4 backdrop-blur">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-white/75">Visualizações totais</p>
+                    <p className="mt-2 text-3xl font-semibold text-white">{formatLongNumber(totalReach)}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-5 p-5 sm:p-6">
+                <div className="grid gap-5 md:grid-cols-2">
+                  {metricCards.map((metric) => (
+                    <MetricTile key={metric.id} {...metric} />
+                  ))}
+                </div>
+
+                <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_14px_34px_rgba(15,23,42,0.05)]">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Retrospectiva visual</p>
+                      <h3 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
+                        {previewPost?.title ?? "Sem conteúdo no recorte"}
+                      </h3>
+                      <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
+                        {previewPost?.description ?? "Passe o mouse nos cards para abrir a capa em destaque."}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => (previewPost ? openEditEditor(previewPost) : openCreateEditor())}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:border-violet-200 hover:text-violet-700"
+                        aria-label={previewPost ? `Editar ${previewPost.title}` : "Adicionar conteúdo"}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 overflow-hidden rounded-[1.75rem] border border-slate-200 bg-slate-950">
+                    <div className="relative aspect-[16/11]">
+                      {previewPost?.thumbnail ? (
+                        <img src={previewPost.thumbnail} alt={previewPost.title} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center bg-gradient-to-br from-violet-600 via-fuchsia-600 to-orange-500 text-white">
+                          <div className="text-center">
+                            <Sparkles className="mx-auto h-10 w-10 opacity-80" />
+                            <p className="mt-3 text-sm font-medium">Adicione uma capa para este card</p>
+                          </div>
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/35 to-transparent" />
+                      <div className="absolute left-0 right-0 bottom-0 p-5 text-white">
+                        <div className="flex flex-wrap gap-2">
+                          <TypeBadge value={previewPost?.type ?? "Reels"} />
+                          <StatusChip value={previewPost?.status ? String(previewPost.status) : "Agendado"} />
+                        </div>
+                        <h4 className="mt-3 text-2xl font-semibold tracking-tight">{previewPost?.title ?? "Novo conteúdo"}</h4>
+                        <p className="mt-2 max-w-2xl text-sm leading-6 text-white/80">
+                          {previewPost?.description ?? "Conteúdo pronto para editar, publicar ou remover."}
+                        </p>
+                      </div>
+                      <div className="absolute right-4 top-4 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => (previewPost ? openEditEditor(previewPost) : openCreateEditor())}
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-slate-800 shadow-lg shadow-black/10 transition hover:bg-white"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        {previewPost ? (
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePost(previewPost)}
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-rose-600 shadow-lg shadow-black/10 transition hover:bg-white"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </GlassPanel>
+
+          <div className="space-y-6">
+            <GlassPanel className="border-slate-200/80 bg-white shadow-[0_16px_44px_rgba(15,23,42,0.06)]" index={1}>
+              <SectionTitle
+                title="Conteúdos com baixa performance"
+                description="Revisite ou otimize esses conteúdos para melhorar os resultados."
+              />
+              <div className="mt-5 space-y-3">
+                {lowPosts.length > 0 ? (
+                  lowPosts.map((post) => (
+                    <div key={post.id} className="rounded-[1.5rem] border border-rose-200/70 bg-rose-50/45 p-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <TypeBadge value={post.type} />
+                        <span className="rounded-full border border-orange-200/80 bg-white px-3 py-1 text-xs font-semibold text-orange-600">
+                          Atenção suave
+                        </span>
+                      </div>
+                      <div className="mt-4 flex items-start justify-between gap-4">
+                        <div className="space-y-2">
+                          <h3 className="text-base font-semibold text-slate-950">{post.title}</h3>
+                          <p className="max-w-md text-sm leading-6 text-slate-500">{post.description}</p>
+                          <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
+                            <span>{teamMembers.find((member) => member.id === post.authorId)?.name}</span>
+                            <span>{formatLongNumber(post.engagement)} de engajamento</span>
+                            <span>{formatLongNumber(post.reach)} de visualizações</span>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openEditEditor(post)}
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:border-violet-200 hover:text-violet-700"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePost(post)}
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-rose-600 transition hover:border-rose-200 hover:text-rose-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+                    Nenhum conteúdo de baixa performance encontrado.
+                  </div>
+                )}
+              </div>
+            </GlassPanel>
+
+            <GlassPanel
+              className="overflow-hidden border-slate-200/80 bg-white p-0 shadow-[0_16px_44px_rgba(15,23,42,0.06)]"
+              index={2}
+              style={{ borderRadius: "2.5rem" }}
+            >
+              <div className="relative aspect-[4/3]">
+                {previewPost?.thumbnail ? (
+                  <img src={previewPost.thumbnail} alt={previewPost.title} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 text-white">
+                    <div className="text-center">
+                      <Rocket className="mx-auto h-10 w-10 opacity-80" />
+                      <p className="mt-3 text-sm font-medium">Adicione conteúdo para visualizar aqui</p>
+                    </div>
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/20 to-transparent" />
+                <div className="absolute left-5 right-5 bottom-5">
+                  <div className="flex flex-wrap gap-2">
+                    <StatusChip value={previewPost?.status ? String(previewPost.status) : "Agendado"} />
+                    <TypeBadge value={previewPost?.type ?? "Reels"} />
+                  </div>
+                  <h3 className="mt-3 text-2xl font-semibold tracking-tight text-white">
+                    {previewPost?.title ?? "Retrospectiva visual"}
+                  </h3>
+                  <p className="mt-2 max-w-xl text-sm leading-6 text-white/80">
+                    {previewPost?.description ?? "Passe o mouse nos cards para ver a capa em destaque."}
+                  </p>
+                </div>
+              </div>
+            </GlassPanel>
+          </div>
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+          <GlassPanel className="border-slate-200/80 bg-white shadow-[0_16px_44px_rgba(15,23,42,0.06)]" index={3}>
+            <SectionTitle title="Top 5 conteúdos" description="Os conteúdos mais populares, com base em visualizações." />
+            <div className="mt-5 space-y-3">
+              {topPosts.length > 0 ? (
+                topPosts.map((post, index) => {
+                  const member = teamMembers.find((item) => item.id === post.authorId);
+                  return (
+                    <div
+                      key={post.id}
+                      onMouseEnter={() => setHoveredPostId(post.id)}
+                      onMouseLeave={() => setHoveredPostId(null)}
+                      className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-4 transition duration-200 hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-[0_18px_36px_rgba(131,58,180,0.08)] sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-sm font-semibold text-violet-600 ring-1 ring-violet-200/70">
+                          #{index + 1}
+                        </div>
+                        <div className="h-16 w-24 overflow-hidden rounded-2xl bg-gradient-to-br from-violet-100 via-fuchsia-100 to-orange-100">
+                          {post.thumbnail ? (
+                            <img src={post.thumbnail} alt={post.title} className="h-full w-full object-cover" />
+                          ) : null}
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Link to={`/post/${post.id}`} className="text-sm font-semibold text-slate-950 transition hover:text-violet-700 sm:text-base">
+                              {post.title}
+                            </Link>
+                            <TypeBadge value={post.type} />
+                          </div>
+                          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 sm:text-sm">
+                            <span>{member?.name}</span>
+                            <span>{formatDate(post.date)}</span>
+                            <span>{formatLongNumber(post.reach)} de visualizações</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Engajamento</p>
+                          <p className="mt-1 text-lg font-semibold text-slate-950">{formatLongNumber(post.engagement)}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => openEditEditor(post)}
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:border-violet-200 hover:text-violet-700"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePost(post)}
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-rose-600 transition hover:border-rose-200 hover:text-rose-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+                  Nenhum conteúdo encontrado para este filtro.
+                </div>
+              )}
+            </div>
+          </GlassPanel>
+
+          <GlassPanel className="border-slate-200/80 bg-white shadow-[0_16px_44px_rgba(15,23,42,0.06)]" index={4}>
+            <SectionTitle title="Equipe" description="Leitura por responsável para Brenda, Hannah e Thiago." />
+            <div className="mt-5 space-y-4">
+              {memberCards.map((entry) => (
+                <div key={entry.member.id} className="rounded-[1.75rem] border border-slate-200 bg-slate-50 p-5">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div className="flex items-center gap-3">
+                      <Avatar name={entry.member.name} color={entry.member.color} size="md" />
+                      <div>
+                        <p className="text-base font-semibold text-slate-950">{entry.member.name}</p>
+                        <p className="text-sm text-slate-500">
+                          {entry.member.role} â€¢ {entry.member.specialty}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-right text-sm">
+                      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+                        <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Posts</p>
+                        <p className="mt-1 font-semibold text-slate-950">{entry.posts.length}</p>
+                      </div>
+                      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+                        <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Visualizações</p>
+                        <p className="mt-1 font-semibold text-slate-950">{formatLongNumber(entry.reach)}</p>
+                      </div>
+                      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+                        <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{entry.progressLabel}</p>
+                        <p className="mt-1 font-semibold text-slate-950">{entry.progressPercent}%</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 md:grid-cols-3">
+                    {entry.posts.slice(0, 3).map((post) => (
+                      <button
+                        key={post.id}
+                        type="button"
+                        onMouseEnter={() => setHoveredPostId(post.id)}
+                        onFocus={() => setHoveredPostId(post.id)}
+                        onMouseLeave={() => setHoveredPostId(null)}
+                        onClick={() => openEditEditor(post)}
+                        className="group overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white text-left shadow-[0_10px_24px_rgba(15,23,42,0.05)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_18px_34px_rgba(15,23,42,0.08)]"
+                      >
+                        <div className="relative aspect-[16/10] overflow-hidden">
+                          {post.thumbnail ? (
+                            <img
+                              src={post.thumbnail}
+                              alt={post.title}
+                              className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                            />
+                          ) : (
+                            <div className="flex h-full items-center justify-center bg-gradient-to-br from-violet-100 via-fuchsia-100 to-orange-100">
+                              <Sparkles className="h-5 w-5 text-violet-600" />
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/10 to-transparent" />
+                          <div className="absolute left-3 top-3 rounded-full bg-white/92 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-700">
+                            {post.type}
+                          </div>
+                          <div className="absolute bottom-3 right-3 rounded-full bg-white/92 px-3 py-1 text-xs font-semibold text-slate-900">
+                            {formatLongNumber(post.reach)}
+                          </div>
+                        </div>
+                        <div className="space-y-2 p-3">
+                          <p className="truncate text-sm font-semibold text-slate-950">{post.title}</p>
+                          <p className="line-clamp-2 text-xs leading-5 text-slate-500">{post.description}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mt-4">
+                    <ProgressBar
+                      value={entry.progressPercent}
+                      max={100}
+                      label={entry.member.id === 1 ? "Progresso em stories" : "Conclusão das metas"}
+                    />
+                    <p className="mt-2 text-xs text-slate-500">{entry.progressDetail}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </GlassPanel>
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+          <GlassPanel className="border-slate-200/80 bg-white shadow-[0_16px_44px_rgba(15,23,42,0.06)]" index={5}>
+            <SectionTitle title="Resumo do período" description="Leitura rápida do que foi feito." />
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Visualizações totais</p>
+                <p className="mt-2 text-xl font-semibold text-slate-950">{formatLongNumber(totalReach)}</p>
+              </div>
+              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Engajamento</p>
+                <p className="mt-2 text-xl font-semibold text-slate-950">{formatLongNumber(totalEngagement)}</p>
+              </div>
+              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Publicações</p>
+                <p className="mt-2 text-xl font-semibold text-slate-950">{visiblePosts.length}</p>
+              </div>
+              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Metas concluídas</p>
+                <p className="mt-2 text-xl font-semibold text-slate-950">
+                  {overallGoalProgress.completed}/{overallGoalProgress.total || 0}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-[1.5rem] border border-slate-200 bg-white p-4">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Stories no recorte</p>
+              <p className="mt-2 text-xl font-semibold text-slate-950">
+                {formatLongNumber(overallStoryProgress.total)} / {formatLongNumber(storyGoalTarget)}
+              </p>
+              <p className="mt-1 text-sm text-slate-500">Brenda usa esse bloco como referência de progresso editorial.</p>
+            </div>
+          </GlassPanel>
+
+          <GlassPanel className="border-slate-200/80 bg-white shadow-[0_16px_44px_rgba(15,23,42,0.06)]" index={6}>
+            <SectionTitle title="Metas e conteúdo" description="Tudo o que foi publicado e acompanhado no período." />
+            <div className="mt-5 space-y-4">
+              {visibleGoals.slice(0, 3).map((goal) => (
+                <div key={goal.id} className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-950">{goal.name}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {goal.category} â€¢ {goal.period} â€¢ {formatDateTime(goal.deadline)}
+                      </p>
+                    </div>
+                    <Target className="h-5 w-5 text-violet-500" />
+                  </div>
+                  <ProgressBar value={goal.current} max={goal.target} label="Progresso da meta" />
+                </div>
+              ))}
+              {visibleGoals.length === 0 ? (
+                <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+                  Nenhuma meta encontrada para o recorte selecionado.
+                </div>
+              ) : null}
+            </div>
+          </GlassPanel>
+        </div>
+      </div>
+
+      {editorOpen ? (
+        <ContentEditorModal
+          mode={editorMode}
+          draft={draft}
+          onChange={setDraft}
+          onClose={() => {
+            setEditorOpen(false);
+            setEditingPostId(null);
+            setDraft(emptyDraft(teamMembers[0]?.id ?? 1));
+          }}
+          onSave={handleSaveEditor}
+          teamMembers={teamMembers}
+        />
+      ) : null}
+
+      {postToDelete ? (
+        <ConfirmDialog
+          title="Apagar card?"
+          description="O conteúdo será removido da lista e deixará de aparecer para todos os usuários conectados no mesmo projeto."
+          confirmLabel="Apagar"
+          onCancel={() => setPostToDelete(null)}
+          onConfirm={confirmDeletePost}
+        />
+      ) : null}
+    </PageTransition>
+  );
+}
+
+
+
+
+

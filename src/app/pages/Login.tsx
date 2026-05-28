@@ -213,7 +213,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                           value={password}
                           onChange={(event) => setPassword(event.target.value)}
                           type={showPassword ? "text" : "password"}
-                          placeholder="••••••••••"
+                          placeholder=""
                           className="w-full bg-transparent text-sm outline-none placeholder:text-[#9ca3af]"
                         />
                         <button
