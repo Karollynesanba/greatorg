@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useDrag, useDrop } from "react-dnd";
 import {
   CalendarDays,
+  Eye,
   ChevronLeft,
   ChevronRight,
   CirclePlus,
   ChevronDown,
   CheckCircle2,
+  Pencil,
   Menu,
   Plus,
 } from "lucide-react";
@@ -22,7 +24,7 @@ import {
 } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
 import { useCurrentTeamMember } from "../data/profiles";
-import { useSupabaseSyncedListState } from "../data/supabaseSync";
+import { useSupabaseSharedState, useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import {
   ActionButton,
@@ -55,6 +57,15 @@ const statusOptions: Array<{ label: string; value: CalendarEvent["status"]; colo
   { label: "Aprovado", value: "Aprovado", color: "#10b981" },
   { label: "Publicado", value: "Publicado", color: "#f97316" },
 ];
+const visualizationOptions = [
+  { label: "Carrossel", value: "Carrossel" as const, color: "#8b5cf6" },
+  { label: "Depoimento", value: "Depoimento" as const, color: "#ec4899" },
+  { label: "Agendamento", value: "Agendamento" as const, color: "#f59e0b" },
+  { label: "Material", value: "Material" as const, color: "#22c55e" },
+  { label: "Vídeo viral", value: "Vídeo viral" as const, color: "#ef4444" },
+];
+
+type CalendarVisualizationType = (typeof visualizationOptions)[number]["value"];
 
 function addDays(date: Date, value: number) {
   const nextDate = new Date(date);
@@ -90,6 +101,40 @@ function formatMonthLabel(date: Date) {
 
 function formatDayLabel(date: Date) {
   return new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "short" }).format(date);
+}
+
+function formatViewsNumber(value: number) {
+  return new Intl.NumberFormat("pt-BR").format(value);
+}
+
+function inferEventVisualization(event: CalendarEvent & { visualization?: CalendarVisualizationType }) {
+  if (event.visualization) {
+    return event.visualization;
+  }
+
+  const text = `${event.title} ${event.description}`.toLowerCase();
+
+  if (event.type === "Carrossel" || text.includes("carrossel")) {
+    return "Carrossel";
+  }
+
+  if (text.includes("depoimento") || text.includes("testimonial") || text.includes("prova social")) {
+    return "Depoimento";
+  }
+
+  if (event.status === "Agendado" || text.includes("agendamento") || text.includes("agenda")) {
+    return "Agendamento";
+  }
+
+  if (text.includes("material") || text.includes("entrega")) {
+    return "Material";
+  }
+
+  return "Vídeo viral";
+}
+
+function getMonthKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function buildMonthCells(date: Date) {
@@ -250,20 +295,6 @@ function getEventResponsibleIds(event: CalendarEvent) {
   }
 
   return event.responsibleId ? [event.responsibleId] : [];
-}
-
-type TaskDraftState = {
-  label: string;
-  note: string;
-  checklist: boolean;
-};
-
-function createEmptyTaskDraft(): TaskDraftState {
-  return {
-    label: "",
-    note: "",
-    checklist: false,
-  };
 }
 
 function createTaskItem(label: string, note = "", checklist = false): CalendarTaskItem {
@@ -487,7 +518,7 @@ function ActivitySection({
                   draft.checklist ? "border-emerald-500 bg-emerald-500 text-white" : "border-border bg-white text-transparent",
                 )}
               >
-                ✓
+              ✓
               </span>
               Checklist
             </button>
@@ -509,6 +540,7 @@ type CalendarEventFormState = {
   description: string;
   type: CalendarEvent["type"];
   status: CalendarEvent["status"];
+  visualization: CalendarVisualizationType;
   date: string;
   time: string;
   responsibleId: number;
@@ -836,24 +868,17 @@ export function CalendarPage() {
     table: "calendar_events",
     fallback: calendarEvents,
   });
+  const [dayViewsByDate, setDayViewsByDate] = useSupabaseSharedState<Record<string, number>>({
+    key: "calendar-day-views",
+    fallback: {},
+  });
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [eventForm, setEventForm] = useState<CalendarEventFormState | null>(null);
   const [pendingDelete, setPendingDelete] = useState<CalendarEvent | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [taskDraft, setTaskDraft] = useState<ActivityDraftState>(() => emptyActivityDraft());
-  const [createTaskDraft, setCreateTaskDraft] = useState<TaskDraftState>(() => createEmptyTaskDraft());
-  const [createForm, setCreateForm] = useState({
-    title: "",
-    description: "",
-    type: "Reels" as CalendarEvent["type"],
-    status: "Agendado" as CalendarEvent["status"],
-    date: formatDateKey(getTodayDate()),
-    time: "09:00",
-    responsibleId: teamMembers[0]?.id ?? 1,
-    responsibleIds: [teamMembers[0]?.id ?? 1],
-    addedById: currentMember?.id ?? teamMembers[0]?.id ?? 1,
-    tasks: [] as CalendarTaskItem[],
-  });
+  const [isEditingDayViews, setIsEditingDayViews] = useState(false);
+  const [dayViewsDraft, setDayViewsDraft] = useState("0");
 
   const weekDates = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(startOfWeek(currentDate), index)), [currentDate]);
   const monthCells = useMemo(() => buildMonthCells(currentDate), [currentDate]);
@@ -866,9 +891,66 @@ export function CalendarPage() {
     [events, teamScope],
   );
   const currentMonthEvents = useMemo(
-    () => filteredEvents.filter((event) => event.date.startsWith(`${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}`)),
+    () => filteredEvents.filter((event) => event.date.startsWith(getMonthKey(currentDate))),
     [currentDate, filteredEvents],
   );
+  const monthTypeCounts = useMemo(
+    () =>
+      currentMonthEvents.reduce(
+        (accumulator, event) => {
+          if (event.type === "Reels") {
+            accumulator.Reels += 1;
+          } else if (event.type === "Stories") {
+            accumulator.Stories += 1;
+          } else if (event.type === "Carrossel") {
+            accumulator.Carrossel += 1;
+          } else if (event.type === "Feed") {
+            accumulator.Feed += 1;
+          }
+
+          return accumulator;
+        },
+        { Reels: 0, Stories: 0, Carrossel: 0, Feed: 0 },
+      ),
+    [currentMonthEvents],
+  );
+  const currentDayEvents = useMemo(
+    () =>
+      filteredEvents
+        .filter((event) => event.date === formatDateKey(currentDate))
+        .sort((left, right) => left.time.localeCompare(right.time)),
+    [currentDate, filteredEvents],
+  );
+  const currentDateKey = formatDateKey(currentDate);
+  const currentDayViews = dayViewsByDate[currentDateKey] ?? 0;
+  const dayCompletedCount = currentDayEvents.filter((event) => event.completed || event.status === "Publicado" || event.status === "Aprovado").length;
+  useEffect(() => {
+    setDayViewsDraft(String(currentDayViews));
+    setIsEditingDayViews(false);
+  }, [currentDateKey, currentDayViews]);
+
+  const handleStartEditingDayViews = () => {
+    setDayViewsDraft(String(currentDayViews));
+    setIsEditingDayViews(true);
+  };
+
+  const handleCommitDayViews = () => {
+    const parsedValue = Number(String(dayViewsDraft).replace(/[^\d]/g, ""));
+    const nextValue = Number.isFinite(parsedValue) ? Math.max(0, Math.round(parsedValue)) : 0;
+
+    setDayViewsByDate((previous) => ({
+      ...previous,
+      [currentDateKey]: nextValue,
+    }));
+    setIsEditingDayViews(false);
+    toast.success("Visualizações do dia atualizadas.");
+  };
+
+  const handleCancelDayViewsEdit = () => {
+    setDayViewsDraft(String(currentDayViews));
+    setIsEditingDayViews(false);
+  };
+
   const controlBarClass = isDark
     ? "overflow-hidden p-4"
     : "overflow-hidden border border-border/60 bg-white/96 p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)]";
@@ -917,20 +999,6 @@ export function CalendarPage() {
   };
 
   const handleOpenCreateModal = () => {
-    setCreateForm((previous) => ({
-      ...previous,
-      title: "",
-      description: "",
-      type: "Reels" as CalendarEvent["type"],
-      status: "Agendado" as CalendarEvent["status"],
-      date: formatDateKey(getTodayDate()),
-      time: "09:00",
-      responsibleId: teamMembers[0]?.id ?? previous.responsibleId,
-      responsibleIds: [teamMembers[0]?.id ?? previous.responsibleId],
-      addedById: currentMember?.id ?? teamMembers[0]?.id ?? previous.addedById,
-      tasks: [],
-    }));
-    setCreateTaskDraft(createEmptyTaskDraft());
     setIsCreateOpen(true);
   };
 
@@ -958,7 +1026,7 @@ export function CalendarPage() {
     }
 
     if (!eventForm.title.trim() || !eventForm.description.trim()) {
-      toast.error("Preencha título e descrição.");
+       toast.error("Preencha título e descrição.");
       return;
     }
 
@@ -972,6 +1040,7 @@ export function CalendarPage() {
       description: eventForm.description.trim(),
       type: eventForm.type,
       status: eventForm.status,
+      visualization: eventForm.visualization,
       date: eventForm.date,
       time: eventForm.time,
       responsibleId: nextResponsibleIds[0] ?? eventForm.responsibleId,
@@ -987,6 +1056,7 @@ export function CalendarPage() {
       description: updatedEvent.description,
       type: updatedEvent.type,
       status: updatedEvent.status,
+      visualization: updatedEvent.visualization ?? inferEventVisualization(updatedEvent),
       date: updatedEvent.date,
       time: updatedEvent.time,
       responsibleId: updatedEvent.responsibleId,
@@ -1003,7 +1073,7 @@ export function CalendarPage() {
     }
 
     if (selectedEvent.completed) {
-      toast.info("Essa atividade já está concluída.");
+       toast.info("Essa atividade já está concluída.");
       return;
     }
 
@@ -1021,7 +1091,7 @@ export function CalendarPage() {
     );
 
     const actorId = getEventResponsibleIds(selectedEvent)[0] ?? currentMemberId ?? currentMember?.id;
-    if (actorId) {
+    if (typeof actorId === "number") {
       updateMember(actorId, (member) => {
         const monthLabel = getMonthLabel(completedEvent.date);
         const currentStats = member.stats ?? {
@@ -1051,7 +1121,7 @@ export function CalendarPage() {
       });
     }
 
-    toast.success("Atividade marcada como concluída.");
+     toast.success("Atividade marcada como concluída.");
   };
 
   const handleDeleteEvent = (eventId: number) => {
@@ -1080,49 +1150,8 @@ export function CalendarPage() {
     });
   };
 
-  const handleOpenQuickCreate = (date: string, time: string) => {
-    setCreateForm((previous) => ({
-      ...previous,
-      date,
-      time,
-      title: "",
-      description: "",
-      responsibleId: teamMembers[0]?.id ?? previous.responsibleId,
-      responsibleIds: [teamMembers[0]?.id ?? previous.responsibleId],
-      addedById: currentMember?.id ?? previous.addedById,
-      tasks: [],
-    }));
+  const handleOpenQuickCreate = (_date: string, _time: string) => {
     setIsCreateOpen(true);
-  };
-
-  const handleCreateEvent = () => {
-    if (!createForm.title.trim() || !createForm.description.trim()) {
-      toast.error("Preencha título e descrição.");
-      return;
-    }
-
-    const nextId = Math.max(...events.map((event) => event.id), 0) + 1;
-    setEvents((previous) => [
-      ...previous,
-        {
-          id: nextId,
-          title: createForm.title.trim(),
-          description: createForm.description.trim(),
-          type: createForm.type,
-          responsibleId: createForm.responsibleIds[0] ?? createForm.responsibleId,
-          responsibleIds: getUniqueIds(
-            createForm.responsibleIds.length > 0 ? createForm.responsibleIds : [createForm.responsibleId],
-          ),
-          addedById: createForm.addedById,
-          tasks: createForm.tasks,
-          status: createForm.status,
-          date: createForm.date,
-          time: createForm.time,
-          completed: false,
-        },
-    ]);
-    setIsCreateOpen(false);
-    toast.success("Novo post criado com sucesso.");
   };
 
   useEffect(() => {
@@ -1137,6 +1166,7 @@ export function CalendarPage() {
       description: selectedEvent.description,
       type: selectedEvent.type,
       status: selectedEvent.status,
+      visualization: selectedEvent.visualization ?? inferEventVisualization(selectedEvent),
       date: selectedEvent.date,
       time: selectedEvent.time,
       responsibleId: selectedEvent.responsibleId,
@@ -1190,6 +1220,18 @@ export function CalendarPage() {
   }, [isCreateOpen, pendingDelete, selectedEvent]);
 
   const dayHeader = view === "Dia" ? formatDayLabel(currentDate) : formatWeekRange(currentDate);
+  const selectedEventResponsibleIds = selectedEvent ? getEventResponsibleIds(selectedEvent) : [];
+  const selectedEventMembers = selectedEvent
+    ? selectedEventResponsibleIds
+        .map((id) => teamMembers.find((item) => item.id === id))
+        .filter((item): item is (typeof teamMembers)[number] => Boolean(item))
+    : [];
+  const selectedEventPrimaryMember =
+    selectedEvent && selectedEventMembers.length > 0
+      ? selectedEventMembers[0]
+      : selectedEvent
+        ? teamMembers.find((item) => item.id === selectedEvent.responsibleId) ?? teamMembers[0]
+        : null;
 
   return (
     <PageTransition>
@@ -1277,7 +1319,196 @@ export function CalendarPage() {
             </div>
           </GlassPanel>
 
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)_minmax(0,1fr)]">
+            <GlassPanel className="overflow-hidden p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                    Dia
+                  </p>
+                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
+                    {formatDayLabel(currentDate)}
+                  </h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {currentDayEvents.length} atividades previstas no dia selecionado.
+                  </p>
+                </div>
+                <div className="rounded-full border border-border/60 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground shadow-sm">
+                  {formatDateKey(currentDate)}
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-[1.25rem] border border-border/60 bg-muted/25 p-4">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Atividades</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{currentDayEvents.length}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Total de cards no dia.</p>
+                </div>
+                <div className="rounded-[1.25rem] border border-border/60 bg-muted/25 p-4">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Concluídas</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{dayCompletedCount}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Finalizadas ou já publicadas.</p>
+                </div>
+                <div className="rounded-[1.25rem] border border-border/60 bg-muted/25 p-4">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Próximo horário</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
+                    {currentDayEvents[0]?.time ?? "—"}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {currentDayEvents[0]?.title ?? "Nenhuma atividade agendada."}
+                  </p>
+                </div>
+              </div>
+            </GlassPanel>
+
+            <GlassPanel className="overflow-hidden p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                    Conteúdos do mês
+                  </p>
+                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
+                    {formatMonthLabel(currentDate)}
+                  </h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Quantidade feita por formato neste mês.
+                  </p>
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-white px-4 py-2 text-xs font-semibold text-foreground shadow-sm">
+                  <CirclePlus className="h-4 w-4 text-primary" />
+                  {currentMonthEvents.length} no mês
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                {[
+                  { label: "Reels", value: monthTypeCounts.Reels, color: "#d946ef" },
+                  { label: "Stories", value: monthTypeCounts.Stories, color: "#ec4899" },
+                  { label: "Carrossel", value: monthTypeCounts.Carrossel, color: "#f59e0b" },
+                  { label: "Feed", value: monthTypeCounts.Feed, color: "#0ea5e9" },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    className="rounded-[1.25rem] border border-border/60 bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(15,23,42,0.07)]"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold"
+                        style={{ backgroundColor: `${item.color}18`, color: item.color }}
+                      >
+                        {item.value}
+                      </span>
+                      <span
+                        className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                        style={{ backgroundColor: `${item.color}12`, color: item.color }}
+                      >
+                        {item.label}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-xs uppercase tracking-[0.2em] text-muted-foreground">Feitos no mês</p>
+                    <p className="mt-1 text-2xl font-semibold tracking-tight text-foreground">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+            </GlassPanel>
+
+            <GlassPanel className="overflow-hidden p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                    Visualizações do dia
+                  </p>
+                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{formatDayLabel(currentDate)}</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Edite o total diretamente no número, sem abrir formulário.
+                  </p>
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-white px-4 py-2 text-xs font-semibold text-foreground shadow-sm">
+                  <Eye className="h-4 w-4 text-primary" />
+                  {formatViewsNumber(currentDayViews)} visualizações
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-[1.75rem] border border-border/60 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Total do dia</p>
+                    <p className="mt-2 text-sm text-muted-foreground">Clique no número para editar na hora.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleStartEditingDayViews}
+                    className="inline-flex items-center gap-2 self-start rounded-full border border-border/60 bg-muted/20 px-3 py-2 text-sm font-medium text-foreground transition hover:border-primary/25 hover:bg-primary/5"
+                  >
+                    <Pencil className="h-4 w-4 text-primary" />
+                    Editar valor
+                  </button>
+                </div>
+
+                <div className="mt-5 flex items-end justify-between gap-4">
+                  <div className="min-w-0">
+                    {isEditingDayViews ? (
+                      <div className="flex max-w-[260px] items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
+                        <span className="text-sm font-semibold text-primary">👁</span>
+                        <input
+                          autoFocus
+                          value={dayViewsDraft}
+                          onChange={(event) => setDayViewsDraft(event.target.value)}
+                          onBlur={handleCommitDayViews}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              handleCommitDayViews();
+                            }
+
+                            if (event.key === "Escape") {
+                              event.preventDefault();
+                              handleCancelDayViewsEdit();
+                            }
+                          }}
+                          inputMode="numeric"
+                          className="w-full border-0 bg-transparent text-4xl font-semibold tracking-tight text-foreground outline-none placeholder:text-muted-foreground"
+                          placeholder="0"
+                        />
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleStartEditingDayViews}
+                        className="group inline-flex items-end gap-3 text-left transition hover:-translate-y-0.5"
+                      >
+                        <span className="text-5xl font-semibold tracking-tight text-foreground">
+                          {formatViewsNumber(currentDayViews)}
+                        </span>
+                        <span className="pb-2 text-sm font-medium text-muted-foreground transition group-hover:text-foreground">
+                          visualizações
+                        </span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="hidden rounded-full border border-border/60 bg-muted/20 px-4 py-2 text-sm font-semibold text-muted-foreground sm:inline-flex">
+                    Atualização em tempo real
+                  </div>
+                </div>
+              </div>
+            </GlassPanel>
+          </div>
+
           <GlassPanel className={gridPanelClass}>
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                  Calendário
+                </p>
+                <h3 className="mt-2 text-xl font-semibold tracking-tight text-foreground">
+                  {view === "Semana" ? "Visualização da semana" : view === "Dia" ? "Visualização do dia" : "Visualização do mês"}
+                </h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Navegue pela agenda e acompanhe as atividades planejadas.
+                </p>
+              </div>
+            </div>
             {view === "Semana" ? (
               <div className="overflow-x-auto">
                 <div className={calendarShellClass}>
@@ -1313,7 +1544,7 @@ export function CalendarPage() {
                           const slotEvents = filteredEvents.filter((event) => event.date === dateKey && event.time === hour);
 
                           return (
-                          <CalendarSlot
+                            <CalendarSlot
                               key={`${dateKey}-${hour}`}
                               date={dateKey}
                               time={hour}
@@ -1377,16 +1608,17 @@ export function CalendarPage() {
                   {monthCells.map((date) => {
                     const dateKey = formatDateKey(date);
                     const monthEvents = filteredEvents.filter((event) => event.date === dateKey);
+                    const monthDayViews = dayViewsByDate[dateKey] ?? 0;
                     const isCurrentMonth = date.getMonth() === currentDate.getMonth();
 
                     return (
-                        <div
-                          key={dateKey}
-                          className={cn(
+                      <div
+                        key={dateKey}
+                        className={cn(
                           monthCellClass,
                           !isCurrentMonth && "opacity-45",
                         )}
-                      >
+                        >
                         <p className="text-sm font-semibold text-foreground">{date.getDate()}</p>
                         <div className="mt-3 space-y-2">
                           {monthEvents.map((event) => (
@@ -1400,6 +1632,15 @@ export function CalendarPage() {
                             />
                           ))}
                         </div>
+                        <div
+                          className={cn(
+                            "mt-3 inline-flex w-fit max-w-full items-center gap-1.5 rounded-full border border-border/50 bg-white/80 px-2.5 py-1 text-[11px] font-semibold shadow-sm",
+                            monthDayViews > 0 ? "text-foreground" : "text-muted-foreground/75",
+                          )}
+                        >
+                          <Eye className="h-3.5 w-3.5 shrink-0 text-primary" />
+                          <span className="truncate">{formatViewsNumber(monthDayViews)}</span>
+                        </div>
                       </div>
                     );
                   })}
@@ -1408,9 +1649,7 @@ export function CalendarPage() {
             ) : null}
           </GlassPanel>
         </div>
-      </div>
-
-      {selectedEvent ? (
+      </div>      {selectedEvent ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4"
           onWheelCapture={(event) => event.stopPropagation()}
@@ -1422,291 +1661,283 @@ export function CalendarPage() {
             onClick={(event) => event.stopPropagation()}
           >
             <div className="max-h-[88vh] overflow-y-auto overscroll-contain p-6">
-              {(() => {
-                const responsibleIds = getEventResponsibleIds(selectedEvent);
-                const members = responsibleIds
-                  .map((id) => teamMembers.find((item) => item.id === id))
-                  .filter((item): item is (typeof teamMembers)[number] => Boolean(item));
-                const primaryMember = members[0] ?? teamMembers.find((item) => item.id === selectedEvent.responsibleId)!;
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm">
+                    <CalendarDays className="h-7 w-7" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Agenda</p>
+                    <h3 className="text-3xl font-semibold tracking-tight text-foreground">{selectedEvent.title}</h3>
+                    <p className="text-sm text-muted-foreground">Defina, confirme e acompanhe esta atividade.</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold",
+                      selectedEvent.completed ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700",
+                    )}
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    {selectedEvent.completed ? "Concluída" : "Agendada"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedEvent(null)}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
 
-                return (
-                  <>
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-start gap-4">
-                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm">
-                          <CalendarDays className="h-7 w-7" />
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Agenda</p>
-                          <h3 className="text-3xl font-semibold tracking-tight text-foreground">{selectedEvent.title}</h3>
-                          <p className="text-sm text-muted-foreground">Defina, confirme e acompanhe esta atividade.</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={cn(
-                            "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold",
-                            selectedEvent.completed ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700",
-                          )}
-                        >
-                          <CheckCircle2 className="h-4 w-4" />
-                          {selectedEvent.completed ? "Concluída" : "Agendada"}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedEvent(null)}
-                          className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-2xl bg-muted/45 p-4">
-                        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Data</p>
-                        <p className="mt-2 text-sm font-semibold text-foreground">{selectedEvent.date}</p>
-                      </div>
-                      <div className="rounded-2xl bg-muted/45 p-4">
-                        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Horário</p>
-                        <p className="mt-2 text-sm font-semibold text-foreground">{selectedEvent.time}</p>
-                      </div>
-                      <div className="rounded-2xl bg-muted/45 p-4 sm:col-span-2">
-                        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Responsáveis</p>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {members.map((member) => (
-                            <span
-                              key={member.id}
-                              className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
-                              style={{ backgroundColor: `${member.color}14`, color: member.color }}
-                            >
-                              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: member.color }} />
-                              {member.name}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="rounded-2xl bg-muted/45 p-4">
-                        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Status</p>
-                        <div
-                          className={cn(
-                            "mt-2 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold",
-                            selectedEvent.completed ? "bg-emerald-100 text-emerald-700" : "bg-muted text-foreground",
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "h-2.5 w-2.5 rounded-full",
-                              selectedEvent.completed ? "bg-emerald-500" : "bg-primary",
-                            )}
-                          />
-                          {selectedEvent.completed ? "Concluída" : selectedEvent.status}
-                        </div>
-                      </div>
-                      <div className="rounded-2xl bg-muted/45 p-4 sm:col-span-2">
-                        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Adicionado por</p>
-                        <div className="mt-3">
-                          {teamMembers.find((item) => item.id === selectedEvent.addedById) ? (
-                            (() => {
-                              const addedBy = teamMembers.find((item) => item.id === selectedEvent.addedById)!;
-                              return <MemberChip name={addedBy.name} role={addedBy.role} color={addedBy.color} src={addedBy.avatarUrl} />;
-                            })()
-                          ) : (
-                            <p className="text-sm text-muted-foreground">Não informado.</p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-5 rounded-[1.75rem] border border-border/60 bg-muted/20 p-4">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <span
-                          className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
-                          style={{ backgroundColor: `${primaryMember.color}14`, color: primaryMember.color }}
-                        >
-                          {selectedEvent.type}
-                        </span>
-                        <span className="text-sm font-medium text-foreground">{selectedEvent.description}</span>
-                      </div>
-                    </div>
-
-                    <ActivitySection
-                      tasks={eventForm?.tasks ?? selectedEvent.tasks ?? []}
-                      draft={taskDraft}
-                      setDraft={setTaskDraft}
-                      onAddTask={(task) => {
-                        setEventForm((current) =>
-                          current
-                            ? { ...current, tasks: [...(current.tasks ?? selectedEvent.tasks ?? []), task] }
-                            : current,
-                        );
-                      }}
-                      onToggleTask={(taskId) => {
-                        setEventForm((current) =>
-                          current
-                            ? {
-                                ...current,
-                                tasks: (current.tasks ?? selectedEvent.tasks ?? []).map((item) =>
-                                  item.id === taskId ? { ...item, done: !item.done } : item,
-                                ),
-                              }
-                            : current,
-                        );
-                      }}
-                      onRemoveTask={(taskId) => {
-                        setEventForm((current) =>
-                          current
-                            ? {
-                                ...current,
-                                tasks: (current.tasks ?? selectedEvent.tasks ?? []).filter((item) => item.id !== taskId),
-                              }
-                            : current,
-                        );
-                      }}
-                      onMarkAllDone={() => {
-                        setEventForm((current) =>
-                          current
-                            ? {
-                                ...current,
-                                tasks: (current.tasks ?? selectedEvent.tasks ?? []).map((task) => ({ ...task, done: true })),
-                              }
-                            : current,
-                        );
-                      }}
-                      onClearTaskDraft={() => setTaskDraft(emptyActivityDraft())}
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl bg-muted/45 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Data</p>
+                  <p className="mt-2 text-sm font-semibold text-foreground">{selectedEvent.date}</p>
+                </div>
+                <div className="rounded-2xl bg-muted/45 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Horário</p>
+                  <p className="mt-2 text-sm font-semibold text-foreground">{selectedEvent.time}</p>
+                </div>
+                <div className="rounded-2xl bg-muted/45 p-4 sm:col-span-2">
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Responsáveis</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {selectedEventMembers.map((member) => (
+                      <span
+                        key={member.id}
+                        className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
+                        style={{ backgroundColor: `${member.color}14`, color: member.color }}
+                      >
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: member.color }} />
+                        {member.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-muted/45 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Status</p>
+                  <div
+                    className={cn(
+                      "mt-2 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold",
+                      selectedEvent.completed ? "bg-emerald-100 text-emerald-700" : "bg-muted text-foreground",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "h-2.5 w-2.5 rounded-full",
+                        selectedEvent.completed ? "bg-emerald-500" : "bg-primary",
+                      )}
                     />
+                    {selectedEvent.completed ? "Concluída" : selectedEvent.status}
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-muted/45 p-4 sm:col-span-2">
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Adicionado por</p>
+                  <div className="mt-3">
+                    {teamMembers.find((item) => item.id === selectedEvent.addedById) ? (
+                      (() => {
+                        const addedBy = teamMembers.find((item) => item.id === selectedEvent.addedById)!;
+                        return <MemberChip name={addedBy.name} role={addedBy.role} color={addedBy.color} src={addedBy.avatarUrl} />;
+                      })()
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Não informado.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
 
-                    <div className="mt-6 rounded-3xl border border-border/60 bg-muted/20 p-4">
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Editar informações</p>
-                      <div className="mt-4 grid gap-4 md:grid-cols-2">
-                        <label className="grid gap-2 md:col-span-2">
-                          <span className="text-sm font-medium text-foreground">Título</span>
-                          <input
-                            value={eventForm?.title ?? ""}
-                            onChange={(event) =>
-                              setEventForm((previous) => (previous ? { ...previous, title: event.target.value } : previous))
-                            }
-                            className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                          />
-                        </label>
-                        <label className="grid gap-2 md:col-span-2">
-                          <span className="text-sm font-medium text-foreground">Descrição</span>
-                          <textarea
-                            value={eventForm?.description ?? ""}
-                            onChange={(event) =>
-                              setEventForm((previous) =>
-                                previous ? { ...previous, description: event.target.value } : previous,
-                              )
-                            }
-                            rows={3}
-                            className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                          />
-                        </label>
-                        <label className="grid gap-2">
-                          <span className="text-sm font-medium text-foreground">Tipo</span>
-                          <RoundedDropdown
-                            label="Tipo"
-                            value={eventForm?.type ?? "Reels"}
-                            options={typeOptions}
-                            onChange={(value) =>
-                              setEventForm((previous) => (previous ? { ...previous, type: value } : previous))
-                            }
-                          />
-                        </label>
-                        <label className="grid gap-2">
-                          <span className="text-sm font-medium text-foreground">Status</span>
-                          <RoundedDropdown
-                            label="Status"
-                            value={eventForm?.status ?? "Agendado"}
-                            options={statusOptions}
-                            onChange={(value) =>
-                              setEventForm((previous) => (previous ? { ...previous, status: value } : previous))
-                            }
-                          />
-                        </label>
-                        <label className="grid gap-2">
-                          <span className="text-sm font-medium text-foreground">Data</span>
-                          <RoundedDatePicker
-                            label="Data"
-                            value={eventForm?.date ?? selectedEvent.date}
-                            onChange={(value) => setEventForm((previous) => (previous ? { ...previous, date: value } : previous))}
-                          />
-                        </label>
-                        <label className="grid gap-2">
-                          <span className="text-sm font-medium text-foreground">Horário</span>
-                          <RoundedTimePicker
-                            label="Hora"
-                            value={eventForm?.time ?? selectedEvent.time}
-                            onChange={(value) => setEventForm((previous) => (previous ? { ...previous, time: value } : previous))}
-                          />
-                        </label>
-                        <label className="grid gap-2 md:col-span-2">
-                          <span className="text-sm font-medium text-foreground">Responsáveis</span>
-                          <ResponsibleMultiPicker
-                            value={eventForm?.responsibleIds ?? getEventResponsibleIds(selectedEvent)}
-                            teamMembers={teamMembers}
-                            onChange={(value) =>
-                              setEventForm((previous) =>
-                                previous
-                                  ? {
-                                      ...previous,
-                                      responsibleIds: value,
-                                      responsibleId: value[0] ?? previous.responsibleId,
-                                    }
-                                  : previous,
-                              )
-                            }
-                          />
-                        </label>
-                        <label className="grid gap-2 md:col-span-2">
-                          <span className="text-sm font-medium text-foreground">Adicionado por</span>
-                          <select
-                            value={eventForm?.addedById ?? currentMember?.id ?? teamMembers[0]?.id ?? ""}
-                            onChange={(event) =>
-                              setEventForm((previous) =>
-                                previous ? { ...previous, addedById: Number(event.target.value) } : previous,
-                              )
-                            }
-                            className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                          >
-                            {teamMembers.map((member) => (
-                              <option key={member.id} value={member.id}>
-                                {member.name} - {member.role}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      </div>
-                    </div>
+              <div className="mt-5 rounded-[1.75rem] border border-border/60 bg-muted/20 p-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span
+                    className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
+                    style={{ backgroundColor: `${selectedEventPrimaryMember?.color ?? "#7c3aed"}14`, color: selectedEventPrimaryMember?.color ?? "#7c3aed" }}
+                  >
+                    {selectedEvent.type}
+                  </span>
+                  <span className="text-sm font-medium text-foreground">{selectedEvent.description}</span>
+                </div>
+              </div>
 
-                    <div className="mt-6 flex flex-wrap gap-3">
-                      <ActionButton
-                        onClick={handleMarkEventCompleted}
-                        className="bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
-                      >
-                        <CheckCircle2 className="h-4 w-4" />
-                        {selectedEvent.completed ? "Concluída" : "Concluir atividade"}
-                      </ActionButton>
-                      <ActionButton
-                        onClick={handleSaveEvent}
-                        className="bg-primary text-primary-foreground shadow-lg shadow-primary/20"
-                      >
-                        Salvar alterações
-                      </ActionButton>
-                      <ActionButton
-                        onClick={handleDuplicateEvent}
-                        className="bg-primary text-primary-foreground shadow-lg shadow-primary/20"
-                      >
-                        <Plus className="h-4 w-4" />
-                        Duplicar tarefa
-                      </ActionButton>
-                      <ActionButton variant="secondary" onClick={() => setSelectedEvent(null)}>
-                        Fechar
-                      </ActionButton>
-                    </div>
-                  </>
-                );
-              })()}
+              <ActivitySection
+                tasks={eventForm?.tasks ?? selectedEvent.tasks ?? []}
+                draft={taskDraft}
+                setDraft={setTaskDraft}
+                onAddTask={(task) => {
+                  setEventForm((current) =>
+                    current ? { ...current, tasks: [...(current.tasks ?? selectedEvent.tasks ?? []), task] } : current,
+                  );
+                }}
+                onToggleTask={(taskId) => {
+                  setEventForm((current) =>
+                    current
+                      ? {
+                          ...current,
+                          tasks: (current.tasks ?? selectedEvent.tasks ?? []).map((item) =>
+                            item.id === taskId ? { ...item, done: !item.done } : item,
+                          ),
+                        }
+                      : current,
+                  );
+                }}
+                onRemoveTask={(taskId) => {
+                  setEventForm((current) =>
+                    current
+                      ? {
+                          ...current,
+                          tasks: (current.tasks ?? selectedEvent.tasks ?? []).filter((item) => item.id !== taskId),
+                        }
+                      : current,
+                  );
+                }}
+                onMarkAllDone={() => {
+                  setEventForm((current) =>
+                    current
+                      ? {
+                          ...current,
+                          tasks: (current.tasks ?? selectedEvent.tasks ?? []).map((task) => ({ ...task, done: true })),
+                        }
+                      : current,
+                  );
+                }}
+                onClearTaskDraft={() => setTaskDraft(emptyActivityDraft())}
+              />
+
+              <div className="mt-6 rounded-3xl border border-border/60 bg-muted/20 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Editar informações</p>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <label className="grid gap-2 md:col-span-2">
+                    <span className="text-sm font-medium text-foreground">Título</span>
+                    <input
+                      value={eventForm?.title ?? ""}
+                      onChange={(event) =>
+                        setEventForm((previous) => (previous ? { ...previous, title: event.target.value } : previous))
+                      }
+                      className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                    />
+                  </label>
+                  <label className="grid gap-2 md:col-span-2">
+                    <span className="text-sm font-medium text-foreground">Descrição</span>
+                    <textarea
+                      value={eventForm?.description ?? ""}
+                      onChange={(event) =>
+                        setEventForm((previous) => (previous ? { ...previous, description: event.target.value } : previous))
+                      }
+                      rows={3}
+                      className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                    />
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-sm font-medium text-foreground">Tipo</span>
+                    <RoundedDropdown
+                      label="Tipo"
+                      value={eventForm?.type ?? "Reels"}
+                      options={typeOptions}
+                      onChange={(value) =>
+                        setEventForm((previous) => (previous ? { ...previous, type: value } : previous))
+                      }
+                    />
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-sm font-medium text-foreground">Status</span>
+                    <RoundedDropdown
+                      label="Status"
+                      value={eventForm?.status ?? "Agendado"}
+                      options={statusOptions}
+                      onChange={(value) =>
+                        setEventForm((previous) => (previous ? { ...previous, status: value } : previous))
+                      }
+                    />
+                  </label>
+                  <label className="grid gap-2 md:col-span-2">
+                    <span className="text-sm font-medium text-foreground">Visualização</span>
+                    <RoundedDropdown
+                      label="Visualização"
+                      value={eventForm?.visualization ?? inferEventVisualization(selectedEvent)}
+                      options={visualizationOptions}
+                      onChange={(value) =>
+                        setEventForm((previous) => (previous ? { ...previous, visualization: value } : previous))
+                      }
+                    />
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-sm font-medium text-foreground">Data</span>
+                    <RoundedDatePicker
+                      label="Data"
+                      value={eventForm?.date ?? selectedEvent.date}
+                      onChange={(value) => setEventForm((previous) => (previous ? { ...previous, date: value } : previous))}
+                    />
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-sm font-medium text-foreground">Horário</span>
+                    <RoundedTimePicker
+                      label="Hora"
+                      value={eventForm?.time ?? selectedEvent.time}
+                      onChange={(value) => setEventForm((previous) => (previous ? { ...previous, time: value } : previous))}
+                    />
+                  </label>
+                  <label className="grid gap-2 md:col-span-2">
+                    <span className="text-sm font-medium text-foreground">Responsáveis</span>
+                    <ResponsibleMultiPicker
+                      value={eventForm?.responsibleIds ?? selectedEventResponsibleIds}
+                      teamMembers={teamMembers}
+                      onChange={(value) =>
+                        setEventForm((previous) =>
+                          previous
+                            ? {
+                                ...previous,
+                                responsibleIds: value,
+                                responsibleId: value[0] ?? previous.responsibleId,
+                              }
+                            : previous,
+                        )
+                      }
+                    />
+                  </label>
+                  <label className="grid gap-2 md:col-span-2">
+                    <span className="text-sm font-medium text-foreground">Adicionado por</span>
+                    <select
+                      value={eventForm?.addedById ?? currentMember?.id ?? teamMembers[0]?.id ?? ""}
+                      onChange={(event) =>
+                        setEventForm((previous) =>
+                          previous ? { ...previous, addedById: Number(event.target.value) } : previous,
+                        )
+                      }
+                      className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                    >
+                      {teamMembers.map((member) => (
+                        <option key={member.id} value={member.id}>
+                          {member.name} - {member.role}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <ActionButton
+                  onClick={handleMarkEventCompleted}
+                  className="bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  {selectedEvent.completed ? "Concluída" : "Concluir atividade"}
+                </ActionButton>
+                <ActionButton onClick={handleSaveEvent} className="bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+                  Salvar alterações
+                </ActionButton>
+                <ActionButton
+                  onClick={handleDuplicateEvent}
+                  className="bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                >
+                  <Plus className="h-4 w-4" />
+                  Duplicar tarefa
+                </ActionButton>
+                <ActionButton variant="secondary" onClick={() => setSelectedEvent(null)}>
+                  Fechar
+                </ActionButton>
+              </div>
             </div>
           </div>
         </div>
@@ -1715,169 +1946,298 @@ export function CalendarPage() {
       {pendingDelete ? (
         <ConfirmDialog
           title="Tem certeza que deseja apagar?"
-          description="Essa ação não pode ser desfeita."
+           description="Essa ação não pode ser desfeita."
           onCancel={() => setPendingDelete(null)}
           onConfirm={() => handleDeleteEvent(pendingDelete.id)}
         />
       ) : null}
-
-      {isCreateOpen ? (
+            {selectedEvent ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 sm:p-6"
-          onClick={() => setIsCreateOpen(false)}
-          onWheelCapture={(event) => {
-            if (event.target === event.currentTarget) {
-              event.preventDefault();
-            }
-          }}
-          onTouchMoveCapture={(event) => {
-            if (event.target === event.currentTarget) {
-              event.preventDefault();
-            }
-          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4"
+          onWheelCapture={(event) => event.stopPropagation()}
+          onClick={() => setSelectedEvent(null)}
         >
           <div
-            className="flex w-[min(92vw,760px)] max-h-[calc(100vh-48px)] flex-col overflow-visible rounded-[2.25rem] border border-border/60 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:border-white/8 dark:bg-card dark:shadow-[0_30px_80px_rgba(0,0,0,0.35)]"
+            className={modalClass}
+            onWheelCapture={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="shrink-0 px-6 pb-0 pt-6 sm:px-8 sm:pt-8">
+            <div className="max-h-[88vh] overflow-y-auto overscroll-contain p-6">
               <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Novo Post</p>
-                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Criar atividade rápida</h3>
+                <div className="flex items-start gap-4">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm">
+                    <CalendarDays className="h-7 w-7" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Agenda</p>
+                    <h3 className="text-3xl font-semibold tracking-tight text-foreground">{selectedEvent.title}</h3>
+                    <p className="text-sm text-muted-foreground">Defina, confirme e acompanhe esta atividade.</p>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setIsCreateOpen(false)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
-                >
-                  <span className="text-lg leading-none">×</span>
-                </button>
+                <div className="flex items-center gap-3">
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold",
+                      selectedEvent.completed ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700",
+                    )}
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    {selectedEvent.completed ? "Concluída" : "Agendada"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedEvent(null)}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible overscroll-contain px-6 py-6 sm:px-8">
-              <div className="grid gap-4 md:grid-cols-2">
-                <label className="grid gap-2 md:col-span-2">
-                  <span className="text-sm font-medium text-foreground">Título</span>
-                  <input
-                    value={createForm.title}
-                    onChange={(event) => setCreateForm((previous) => ({ ...previous, title: event.target.value }))}
-                    className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                  />
-                </label>
-                <label className="grid gap-2 md:col-span-2">
-                  <span className="text-sm font-medium text-foreground">Descrição</span>
-                  <textarea
-                    value={createForm.description}
-                    onChange={(event) =>
-                      setCreateForm((previous) => ({ ...previous, description: event.target.value }))
-                    }
-                    rows={3}
-                    className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                  />
-                </label>
-                <label className="grid gap-2">
-                  <span className="text-sm font-medium text-foreground">Tipo</span>
-                  <RoundedDropdown
-                    label="Tipo"
-                    value={createForm.type}
-                    options={typeOptions}
-                    onChange={(value) => setCreateForm((previous) => ({ ...previous, type: value }))}
-                  />
-                </label>
-                <label className="grid gap-2">
-                  <span className="text-sm font-medium text-foreground">Status</span>
-                  <RoundedDropdown
-                    label="Status"
-                    value={createForm.status}
-                    options={statusOptions}
-                    onChange={(value) => setCreateForm((previous) => ({ ...previous, status: value }))}
-                  />
-                </label>
-                <label className="grid gap-2">
-                  <span className="text-sm font-medium text-foreground">Data</span>
-                  <RoundedDatePicker
-                    label="Data"
-                    value={createForm.date}
-                    onChange={(value) => setCreateForm((previous) => ({ ...previous, date: value }))}
-                  />
-                </label>
-                <label className="grid gap-2">
-                  <span className="text-sm font-medium text-foreground">Horário</span>
-                  <RoundedTimePicker
-                    label="Hora"
-                    value={createForm.time}
-                    onChange={(value) => setCreateForm((previous) => ({ ...previous, time: value }))}
-                  />
-                </label>
-                <label className="grid gap-2 md:col-span-2">
-                  <span className="text-sm font-medium text-foreground">Responsáveis</span>
-                  <ResponsibleMultiPicker
-                    value={createForm.responsibleIds}
-                    teamMembers={teamMembers}
-                    onChange={(value) =>
-                      setCreateForm((previous) => ({
-                        ...previous,
-                        responsibleIds: value,
-                        responsibleId: value[0] ?? previous.responsibleId,
-                      }))
-                    }
-                  />
-                </label>
-
-                <div className="md:col-span-2 rounded-2xl border border-border/60 bg-muted/20 p-4">
-                  <p className="text-sm font-medium text-foreground">Quem adicionou</p>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl bg-muted/45 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Data</p>
+                  <p className="mt-2 text-sm font-semibold text-foreground">{selectedEvent.date}</p>
+                </div>
+                <div className="rounded-2xl bg-muted/45 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Horário</p>
+                  <p className="mt-2 text-sm font-semibold text-foreground">{selectedEvent.time}</p>
+                </div>
+                <div className="rounded-2xl bg-muted/45 p-4 sm:col-span-2">
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Responsáveis</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {selectedEventMembers.map((member) => (
+                      <span
+                        key={member.id}
+                        className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
+                        style={{ backgroundColor: `${member.color}14`, color: member.color }}
+                      >
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: member.color }} />
+                        {member.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-muted/45 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Status</p>
+                  <div
+                    className={cn(
+                      "mt-2 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold",
+                      selectedEvent.completed ? "bg-emerald-100 text-emerald-700" : "bg-muted text-foreground",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "h-2.5 w-2.5 rounded-full",
+                        selectedEvent.completed ? "bg-emerald-500" : "bg-primary",
+                      )}
+                    />
+                    {selectedEvent.completed ? "Concluída" : selectedEvent.status}
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-muted/45 p-4 sm:col-span-2">
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Adicionado por</p>
                   <div className="mt-3">
-                    {currentMember ? (
-                      <MemberChip
-                        name={currentMember.name}
-                        role={currentMember.role}
-                        color={currentMember.color}
-                        src={currentMember.avatarUrl}
-                      />
+                    {teamMembers.find((item) => item.id === selectedEvent.addedById) ? (
+                      (() => {
+                        const addedBy = teamMembers.find((item) => item.id === selectedEvent.addedById)!;
+                        return <MemberChip name={addedBy.name} role={addedBy.role} color={addedBy.color} src={addedBy.avatarUrl} />;
+                      })()
                     ) : (
-                      <p className="text-sm text-muted-foreground">Perfil atual não identificado.</p>
+                      <p className="text-sm text-muted-foreground">Não informado.</p>
                     )}
                   </div>
                 </div>
-
-                <ActivitySection
-                  tasks={createForm.tasks}
-                  draft={createTaskDraft}
-                  setDraft={setCreateTaskDraft}
-                  onAddTask={(task) => setCreateForm((previous) => ({ ...previous, tasks: [...previous.tasks, task] }))}
-                  onToggleTask={(taskId) =>
-                    setCreateForm((previous) => ({
-                      ...previous,
-                      tasks: previous.tasks.map((item) => (item.id === taskId ? { ...item, done: !item.done } : item)),
-                    }))
-                  }
-                  onRemoveTask={(taskId) =>
-                    setCreateForm((previous) => ({
-                      ...previous,
-                      tasks: previous.tasks.filter((item) => item.id !== taskId),
-                    }))
-                  }
-                  onMarkAllDone={() =>
-                    setCreateForm((previous) => ({
-                      ...previous,
-                      tasks: previous.tasks.map((task) => ({ ...task, done: true })),
-                    }))
-                  }
-                  onClearTaskDraft={() => setCreateTaskDraft(emptyActivityDraft())}
-                />
               </div>
-            </div>
 
-            <div className="shrink-0 border-t border-border/60 bg-white/95 px-6 py-5 backdrop-blur dark:bg-card/95 sm:px-8">
-              <div className="flex flex-wrap justify-end gap-3">
-                <ActionButton variant="secondary" onClick={() => setIsCreateOpen(false)}>
-                  Cancelar
+              <div className="mt-5 rounded-[1.75rem] border border-border/60 bg-muted/20 p-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span
+                    className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
+                    style={{ backgroundColor: `${selectedEventPrimaryMember?.color ?? "#7c3aed"}14`, color: selectedEventPrimaryMember?.color ?? "#7c3aed" }}
+                  >
+                    {selectedEvent.type}
+                  </span>
+                  <span className="text-sm font-medium text-foreground">{selectedEvent.description}</span>
+                </div>
+              </div>
+
+              <ActivitySection
+                tasks={eventForm?.tasks ?? selectedEvent.tasks ?? []}
+                draft={taskDraft}
+                setDraft={setTaskDraft}
+                onAddTask={(task) => {
+                  setEventForm((current) =>
+                    current ? { ...current, tasks: [...(current.tasks ?? selectedEvent.tasks ?? []), task] } : current,
+                  );
+                }}
+                onToggleTask={(taskId) => {
+                  setEventForm((current) =>
+                    current
+                      ? {
+                          ...current,
+                          tasks: (current.tasks ?? selectedEvent.tasks ?? []).map((item) =>
+                            item.id === taskId ? { ...item, done: !item.done } : item,
+                          ),
+                        }
+                      : current,
+                  );
+                }}
+                onRemoveTask={(taskId) => {
+                  setEventForm((current) =>
+                    current
+                      ? {
+                          ...current,
+                          tasks: (current.tasks ?? selectedEvent.tasks ?? []).filter((item) => item.id !== taskId),
+                        }
+                      : current,
+                  );
+                }}
+                onMarkAllDone={() => {
+                  setEventForm((current) =>
+                    current
+                      ? {
+                          ...current,
+                          tasks: (current.tasks ?? selectedEvent.tasks ?? []).map((task) => ({ ...task, done: true })),
+                        }
+                      : current,
+                  );
+                }}
+                onClearTaskDraft={() => setTaskDraft(emptyActivityDraft())}
+              />
+
+              <div className="mt-6 rounded-3xl border border-border/60 bg-muted/20 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Editar informações</p>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <label className="grid gap-2 md:col-span-2">
+                    <span className="text-sm font-medium text-foreground">Título</span>
+                    <input
+                      value={eventForm?.title ?? ""}
+                      onChange={(event) =>
+                        setEventForm((previous) => (previous ? { ...previous, title: event.target.value } : previous))
+                      }
+                      className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                    />
+                  </label>
+                  <label className="grid gap-2 md:col-span-2">
+                    <span className="text-sm font-medium text-foreground">Descrição</span>
+                    <textarea
+                      value={eventForm?.description ?? ""}
+                      onChange={(event) =>
+                        setEventForm((previous) => (previous ? { ...previous, description: event.target.value } : previous))
+                      }
+                      rows={3}
+                      className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                    />
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-sm font-medium text-foreground">Tipo</span>
+                    <RoundedDropdown
+                      label="Tipo"
+                      value={eventForm?.type ?? "Reels"}
+                      options={typeOptions}
+                      onChange={(value) =>
+                        setEventForm((previous) => (previous ? { ...previous, type: value } : previous))
+                      }
+                    />
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-sm font-medium text-foreground">Status</span>
+                    <RoundedDropdown
+                      label="Status"
+                      value={eventForm?.status ?? "Agendado"}
+                      options={statusOptions}
+                      onChange={(value) =>
+                        setEventForm((previous) => (previous ? { ...previous, status: value } : previous))
+                      }
+                    />
+                  </label>
+                  <label className="grid gap-2 md:col-span-2">
+                    <span className="text-sm font-medium text-foreground">Visualização</span>
+                    <RoundedDropdown
+                      label="Visualização"
+                      value={eventForm?.visualization ?? inferEventVisualization(selectedEvent)}
+                      options={visualizationOptions}
+                      onChange={(value) =>
+                        setEventForm((previous) => (previous ? { ...previous, visualization: value } : previous))
+                      }
+                    />
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-sm font-medium text-foreground">Data</span>
+                    <RoundedDatePicker
+                      label="Data"
+                      value={eventForm?.date ?? selectedEvent.date}
+                      onChange={(value) => setEventForm((previous) => (previous ? { ...previous, date: value } : previous))}
+                    />
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-sm font-medium text-foreground">Horário</span>
+                    <RoundedTimePicker
+                      label="Hora"
+                      value={eventForm?.time ?? selectedEvent.time}
+                      onChange={(value) => setEventForm((previous) => (previous ? { ...previous, time: value } : previous))}
+                    />
+                  </label>
+                  <label className="grid gap-2 md:col-span-2">
+                    <span className="text-sm font-medium text-foreground">Responsáveis</span>
+                    <ResponsibleMultiPicker
+                      value={eventForm?.responsibleIds ?? selectedEventResponsibleIds}
+                      teamMembers={teamMembers}
+                      onChange={(value) =>
+                        setEventForm((previous) =>
+                          previous
+                            ? {
+                                ...previous,
+                                responsibleIds: value,
+                                responsibleId: value[0] ?? previous.responsibleId,
+                              }
+                            : previous,
+                        )
+                      }
+                    />
+                  </label>
+                  <label className="grid gap-2 md:col-span-2">
+                    <span className="text-sm font-medium text-foreground">Adicionado por</span>
+                    <select
+                      value={eventForm?.addedById ?? currentMember?.id ?? teamMembers[0]?.id ?? ""}
+                      onChange={(event) =>
+                        setEventForm((previous) =>
+                          previous ? { ...previous, addedById: Number(event.target.value) } : previous,
+                        )
+                      }
+                      className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                    >
+                      {teamMembers.map((member) => (
+                        <option key={member.id} value={member.id}>
+                          {member.name} - {member.role}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <ActionButton
+                  onClick={handleMarkEventCompleted}
+                  className="bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  {selectedEvent.completed ? "Concluída" : "Concluir atividade"}
                 </ActionButton>
-                <ActionButton onClick={handleCreateEvent}>
+                <ActionButton onClick={handleSaveEvent} className="bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+                  Salvar alterações
+                </ActionButton>
+                <ActionButton
+                  onClick={handleDuplicateEvent}
+                  className="bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                >
                   <Plus className="h-4 w-4" />
-                  Criar post
+                  Duplicar tarefa
+                </ActionButton>
+                <ActionButton variant="secondary" onClick={() => setSelectedEvent(null)}>
+                  Fechar
                 </ActionButton>
               </div>
             </div>
@@ -1887,4 +2247,7 @@ export function CalendarPage() {
     </PageTransition>
   );
 }
+
+
+
 

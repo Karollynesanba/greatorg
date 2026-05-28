@@ -3,6 +3,7 @@ export type PostStatus = "Agendado" | "Em produção" | "Aprovado" | "Publicado"
 export type IdeaStatus = "Ideia" | "Em produção" | "Pronto";
 export type TimelineType = "post" | "goal" | "schedule";
 export type IdeaCategory = "Stories em foto" | "Stories em vídeo" | "Reels" | "Post" | "Carrossel" | "Feed";
+export type CalendarVisualizationType = "Carrossel" | "Depoimento" | "Agendamento" | "Material" | "Vídeo viral";
 
 export type TeamMember = {
   id: number;
@@ -142,8 +143,12 @@ export type CalendarEvent = {
   status: PostStatus;
   date: string;
   time: string;
+  visualization?: CalendarVisualizationType;
   tasks?: CalendarTaskItem[];
+  checklist?: CalendarChecklistItem[];
   completed?: boolean;
+  completedAt?: string;
+  completedById?: number;
 };
 
 export type CalendarTaskItem = {
@@ -154,12 +159,15 @@ export type CalendarTaskItem = {
   done: boolean;
 };
 
+export type CalendarChecklistItem = CalendarTaskItem;
+
 export type StoryLog = {
   id: number;
   date: string;
   time: string;
   quantity: number;
   mediaType: "video" | "photo";
+  status?: "Agendado" | "Publicado" | "Rascunho";
   madeById: number;
   postedById: number;
   notes: string;

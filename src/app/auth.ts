@@ -174,6 +174,19 @@ export function useAuthSession() {
   return state;
 }
 
+export function isAuthenticated() {
+  return readLocalSession() !== null;
+}
+
+export function getAuthenticatedMemberId() {
+  const session = readLocalSession();
+  if (!session) {
+    return null;
+  }
+
+  return getDemoAccountUserId(session.user.email);
+}
+
 export async function signInWithPassword(email: string, password: string) {
   const account = getDemoAccount(email);
   if (!account) {

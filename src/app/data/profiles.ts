@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef } from "react";
-import { getAuthenticatedMemberId } from "../auth";
+import { getAuthenticatedMemberId, getDemoAccountUserId } from "../auth";
 import { createStorageKey, useSharedState } from "./sharedState";
 import { isSupabaseConfigured, supabase } from "./supabase";
 import { teamMembers as baseTeamMembers, type TeamMember } from "./mockData";
 
 export type EditableTeamMember = TeamMember & {
+  userId: string;
   email: string;
   password: string;
   avatarUrl: string;
@@ -52,6 +53,7 @@ const seedAccounts: EditableTeamMember[] = baseTeamMembers.map((member, index) =
 
   return {
     ...member,
+    userId: getDemoAccountUserId(credentials.email) ?? "",
     ...credentials,
     avatarUrl: "",
     bio: member.specialty,
@@ -63,6 +65,25 @@ export function useTeamProfiles() {
   const [profiles, setProfiles] = sharedState;
   const hydratedRef = useRef(false);
   const supabaseClient = supabase;
+
+  const refreshTeamData = async () => {
+    if (!isSupabaseConfigured() || !supabaseClient) {
+      setProfiles((current) => [...current]);
+      return;
+    }
+
+    const { data, error } = await supabaseClient.from(teamProfilesTable).select("*").order("id", { ascending: true });
+
+    if (error) {
+      console.warn("Supabase team_profiles refresh failed:", error.message);
+      return;
+    }
+
+    const remoteProfiles = (data ?? []).map((row) => normalizeProfileRow(row as TeamProfileRow));
+    if (remoteProfiles.length > 0) {
+      setProfiles(remoteProfiles);
+    }
+  };
 
   useEffect(() => {
     if (!isSupabaseConfigured() || !supabaseClient) {
@@ -161,7 +182,7 @@ export function useTeamProfiles() {
     };
   }, [profiles, supabaseClient]);
 
-  return sharedState;
+  return [profiles, setProfiles, refreshTeamData] as const;
 }
 
 export function useCurrentTeamMember() {
@@ -218,6 +239,7 @@ function normalizeProfileRow(row: TeamProfileRow) {
     },
     radar: row.radar ?? [],
     monthlyPosts: row.monthlyPosts ?? row.monthly_posts ?? [],
+    userId: row.userId ?? getDemoAccountUserId(row.email ?? "") ?? "",
     email: row.email ?? "",
     password: row.password ?? "",
     avatarUrl: row.avatarUrl ?? row.avatar_url ?? "",

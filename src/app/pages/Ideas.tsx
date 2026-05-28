@@ -22,14 +22,14 @@ import {
 
 const ideaCategories = [
   "Stories em foto",
-  "Stories em vÃ­deo",
+  "Stories em vídeo",
   "Reels",
   "Post",
   "Carrossel",
   "Feed",
 ] as const;
 
-const ideaStatuses: IdeaStatus[] = ["Ideia", "Em produÃ§Ã£o", "Pronto"];
+const ideaStatuses: IdeaStatus[] = ["Ideia", "Em produção", "Pronto"];
 
 type IdeaCategory = (typeof ideaCategories)[number];
 type IdeaMediaSource = "url" | "upload";
@@ -107,7 +107,7 @@ function MemberDropdown({
           className="absolute left-0 top-full z-50 mt-2 w-full rounded-[1.75rem] border border-border/70 bg-background p-2 shadow-[0_24px_60px_rgba(15,23,42,0.14)] dark:border-white/8 dark:bg-[#121821] dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]"
         >
           <p className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-            ResponsÃ¡vel
+            Responsável
           </p>
           <div className="space-y-1">
             {teamMembers.map((member) => {
@@ -259,7 +259,7 @@ export function IdeasPage() {
 
   const handleSaveIdea = () => {
     if (!form.title.trim() || !form.category.trim() || !form.theme.trim() || !form.description.trim()) {
-      toast.error("Preencha tÃƒÂ­tulo, categoria, tema e descriÃƒÂ§ÃƒÂ£o.");
+      toast.error("Preencha título, categoria, tema e descrição.");
       return;
     }
 
@@ -310,7 +310,7 @@ export function IdeasPage() {
     }
 
     if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
-      toast.error("Envie uma imagem ou vÃ­deo.");
+      toast.error("Envie uma imagem ou vídeo.");
       event.target.value = "";
       return;
     }
@@ -327,7 +327,7 @@ export function IdeasPage() {
     }));
 
     event.target.value = "";
-    toast.success("MÃ­dia adicionada Ã  ideia.");
+    toast.success("Mídia adicionada à ideia.");
   };
 
   const handleDeleteIdea = (ideaId: number) => {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuthSession } from "../auth";
+import { useSharedState } from "./sharedState";
 import { isSupabaseConfigured, supabase } from "./supabase";
 import { readLocalJson, subscribeLocalKey, writeLocalJson } from "./localStore";
 import { subscribeSharedChannel } from "./supabaseRealtime";
