@@ -1827,7 +1827,7 @@ export function CalendarPage() {
             onWheelCapture={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="max-h-[88vh] overflow-y-auto overscroll-contain p-6">
+            <div className="max-h-[88vh] overflow-y-auto overscroll-contain p-6" data-cy="calendar-selected-modal-scroll">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-4">
                   <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm">
@@ -2135,7 +2135,7 @@ export function CalendarPage() {
             onWheelCapture={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="max-h-[88vh] overflow-y-auto overscroll-contain p-6">
+            <div className="max-h-[88vh] overflow-y-auto overscroll-contain p-6" data-cy="calendar-create-modal-scroll">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-4">
                   <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm">

@@ -10,15 +10,16 @@ describe("Calendário - modal de novo post", () => {
 
     cy.get('[data-cy="calendar-open-create"]').should("be.visible").click();
     cy.contains("Criar atividade rápida").should("be.visible");
-    cy.get('[data-cy="calendar-activities-section"]').should("be.visible");
+    cy.get('[data-cy="calendar-create-modal-scroll"]').scrollIntoView().should("be.visible");
+    cy.get('[data-cy="calendar-activities-section"]').scrollIntoView().should("be.visible");
     cy.get('[data-cy="calendar-activities-progress"]').should("contain.text", "0 de 0 atividades concluídas");
-    cy.get('[data-cy="calendar-activity-label"]').should("be.visible");
-    cy.get('[data-cy="calendar-activity-note"]').should("be.visible");
-    cy.get('[data-cy="calendar-activity-add"]').should("be.visible");
-    cy.get('[data-cy="calendar-activity-mark-all"]').should("be.visible");
-    cy.get('[data-cy="calendar-create-title"]').should("be.visible");
-    cy.get('[data-cy="calendar-create-description"]').should("be.visible");
-    cy.get('[data-cy="calendar-create-submit"]').should("be.visible");
+    cy.get('[data-cy="calendar-activity-label"]').scrollIntoView().should("be.visible");
+    cy.get('[data-cy="calendar-activity-note"]').scrollIntoView().should("be.visible");
+    cy.get('[data-cy="calendar-activity-add"]').scrollIntoView().should("be.visible");
+    cy.get('[data-cy="calendar-activity-mark-all"]').scrollIntoView().should("be.visible");
+    cy.get('[data-cy="calendar-create-title"]').scrollIntoView().should("be.visible");
+    cy.get('[data-cy="calendar-create-description"]').scrollIntoView().should("be.visible");
+    cy.get('[data-cy="calendar-create-submit"]').scrollIntoView().should("be.visible");
 
     cy.contains("Fechar").click();
     cy.contains("Criar atividade rápida").should("not.exist");
