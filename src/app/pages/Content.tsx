@@ -398,6 +398,7 @@ function ContentEditorModal({
               <input
                 value={draft.title}
                 onChange={(event) => onChange({ ...draft, title: event.target.value })}
+                data-cy="content-create-title"
                 className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
                 placeholder="Ex.: Antes e depois da landing page"
               />
@@ -408,6 +409,7 @@ function ContentEditorModal({
               <textarea
                 value={draft.description}
                 onChange={(event) => onChange({ ...draft, description: event.target.value })}
+                data-cy="content-create-description"
                 rows={4}
                 className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
                 placeholder="Explique o conteúdo, contexto e o objetivo..."
@@ -419,6 +421,8 @@ function ContentEditorModal({
               value={draft.type}
               options={typeOptions}
               onChange={(value) => onChange({ ...draft, type: value })}
+              dataCy="content-create-type"
+              optionDataCyPrefix="content-create-type"
               placeholder="Selecionar tipo"
             />
 
@@ -427,6 +431,8 @@ function ContentEditorModal({
               value={draft.status}
               options={statusOptions}
               onChange={(value) => onChange({ ...draft, status: value })}
+              dataCy="content-create-status"
+              optionDataCyPrefix="content-create-status"
               placeholder="Selecionar status"
             />
 
@@ -437,6 +443,8 @@ function ContentEditorModal({
                 value={draft.authorId}
                 options={authorOptions}
                 onChange={(value) => onChange({ ...draft, authorId: Number(value) })}
+                dataCy="content-create-author"
+                optionDataCyPrefix="content-create-author"
                 placeholder="Selecionar responsável"
               />
             </label>
@@ -491,6 +499,7 @@ function ContentEditorModal({
               <input
                 value={draft.reach}
                 onChange={(event) => onChange({ ...draft, reach: event.target.value })}
+                data-cy="content-create-reach"
                 className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
                 placeholder="235000"
                 inputMode="numeric"
@@ -502,6 +511,7 @@ function ContentEditorModal({
               <input
                 value={draft.engagement}
                 onChange={(event) => onChange({ ...draft, engagement: event.target.value })}
+                data-cy="content-create-engagement"
                 className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
                 placeholder="19600"
                 inputMode="numeric"
@@ -567,10 +577,10 @@ function ContentEditorModal({
         </div>
 
         <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 px-6 py-5 sm:px-8">
-          <ActionButton variant="secondary" onClick={onClose}>
+          <ActionButton variant="secondary" onClick={onClose} dataCy="content-create-cancel">
             Cancelar
           </ActionButton>
-          <ActionButton onClick={onSave}>
+          <ActionButton onClick={onSave} dataCy="content-create-submit">
             <Plus className="h-4 w-4" />
             {mode === "create" ? "Adicionar card" : "Salvar alterações"}
           </ActionButton>
@@ -858,14 +868,14 @@ export function ContentPage() {
         title="Conteúdo"
         description="Monitore, gerencie e otimize seu conteúdo e os resultados alcançados em um único lugar."
         actions={
-          <ActionButton onClick={openCreateEditor}>
+          <ActionButton onClick={openCreateEditor} dataCy="content-create-open">
             <Plus className="h-4 w-4" />
             Adicionar card
           </ActionButton>
         }
       />
 
-      <div className="space-y-6">
+      <div className="space-y-6" data-cy="content-page-shell">
         <div className="flex flex-wrap gap-3">
           {[
             { id: "all" as const, label: "Todos", color: "#7c3aed" },
@@ -879,6 +889,7 @@ export function ContentPage() {
                 key={String(item.id)}
                 type="button"
                 onClick={() => setOwnerFilter(item.id)}
+                data-cy={`content-owner-${String(item.id) === "all" ? "all" : item.label.toLowerCase()}`}
                 className={cn(
                   "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition duration-200",
                   active
@@ -897,6 +908,7 @@ export function ContentPage() {
           <GlassPanel
             className="overflow-hidden border-slate-200/80 bg-white p-0 shadow-[0_18px_44px_rgba(15,23,42,0.06)]"
             index={0}
+            dataCy="content-main-progress"
             style={{ borderRadius: "2.5rem" }}
           >
             <div className="grid min-h-[520px] gap-0 lg:grid-cols-[0.94fr_1.06fr]">
@@ -980,6 +992,7 @@ export function ContentPage() {
                       <button
                         type="button"
                         onClick={() => (previewPost ? openEditEditor(previewPost) : openCreateEditor())}
+                        data-cy="content-preview-edit"
                         className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:border-violet-200 hover:text-violet-700"
                         aria-label={previewPost ? `Editar ${previewPost.title}` : "Adicionar conteúdo"}
                       >
@@ -1012,17 +1025,19 @@ export function ContentPage() {
                         </p>
                       </div>
                       <div className="absolute right-4 top-4 flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => (previewPost ? openEditEditor(previewPost) : openCreateEditor())}
-                          className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-slate-800 shadow-lg shadow-black/10 transition hover:bg-white"
-                        >
+                      <button
+                        type="button"
+                        onClick={() => (previewPost ? openEditEditor(previewPost) : openCreateEditor())}
+                        data-cy="content-preview-top-edit"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-slate-800 shadow-lg shadow-black/10 transition hover:bg-white"
+                      >
                           <Pencil className="h-4 w-4" />
                         </button>
                         {previewPost ? (
                           <button
                             type="button"
                             onClick={() => handleDeletePost(previewPost)}
+                            data-cy="content-preview-delete"
                             className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-rose-600 shadow-lg shadow-black/10 transition hover:bg-white"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -1355,6 +1370,8 @@ export function ContentPage() {
           title="Apagar card?"
           description="O conteúdo será removido da lista e deixará de aparecer para todos os usuários conectados no mesmo projeto."
           confirmLabel="Apagar"
+          confirmDataCy="content-delete-confirm"
+          cancelDataCy="content-delete-cancel"
           onCancel={() => setPostToDelete(null)}
           onConfirm={confirmDeletePost}
         />

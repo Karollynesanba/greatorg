@@ -1,5 +1,5 @@
-describe("Login e perfil", () => {
-  it("autentica com email e senha e permite abrir o perfil autenticado", () => {
+describe("Login admin", () => {
+  it("autentica com email e senha e permite abrir o perfil do admin", () => {
     cy.visit("/", {
       onBeforeLoad(win) {
         win.localStorage.clear();
@@ -15,10 +15,12 @@ describe("Login e perfil", () => {
     cy.get('[data-cy="dashboard-summary"]').should("be.visible");
 
     cy.get('[aria-label="Meu Perfil"]').click();
+    cy.url().should("include", "/profile");
     cy.contains("Meu Perfil").should("be.visible");
     cy.get('[data-cy="profile-name"]').should("contain.text", "Brenda");
     cy.get('[data-cy="profile-edit-open"]').click();
     cy.contains("Alterar dados do usuário").should("be.visible");
-    cy.contains("Cancelar").click();
+    cy.get('[data-cy="profile-edit-save"]').should("be.visible");
+    cy.get('[data-cy="profile-edit-cancel"]').click();
   });
 });

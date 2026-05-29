@@ -385,10 +385,10 @@ export function MyProfilePage() {
             </div>
 
             <div className="mt-6 flex flex-wrap justify-end gap-3">
-              <ActionButton variant="secondary" onClick={() => setIsEditOpen(false)}>
+              <ActionButton variant="secondary" onClick={() => setIsEditOpen(false)} dataCy="profile-edit-cancel">
                 Cancelar
               </ActionButton>
-              <ActionButton onClick={saveProfile}>
+              <ActionButton onClick={saveProfile} dataCy="profile-edit-save">
                 <Save className="h-4 w-4" />
                 Salvar alterações
               </ActionButton>
