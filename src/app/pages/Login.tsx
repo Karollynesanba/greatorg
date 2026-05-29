@@ -174,6 +174,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                         key={member.id}
                         type="button"
                         onClick={() => void handleQuickAccess(member.email)}
+                        data-cy={member.id === 1 ? "login-admin-quick-access" : `login-quick-access-${member.id}`}
                         className="flex flex-col items-start gap-3 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-4 text-left shadow-[0_2px_8px_rgba(15,23,42,0.03)] transition hover:-translate-y-0.5 hover:border-[#e50914] hover:shadow-[0_12px_30px_rgba(15,23,42,0.08)]"
                       >
                         <span
@@ -199,6 +200,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                           value={email}
                           onChange={(event) => setEmail(event.target.value)}
                           type="email"
+                          data-cy="login-email"
                           placeholder="seu@email.com"
                           className="w-full bg-transparent text-sm outline-none placeholder:text-[#9ca3af]"
                         />
@@ -213,6 +215,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                           value={password}
                           onChange={(event) => setPassword(event.target.value)}
                           type={showPassword ? "text" : "password"}
+                          data-cy="login-password"
                           placeholder=""
                           className="w-full bg-transparent text-sm outline-none placeholder:text-[#9ca3af]"
                         />
@@ -241,6 +244,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                   <button
                     type="submit"
                     disabled={loading}
+                    data-cy="login-submit"
                     className={cn(
                       "mt-8 inline-flex h-14 w-full items-center justify-center rounded-full bg-gradient-to-r from-[#d60b18] to-[#e52325] text-lg font-semibold text-white shadow-[0_18px_40px_rgba(220,20,25,0.38)] transition hover:brightness-105",
                       loading && "opacity-80",

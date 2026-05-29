@@ -68,12 +68,16 @@ function FilterDropdown<T extends string | number>({
   options,
   onChange,
   accentColor,
+  triggerDataCy,
+  optionDataCyPrefix,
 }: {
   label: string;
   valueLabel: string;
   options: Array<{ label: string; value: T; color?: string }>;
   onChange: (value: T) => void;
   accentColor?: string;
+  triggerDataCy?: string;
+  optionDataCyPrefix?: string;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -95,6 +99,7 @@ function FilterDropdown<T extends string | number>({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
+        data-cy={triggerDataCy}
         className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 bg-background px-5 py-3 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/25 hover:shadow-md"
       >
         <span className="truncate" style={accentColor ? { color: accentColor } : undefined}>
@@ -120,6 +125,7 @@ function FilterDropdown<T extends string | number>({
                     onChange(option.value);
                     setOpen(false);
                   }}
+                  data-cy={optionDataCyPrefix ? `${optionDataCyPrefix}-option-${String(option.value)}` : undefined}
                   className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm transition hover:bg-muted/70"
                   style={{
                     backgroundColor: selected ? `${option.color ?? "#833AB4"}12` : undefined,
@@ -230,6 +236,7 @@ export function HistoryPage() {
                 label={item}
                 active={view === item}
                 onClick={() => setView(item)}
+                dataCy={`history-view-${item.toLowerCase()}`}
               />
             ))}
           </div>
@@ -262,6 +269,8 @@ export function HistoryPage() {
                   : teamMembers.find((member) => member.id === personFilter)?.color
               }
               onChange={(value) => setPersonFilter(value)}
+              triggerDataCy="history-filter-person-trigger"
+              optionDataCyPrefix="history-filter-person"
               options={[
                 { label: "Todas as pessoas", value: "todos" as const },
                 ...teamMembers.map((member) => ({
@@ -276,6 +285,8 @@ export function HistoryPage() {
               label="Tipo"
               valueLabel={typeFilter === "todos" ? "Todos os tipos" : typeLabels[typeFilter]}
               onChange={(value) => setTypeFilter(value)}
+              triggerDataCy="history-filter-type-trigger"
+              optionDataCyPrefix="history-filter-type"
               options={[
                 { label: "Todos os tipos", value: "todos" as const },
                 { label: "Posts", value: "post" as const },
@@ -389,7 +400,10 @@ export function HistoryPage() {
                       <td className="px-5 py-4 text-sm text-muted-foreground">{item.date}</td>
                       <td className="px-5 py-4 text-sm text-foreground">{item.result}</td>
                       <td className="px-5 py-4">
-                        <DeleteIconButton onClick={() => setPendingDelete({ historyId: item.id, historyTitle: item.title })} />
+                        <DeleteIconButton
+                          dataCy={`history-delete-table-${item.id}`}
+                          onClick={() => setPendingDelete({ historyId: item.id, historyTitle: item.title })}
+                        />
                       </td>
                     </tr>
                   );
@@ -404,6 +418,8 @@ export function HistoryPage() {
         <ConfirmDialog
           title="Tem certeza que deseja apagar?"
           description="Essa ação não pode ser desfeita."
+          cancelDataCy="history-delete-cancel"
+          confirmDataCy="history-delete-confirm"
           onCancel={() => setPendingDelete(null)}
           onConfirm={() => handleDeleteHistory(pendingDelete.historyId)}
         />

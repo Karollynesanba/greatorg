@@ -1340,6 +1340,7 @@ export function GoalsPage() {
                 <GlassPanel
                   index={index + 1}
                   className="overflow-hidden p-6"
+                  dataCy="goal-card"
                   style={{
                     background:
                       isGroupGoal
@@ -1556,6 +1557,8 @@ export function GoalsPage() {
                       label="Categoria"
                       value={form.category}
                       forceLight
+                      dataCy="goal-category-trigger"
+                      optionDataCyPrefix="goal-category"
                       options={[
                         { label: "Alcance", value: "Alcance", color: "#3B82F6" },
                         { label: "Engajamento", value: "Engajamento", color: "#8B5CF6" },
@@ -1572,6 +1575,8 @@ export function GoalsPage() {
                       label="Período"
                       value={form.period}
                       forceLight
+                      dataCy="goal-period-trigger"
+                      optionDataCyPrefix="goal-period"
                       options={[
                         { label: "Semana", value: "Semana", color: "#60A5FA" },
                         { label: "Mês", value: "Mês", color: "#A78BFA" },
@@ -1590,6 +1595,8 @@ export function GoalsPage() {
                       label="Status"
                       value={form.status}
                       forceLight
+                      dataCy="goal-status-trigger"
+                      optionDataCyPrefix="goal-status"
                       options={goalStatusOptions}
                       onChange={(value) => setForm((previous) => ({ ...previous, status: value }))}
                     />
@@ -1601,6 +1608,8 @@ export function GoalsPage() {
                       label="Prioridade"
                       value={form.priority}
                       forceLight
+                      dataCy="goal-priority-trigger"
+                      optionDataCyPrefix="goal-priority"
                       options={goalPriorityOptions}
                       onChange={(value) => setForm((previous) => ({ ...previous, priority: value }))}
                     />
@@ -1741,12 +1750,13 @@ export function GoalsPage() {
           </div>
         ) : null}
         {pendingDelete ? (
-          <ConfirmDialog
-            title="Tem certeza que deseja apagar?"
-            description={`A meta "${pendingDelete.goalName}" será removida e não poderá ser desfeita.`}
-            onCancel={() => setPendingDelete(null)}
-            onConfirm={() => handleDeleteGoal(pendingDelete.goalId)}
-          />
+        <ConfirmDialog
+          title="Tem certeza que deseja apagar?"
+          description={`A meta "${pendingDelete.goalName}" será removida e não poderá ser desfeita.`}
+          confirmDataCy="goal-delete-confirm"
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => handleDeleteGoal(pendingDelete.goalId)}
+        />
         ) : null}
       </div>
     </PageTransition>

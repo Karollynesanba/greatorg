@@ -69,7 +69,8 @@ export function GlassPanel({
   className,
   style,
   index = 0,
-}: PropsWithChildren<{ className?: string; index?: number; style?: CSSProperties }>) {
+  dataCy,
+}: PropsWithChildren<{ className?: string; index?: number; style?: CSSProperties; dataCy?: string }>) {
   const { isDark } = useThemeMode();
 
   return (
@@ -78,6 +79,7 @@ export function GlassPanel({
       variants={animatedItem}
       initial="hidden"
       animate="visible"
+      data-cy={dataCy}
       className={cn(
         isDark
           ? "rounded-[2rem] border border-white/10 bg-[#111723] p-5 text-slate-100 shadow-[0_18px_48px_rgba(0,0,0,0.28)] backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_60px_rgba(0,0,0,0.38)]"
@@ -199,6 +201,8 @@ export function RoundedDropdown<T extends string | number>({
   onChange,
   placeholder = "Selecionar",
   forceLight = false,
+  dataCy,
+  optionDataCyPrefix,
 }: {
   label: string;
   value: T;
@@ -206,6 +210,8 @@ export function RoundedDropdown<T extends string | number>({
   onChange: (value: T) => void;
   placeholder?: string;
   forceLight?: boolean;
+  dataCy?: string;
+  optionDataCyPrefix?: string;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -229,6 +235,7 @@ export function RoundedDropdown<T extends string | number>({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
+        data-cy={dataCy}
         className="flex w-full items-center justify-between gap-3 rounded-[1.5rem] border px-4 py-3.5 text-sm text-foreground transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)]"
         style={{
           backgroundColor: lightSurface ? "#ffffff" : "rgb(var(--sidebar) / 1)",
@@ -286,6 +293,7 @@ export function RoundedDropdown<T extends string | number>({
                     onChange(option.value);
                     setOpen(false);
                   }}
+                  data-cy={optionDataCyPrefix ? `${optionDataCyPrefix}-option-${String(option.value)}` : undefined}
                   className="flex w-full items-center justify-between rounded-full px-4 py-3 text-left text-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-sm"
                   style={{
                     backgroundColor: selected
@@ -825,6 +833,8 @@ export function ConfirmDialog({
   cancelLabel = "Cancelar",
   onConfirm,
   onCancel,
+  confirmDataCy,
+  cancelDataCy,
 }: {
   title: string;
   description: string;
@@ -832,6 +842,8 @@ export function ConfirmDialog({
   cancelLabel?: string;
   onConfirm: () => void;
   onCancel: () => void;
+  confirmDataCy?: string;
+  cancelDataCy?: string;
 }) {
   return (
     <div
@@ -853,11 +865,12 @@ export function ConfirmDialog({
         </div>
 
         <div className="mt-6 flex flex-wrap justify-end gap-3">
-          <ActionButton variant="secondary" onClick={onCancel}>
+          <ActionButton variant="secondary" onClick={onCancel} dataCy={cancelDataCy}>
             {cancelLabel}
           </ActionButton>
           <ActionButton
             onClick={onConfirm}
+            dataCy={confirmDataCy}
             className="bg-rose-600 text-white shadow-lg shadow-rose-600/20 hover:bg-rose-700"
           >
             {confirmLabel}
@@ -872,16 +885,19 @@ export function FilterPill({
   active,
   label,
   onClick,
+  dataCy,
 }: {
   active: boolean;
   label: string;
   onClick?: () => void;
+  dataCy?: string;
 }) {
   const { isDark } = useThemeMode();
   return (
     <button
       type="button"
       onClick={onClick}
+      data-cy={dataCy}
         className={cn(
           "rounded-full px-4 py-2 text-sm font-medium transition duration-200",
           active

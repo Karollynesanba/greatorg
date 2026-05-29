@@ -362,7 +362,7 @@ export function IdeasPage() {
         title="Banco de ideias pronto para produÃ§Ã£o"
         description="Temas, roteiros e responsÃ¡veis ficam organizados para a operaÃ§Ã£o girar com mais velocidade e menos retrabalho."
         actions={
-          <ActionButton onClick={openCreateModal}>
+          <ActionButton onClick={openCreateModal} dataCy="idea-create-open">
             <Plus className="h-4 w-4" />
             Nova Ideia
           </ActionButton>
@@ -401,6 +401,7 @@ export function IdeasPage() {
               key={idea.id}
               index={index + 1}
               className="group relative"
+              dataCy="idea-card"
               style={{
                 background: panelBackground,
                 borderColor: `${member.color}22`,
@@ -411,16 +412,21 @@ export function IdeasPage() {
                 <button
                   type="button"
                   onClick={() => openEditIdea(idea)}
+                  data-cy={`idea-edit-button-${idea.id}`}
                   className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background text-muted-foreground transition hover:bg-muted hover:text-foreground"
                   aria-label="Editar ideia"
                 >
                   <PencilLine className="h-4 w-4" />
                 </button>
-                <DeleteIconButton onClick={() => setPendingDelete({ ideaId: idea.id, ideaTitle: idea.title })} />
+                <DeleteIconButton
+                  dataCy="idea-delete-button"
+                  onClick={() => setPendingDelete({ ideaId: idea.id, ideaTitle: idea.title })}
+                />
               </div>
               <div className="flex items-start justify-between gap-4">
                 <div
                   className="inline-flex h-12 w-12 items-center justify-center rounded-2xl"
+                  data-cy="idea-card-lightbulb"
                   style={{
                     backgroundColor: `${member.color}12`,
                     color: member.color,
@@ -503,6 +509,7 @@ export function IdeasPage() {
           >
             <motion.div
               className="flex flex-col items-center gap-4 rounded-[2.25rem] border border-rose-100/80 bg-white/96 px-10 py-8 shadow-[0_28px_80px_rgba(229,9,20,0.18)]"
+              data-cy="idea-spark-lightbulb"
               initial={{ opacity: 0, scale: 0.82 }}
               animate={{
                 opacity: 1,
@@ -561,11 +568,12 @@ export function IdeasPage() {
             </div>
 
             <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <label className="grid gap-2">
+                <label className="grid gap-2">
                 <span className="text-sm font-medium text-foreground">TÃ­tulo</span>
                 <input
                   value={form.title}
                   onChange={(event) => setForm((previous) => ({ ...previous, title: event.target.value }))}
+                  data-cy="idea-title-input"
                   className="rounded-full border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                 />
               </label>
@@ -594,28 +602,31 @@ export function IdeasPage() {
                   onChange={(value) => setForm((previous) => ({ ...previous, status: value }))}
                 />
               </label>
-              <label className="grid gap-2">
+                <label className="grid gap-2">
                 <span className="text-sm font-medium text-foreground">Tema</span>
                 <input
                   value={form.theme}
                   onChange={(event) => setForm((previous) => ({ ...previous, theme: event.target.value }))}
+                  data-cy="idea-theme-input"
                   className="rounded-full border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                 />
               </label>
-              <label className="grid gap-2 md:col-span-2">
-                <span className="text-sm font-medium text-foreground">DescriÃ§Ã£o</span>
-                <textarea
-                  value={form.description}
-                  onChange={(event) => setForm((previous) => ({ ...previous, description: event.target.value }))}
-                  rows={3}
-                  className="rounded-[1.75rem] border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-                />
-              </label>
+                <label className="grid gap-2 md:col-span-2">
+                  <span className="text-sm font-medium text-foreground">DescriÃ§Ã£o</span>
+                  <textarea
+                    value={form.description}
+                    onChange={(event) => setForm((previous) => ({ ...previous, description: event.target.value }))}
+                    data-cy="idea-description-input"
+                    rows={3}
+                    className="rounded-[1.75rem] border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                  />
+                </label>
                 <label className="grid gap-2 md:col-span-2">
                   <span className="text-sm font-medium text-foreground">Roteiro</span>
                   <textarea
                     value={form.script}
                     onChange={(event) => setForm((previous) => ({ ...previous, script: event.target.value }))}
+                    data-cy="idea-script-input"
                     rows={4}
                     className="rounded-[1.75rem] border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                   />
@@ -725,7 +736,7 @@ export function IdeasPage() {
               <ActionButton variant="secondary" onClick={closeIdeaModal}>
                 Cancelar
               </ActionButton>
-              <ActionButton onClick={handleSaveIdea}>
+              <ActionButton onClick={handleSaveIdea} dataCy="idea-save-button">
                 <Plus className="h-4 w-4" />
                 {editingIdeaId !== null ? "Salvar ideia" : "Criar ideia"}
               </ActionButton>
@@ -738,6 +749,8 @@ export function IdeasPage() {
         <ConfirmDialog
           title="Tem certeza que deseja apagar?"
           description="Essa aÃ§Ã£o nÃ£o pode ser desfeita."
+          confirmLabel="Apagar"
+          confirmDataCy="idea-delete-confirm"
           onCancel={() => setPendingDelete(null)}
           onConfirm={() => handleDeleteIdea(pendingDelete.ideaId)}
         />

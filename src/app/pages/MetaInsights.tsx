@@ -246,6 +246,13 @@ export function MetaInsightsPage() {
                 key={item}
                 type="button"
                 onClick={() => setPeriod(item)}
+                data-cy={
+                  item === "Dia"
+                    ? "meta-period-day"
+                    : item === "Semana"
+                      ? "meta-period-week"
+                      : "meta-period-month"
+                }
                 className={cn(
                   "rounded-full px-4 py-2 text-sm font-medium transition duration-200",
                   period === item
@@ -267,7 +274,7 @@ export function MetaInsightsPage() {
       {status === "loading" ? <LoadingState /> : null}
 
       {status === "error" ? (
-        <GlassPanel className={shellClass}>
+        <GlassPanel className={shellClass} dataCy="meta-summary-shell">
           <div className="flex items-start gap-4">
             <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               <Sparkles className="h-5 w-5" />
@@ -302,7 +309,7 @@ export function MetaInsightsPage() {
 
       {hasData ? (
         <div className="space-y-6">
-          <GlassPanel className={shellClass}>
+          <GlassPanel className={shellClass} dataCy="meta-summary-shell">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="space-y-3">
                 <div className="inline-flex items-center gap-2 rounded-full bg-success/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-success">
@@ -319,26 +326,27 @@ export function MetaInsightsPage() {
                   </p>
                 </div>
                 <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-                  Os números abaixo vêm diretamente da API oficial do Instagram Graph e refletem o recorte de {rangeLabel.toLowerCase()}.
+                  Os números abaixo vêm diretamente da API oficial do Instagram Graph e refletem o recorte de{" "}
+                  <span data-cy="meta-range-label">{rangeLabel.toLowerCase()}</span>.
                 </p>
               </div>
 
               <div className={statGridClass}>
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Atualizado em</p>
-                  <p className="mt-1 text-sm font-medium text-foreground">{formatDateTime(data.updatedAt)}</p>
-                </div>
+                <p className="mt-1 text-sm font-medium text-foreground">{formatDateTime(data.updatedAt)}</p>
+              </div>
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Taxa de engajamento</p>
                   <p className="mt-1 text-sm font-medium text-foreground">{engagementRate}</p>
                 </div>
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Posts analisados</p>
-                  <p className="mt-1 text-sm font-medium text-foreground">{formatCompactNumber(data.summary.mediaCount)}</p>
+                <p className="mt-1 text-sm font-medium text-foreground">{formatCompactNumber(data.summary.mediaCount)}</p>
                 </div>
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Interações totais</p>
-                  <p className="mt-1 text-sm font-medium text-foreground">{formatCompactNumber(data.summary.totalInteractions)}</p>
+                <p className="mt-1 text-sm font-medium text-foreground">{formatCompactNumber(data.summary.totalInteractions)}</p>
                 </div>
               </div>
             </div>
@@ -371,7 +379,7 @@ export function MetaInsightsPage() {
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
-            <GlassPanel className={isDark ? "h-[420px] p-6" : "h-[420px] p-6 bg-white/96 border border-border/60 shadow-[0_18px_48px_rgba(15,23,42,0.06)]"}>
+            <GlassPanel className={isDark ? "h-[420px] p-6" : "h-[420px] p-6 bg-white/96 border border-border/60 shadow-[0_18px_48px_rgba(15,23,42,0.06)]"} dataCy="meta-chart-shell">
               <SectionTitle
                 title="Evolução do período"
                 description="Acompanhamento diário de alcance, views e visitas ao perfil."
@@ -424,7 +432,7 @@ export function MetaInsightsPage() {
               </div>
             </GlassPanel>
 
-            <GlassPanel className={shellClass}>
+            <GlassPanel className={shellClass} dataCy="meta-summary-details">
               <SectionTitle
                 title="Resumo da conta"
                 description="Últimas leituras agregadas pela Meta."
@@ -446,7 +454,7 @@ export function MetaInsightsPage() {
           </div>
 
           <div className="grid gap-6 xl:grid-cols-3">
-            <GlassPanel className={shellClass}>
+            <GlassPanel className={shellClass} dataCy="meta-audience-countries">
               <SectionTitle title="Países" description="Principais regiões da audiência." />
               <div className="space-y-3">
                 {topCountries.length > 0 ? (
@@ -465,7 +473,7 @@ export function MetaInsightsPage() {
               </div>
             </GlassPanel>
 
-            <GlassPanel className={shellClass}>
+            <GlassPanel className={shellClass} dataCy="meta-audience-cities">
               <SectionTitle title="Cidades" description="Top localidades da audiência." />
               <div className="space-y-3">
                 {topCities.length > 0 ? (
@@ -484,7 +492,7 @@ export function MetaInsightsPage() {
               </div>
             </GlassPanel>
 
-            <GlassPanel className={shellClass}>
+            <GlassPanel className={shellClass} dataCy="meta-audience-demographics">
               <SectionTitle title="Faixa etária / gênero" description="Distribuição resumida da audiência." />
               <div className="space-y-3">
                 {topGenderAge.length > 0 ? (
@@ -504,7 +512,7 @@ export function MetaInsightsPage() {
             </GlassPanel>
           </div>
 
-          <GlassPanel className={shellClass}>
+          <GlassPanel className={shellClass} dataCy="meta-media-shell">
             <SectionTitle
               title="Conteúdos recentes"
               description="Os posts mais recentes com engajamento e alcance extraídos da conta."
@@ -518,6 +526,7 @@ export function MetaInsightsPage() {
                     href={item.permalink}
                     target="_blank"
                     rel="noreferrer"
+                    data-cy="meta-media-card"
                     className={cn(
                       "group overflow-hidden rounded-[1.75rem] border border-border/60 transition hover:-translate-y-1 hover:shadow-[0_24px_50px_rgba(15,23,42,0.14)]",
                       isDark ? "bg-background/90" : "bg-white/96 shadow-[0_14px_32px_rgba(15,23,42,0.05)]",
@@ -529,6 +538,7 @@ export function MetaInsightsPage() {
                         <img
                           src={item.thumbnailUrl}
                           alt={item.caption}
+                          data-cy="meta-media-image"
                           className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                         />
                       ) : (

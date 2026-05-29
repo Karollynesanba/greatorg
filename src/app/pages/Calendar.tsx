@@ -378,7 +378,10 @@ function ActivitySection({
   };
 
   return (
-    <div className="md:col-span-2 overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
+    <div
+      data-cy="calendar-activities-section"
+      className="md:col-span-2 overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)]"
+    >
       <div className="rounded-[1.7rem] border border-slate-200/70 bg-[#fcfcfe] p-5 shadow-[0_8px_22px_rgba(15,23,42,0.04)] sm:p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 flex-1">
@@ -388,7 +391,7 @@ function ActivitySection({
               </span>
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-500">ATIVIDADES</p>
-                <p className="mt-1 text-sm font-medium text-slate-700">
+                <p data-cy="calendar-activities-progress" className="mt-1 text-sm font-medium text-slate-700">
                   {progress.completed} de {progress.total} atividades concluídas
                 </p>
               </div>
@@ -411,6 +414,7 @@ function ActivitySection({
               onClick={() => {
                 handleAddDraft();
               }}
+              data-cy="calendar-activity-add"
               className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-rose-200 hover:bg-white hover:text-slate-900 hover:shadow-[0_12px_24px_rgba(15,23,42,0.06)]"
             >
               <Plus className="h-4 w-4" />
@@ -419,6 +423,7 @@ function ActivitySection({
             <button
               type="button"
               onClick={onMarkAllDone}
+              data-cy="calendar-activity-mark-all"
               className="inline-flex items-center gap-2 rounded-full border border-transparent bg-gradient-to-r from-[#ff6b78] via-[#f43f5e] to-[#dc2626] px-4 py-2.5 text-sm font-medium text-white shadow-[0_14px_28px_rgba(244,63,94,0.22)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(244,63,94,0.28)]"
             >
               <CheckCircle2 className="h-4 w-4" />
@@ -501,6 +506,7 @@ function ActivitySection({
                 <input
                   value={draft.label}
                   onChange={(event) => setDraft((current) => ({ ...current, label: event.target.value }))}
+                  data-cy="calendar-activity-label"
                   placeholder="Ex.: aprovar capa"
                   className="h-12 rounded-[1.2rem] border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 focus:border-rose-200 focus:ring-2 focus:ring-rose-100"
                 />
@@ -513,6 +519,7 @@ function ActivitySection({
                 <input
                   value={draft.note}
                   onChange={(event) => setDraft((current) => ({ ...current, note: event.target.value }))}
+                  data-cy="calendar-activity-note"
                   placeholder="Ex.: revisar CTA"
                   className="h-12 rounded-[1.2rem] border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 focus:border-rose-200 focus:ring-2 focus:ring-rose-100"
                 />
@@ -521,6 +528,7 @@ function ActivitySection({
               <button
                 type="button"
                 onClick={() => setDraft((current) => ({ ...current, checklist: !current.checklist }))}
+                data-cy="calendar-activity-checklist-toggle"
                 className={cn(
                   "inline-flex h-12 items-center justify-center gap-2 rounded-[1.2rem] border px-4 text-sm font-medium transition duration-200 md:min-w-[112px]",
                   draft.checklist
@@ -2100,6 +2108,7 @@ export function CalendarPage() {
         <ConfirmDialog
           title="Tem certeza que deseja apagar?"
            description="Essa ação não pode ser desfeita."
+          confirmDataCy="calendar-confirm-delete"
           onCancel={() => setPendingDelete(null)}
           onConfirm={() => handleDeleteEvent(pendingDelete.id)}
         />

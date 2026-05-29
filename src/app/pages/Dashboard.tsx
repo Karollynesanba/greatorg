@@ -90,7 +90,7 @@ function InstagramHealthScoreRing({ score }: { score: number }) {
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
         <span className="text-sm text-white/78">Saúde do perfil</span>
-        <strong className="text-5xl font-semibold tracking-tight text-white">{score}</strong>
+        <strong data-cy="dashboard-health-score" className="text-5xl font-semibold tracking-tight text-white">{score}</strong>
         <span className="text-sm font-medium text-white/78">de 100</span>
       </div>
     </div>
@@ -104,6 +104,7 @@ function DashboardMetricCard({
   change,
   detail,
   darkMode = false,
+  dataCy,
 }: {
   icon: LucideIcon;
   label: string;
@@ -111,6 +112,7 @@ function DashboardMetricCard({
   change: number;
   detail: string;
   darkMode?: boolean;
+  dataCy?: string;
 }) {
   const positive = change >= 0;
   const shellStyle = darkMode
@@ -127,6 +129,7 @@ function DashboardMetricCard({
   return (
     <GlassPanel
       className="overflow-hidden"
+      dataCy={dataCy}
       style={shellStyle}
     >
       <div className="flex items-start justify-between gap-4">
@@ -303,6 +306,7 @@ export function DashboardPage() {
             <GlassPanel
               className="flex flex-col items-center justify-center overflow-hidden p-6 text-white shadow-[0_28px_60px_rgba(131,58,180,0.18)]"
               index={1}
+              dataCy="dashboard-summary"
               style={{
                 background: isDark
                   ? "linear-gradient(145deg, rgba(131,58,180,0.95) 0%, rgba(225,48,108,0.92) 52%, rgba(245,96,64,0.9) 100%)"
@@ -314,13 +318,13 @@ export function DashboardPage() {
               <div className="mt-5 grid w-full gap-3 sm:grid-cols-2 xl:grid-cols-1">
                 <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
                   <p className="text-xs uppercase tracking-[0.16em] text-white/72">Metas concluídas</p>
-                  <p className="mt-2 text-2xl font-semibold text-white">
+                  <p data-cy="dashboard-summary-goals" className="mt-2 text-2xl font-semibold text-white">
                     {dashboardSummary.completedGoals}/{visibleGoals.length}
                   </p>
                 </div>
                 <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
                   <p className="text-xs uppercase tracking-[0.16em] text-white/72">Engajamento total</p>
-                  <p className="mt-2 text-2xl font-semibold text-white">
+                  <p data-cy="dashboard-summary-engagement" className="mt-2 text-2xl font-semibold text-white">
                     {formatLongNumber(dashboardSummary.totalEngagement)}
                   </p>
                 </div>
@@ -341,6 +345,7 @@ export function DashboardPage() {
                   change={metric.change}
                   detail={metric.highlight}
                   darkMode={isDark}
+                  dataCy={`dashboard-metric-${metric.id}`}
                 />
               );
             })}
@@ -351,6 +356,7 @@ export function DashboardPage() {
           <GlassPanel
             index={2}
             className="bg-white/95"
+            dataCy="dashboard-top-posts"
             style={
               isDark
                 ? {
@@ -426,6 +432,7 @@ export function DashboardPage() {
           <GlassPanel
             index={3}
             className="bg-white/95"
+            dataCy="dashboard-low-performance"
             style={
               isDark
                 ? {
@@ -497,6 +504,7 @@ export function DashboardPage() {
           <GlassPanel
             index={4}
             className="bg-white/95"
+            dataCy="dashboard-goals"
             style={
               isDark
                 ? {
@@ -558,6 +566,7 @@ export function DashboardPage() {
           <GlassPanel
             index={5}
             className="bg-white/95"
+            dataCy="dashboard-evolution"
             style={
               isDark
                 ? {
