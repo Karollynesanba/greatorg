@@ -319,8 +319,10 @@ function ActivityCheckIcon({ done }: { done: boolean }) {
   return (
     <span
       className={cn(
-        "inline-flex h-5 w-5 items-center justify-center rounded-md border text-[11px] transition",
-        done ? "border-emerald-500 bg-emerald-500 text-white shadow-sm" : "border-border bg-white text-transparent",
+        "inline-flex h-6 w-6 items-center justify-center rounded-full border text-[11px] transition duration-200",
+        done
+          ? "border-emerald-500 bg-emerald-500 text-white shadow-[0_8px_18px_rgba(16,185,129,0.18)]"
+          : "border-slate-200 bg-white text-transparent shadow-[0_6px_14px_rgba(15,23,42,0.04)]",
       )}
     >
       ✓
@@ -362,168 +364,184 @@ function ActivitySection({
   setDraft: (updater: (current: ActivityDraftState) => ActivityDraftState) => void;
 }) {
   const progress = calculateTaskProgress(tasks);
+  const handleAddDraft = () => {
+    const label = draft.label.trim();
+    const note = draft.note.trim();
+
+    if (!label) {
+      toast.error("Digite o nome da atividade.");
+      return;
+    }
+
+    onAddTask(createTaskItem(label, note, draft.checklist));
+    onClearTaskDraft();
+  };
 
   return (
-    <div className="md:col-span-2 overflow-hidden rounded-[1.9rem] border border-border/60 bg-white p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <div className="flex items-center gap-3">
-            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary shadow-[0_10px_20px_rgba(229,9,20,0.12)]">
-              <CheckCircle2 className="h-4.5 w-4.5" />
-            </span>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">ATIVIDADES</p>
-              <p className="mt-1 text-sm font-semibold text-foreground">
-                {progress.completed} de {progress.total} atividades concluídas
-              </p>
+    <div className="md:col-span-2 overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
+      <div className="rounded-[1.7rem] border border-slate-200/70 bg-[#fcfcfe] p-5 shadow-[0_8px_22px_rgba(15,23,42,0.04)] sm:p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-500 shadow-[0_10px_20px_rgba(244,63,94,0.1)]">
+                <CheckCircle2 className="h-4 w-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-500">ATIVIDADES</p>
+                <p className="mt-1 text-sm font-medium text-slate-700">
+                  {progress.completed} de {progress.total} atividades concluídas
+                </p>
+              </div>
             </div>
-          </div>
 
-          <div className="mt-4 flex items-center gap-4">
-            <div className="flex-1">
-              <div className="h-2 overflow-hidden rounded-full bg-slate-200/90">
+            <div className="mt-4 flex items-center gap-4">
+              <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-lime-500 to-emerald-400 shadow-[0_0_18px_rgba(34,197,94,0.28)] transition-all duration-300"
+                  className="h-full rounded-full bg-gradient-to-r from-[#ff6b78] via-[#f43f5e] to-[#dc2626] shadow-[0_0_18px_rgba(244,63,94,0.22)] transition-all duration-300"
                   style={{ width: `${Math.min(progress.percent, 100)}%` }}
                 />
               </div>
+              <span className="min-w-[48px] text-right text-sm font-semibold text-slate-500">{progress.percent}%</span>
             </div>
-            <span className="min-w-[44px] text-right text-sm font-semibold text-muted-foreground">
-              {progress.percent}%
-            </span>
+          </div>
+
+          <div className="flex flex-wrap gap-3 lg:justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                handleAddDraft();
+              }}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-rose-200 hover:bg-white hover:text-slate-900 hover:shadow-[0_12px_24px_rgba(15,23,42,0.06)]"
+            >
+              <Plus className="h-4 w-4" />
+              Adicionar item
+            </button>
+            <button
+              type="button"
+              onClick={onMarkAllDone}
+              className="inline-flex items-center gap-2 rounded-full border border-transparent bg-gradient-to-r from-[#ff6b78] via-[#f43f5e] to-[#dc2626] px-4 py-2.5 text-sm font-medium text-white shadow-[0_14px_28px_rgba(244,63,94,0.22)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(244,63,94,0.28)]"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              Marcar todas como concluídas
+            </button>
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <ActionButton
-            variant="secondary"
-            onClick={() => {
-              const label = draft.label.trim();
-              const note = draft.note.trim();
-              if (!label) {
-                toast.error("Digite o nome da atividade.");
-                return;
-              }
+        <div className="mt-5 rounded-[1.6rem] border border-slate-200/70 bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:p-5">
+          {tasks.length > 0 ? (
+            <div className="space-y-3">
+              {tasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="group rounded-[1.35rem] border border-slate-200/70 bg-[#fcfcfe] px-4 py-4 transition duration-200 hover:-translate-y-0.5 hover:border-rose-200 hover:bg-white hover:shadow-[0_14px_28px_rgba(15,23,42,0.06)]"
+                >
+                  <div className="flex items-start gap-3 sm:items-center">
+                    <button
+                      type="button"
+                      onClick={() => onToggleTask(task.id)}
+                      className="mt-0.5 shrink-0"
+                      aria-label={task.done ? "Desmarcar atividade" : "Marcar atividade"}
+                    >
+                      <ActivityCheckIcon done={task.done} />
+                    </button>
 
-              onAddTask(createTaskItem(label, note, draft.checklist));
-              onClearTaskDraft();
-            }}
-            className="border-border/60 bg-white shadow-[0_10px_24px_rgba(15,23,42,0.04)] hover:border-primary/20 hover:bg-white"
-          >
-            <Plus className="h-4 w-4" />
-            Adicionar item
-          </ActionButton>
-          <ActionButton
-            onClick={onMarkAllDone}
-            className="bg-gradient-to-r from-primary to-[#ff5d6d] text-white shadow-[0_18px_34px_rgba(229,9,20,0.22)] hover:from-[#ff3f53] hover:to-[#ff6d7b]"
-          >
-            <CheckCircle2 className="h-4 w-4" />
-            Marcar todas como concluídas
-          </ActionButton>
-        </div>
-      </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                        <div className="min-w-0">
+                          <p
+                            className={cn(
+                              "text-sm font-semibold leading-6 text-slate-900 transition",
+                              task.done && "text-slate-400 line-through",
+                            )}
+                          >
+                            {task.label}
+                          </p>
+                          {task.note ? <p className="mt-1 text-sm leading-6 text-slate-500">{task.note}</p> : null}
+                        </div>
 
-      <div className="mt-5 grid gap-4 rounded-[1.55rem] border border-border/60 bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-        {tasks.length > 0 ? (
-          <div className="space-y-3">
-            {tasks.map((task) => (
-              <div
-                key={task.id}
-                className="group rounded-[1.35rem] border border-border/60 bg-[#fbfbfc] px-4 py-4 transition duration-200 hover:-translate-y-0.5 hover:border-primary/15 hover:shadow-[0_14px_28px_rgba(15,23,42,0.06)]"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <button
-                    type="button"
-                    onClick={() => onToggleTask(task.id)}
-                    className="flex min-w-0 flex-1 items-start gap-3 text-left"
-                  >
-                    <ActivityCheckIcon done={task.done} />
-                    <span className="min-w-0">
-                      <span
-                        className={cn(
-                          "block text-sm font-semibold transition",
-                          task.done ? "text-muted-foreground line-through" : "text-foreground",
-                        )}
-                      >
-                        {task.label}
-                      </span>
-                      {task.note ? <span className="mt-1 block text-sm text-muted-foreground">{task.note}</span> : null}
-                      <span className="mt-3 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => onRemoveTask(task.id)}
+                          className="inline-flex shrink-0 items-center gap-1 rounded-full border border-transparent px-3 py-1.5 text-xs font-medium text-slate-500 transition duration-200 hover:bg-slate-100 hover:text-slate-800"
+                        >
+                          Remover
+                        </button>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
                         <span
                           className={cn(
                             "rounded-full px-2.5 py-1 text-[11px] font-semibold",
-                            task.checklist
-                              ? "bg-emerald-500/10 text-emerald-700"
-                              : "bg-slate-100 text-slate-500",
+                            task.checklist ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-500",
                           )}
                         >
                           {task.checklist ? "Checklist" : "Avulsa"}
                         </span>
-                        <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500">
                           {task.done ? "Concluída" : "Pendente"}
                         </span>
-                      </span>
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onRemoveTask(task.id)}
-                    className="rounded-full border border-border/60 bg-white px-3 py-2 text-xs font-semibold text-muted-foreground transition duration-200 hover:border-primary/20 hover:bg-muted/60 hover:text-foreground"
-                  >
-                    Remover
-                  </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-[1.35rem] border border-dashed border-border/60 bg-[#fbfbfc] px-5 py-8 text-center text-sm text-muted-foreground">
-            Nenhuma atividade adicionada ainda.
-          </div>
-        )}
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-[1.35rem] border border-dashed border-slate-200 bg-[#fcfcfe] px-5 py-10 text-center text-sm text-slate-500">
+              Nenhuma atividade adicionada ainda.
+            </div>
+          )}
 
-        <div className="rounded-[1.55rem] border border-border/60 bg-[#fbfbfc] p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-          <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-            <label className="grid gap-2">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Nome da atividade</span>
-              <input
-                value={draft.label}
-                onChange={(event) => setDraft((current) => ({ ...current, label: event.target.value }))}
-                placeholder="Ex.: aprovar capa"
-                className="rounded-2xl border border-border/70 bg-white px-4 py-3 text-sm outline-none transition duration-200 placeholder:text-muted-foreground/60 focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-              />
-            </label>
-            <label className="grid gap-2">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Observação rápida</span>
-              <input
-                value={draft.note}
-                onChange={(event) => setDraft((current) => ({ ...current, note: event.target.value }))}
-                placeholder="Ex.: revisar CTA"
-                className="rounded-2xl border border-border/70 bg-white px-4 py-3 text-sm outline-none transition duration-200 placeholder:text-muted-foreground/60 focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
-              />
-            </label>
-            <button
-              type="button"
-              onClick={() => setDraft((current) => ({ ...current, checklist: !current.checklist }))}
-              className={cn(
-                "flex h-[48px] items-center justify-center gap-2 self-end rounded-2xl border px-4 text-sm font-semibold transition duration-200",
-                draft.checklist
-                  ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15"
-                : "border-border/70 bg-white text-muted-foreground hover:border-primary/25 hover:text-foreground",
-              )}
-            >
-              <span
+          <div className="mt-4 rounded-[1.5rem] border border-slate-200/70 bg-[#fcfcfe] p-4 shadow-[0_8px_22px_rgba(15,23,42,0.03)]">
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
+              <label className="grid gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                  Nome da atividade
+                </span>
+                <input
+                  value={draft.label}
+                  onChange={(event) => setDraft((current) => ({ ...current, label: event.target.value }))}
+                  placeholder="Ex.: aprovar capa"
+                  className="h-12 rounded-[1.2rem] border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 focus:border-rose-200 focus:ring-2 focus:ring-rose-100"
+                />
+              </label>
+
+              <label className="grid gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                  Observação rápida
+                </span>
+                <input
+                  value={draft.note}
+                  onChange={(event) => setDraft((current) => ({ ...current, note: event.target.value }))}
+                  placeholder="Ex.: revisar CTA"
+                  className="h-12 rounded-[1.2rem] border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 focus:border-rose-200 focus:ring-2 focus:ring-rose-100"
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={() => setDraft((current) => ({ ...current, checklist: !current.checklist }))}
                 className={cn(
-                  "inline-flex h-4 w-4 items-center justify-center rounded-[5px] border text-[10px]",
-                  draft.checklist ? "border-emerald-500 bg-emerald-500 text-white" : "border-border bg-white text-transparent",
+                  "inline-flex h-12 items-center justify-center gap-2 rounded-[1.2rem] border px-4 text-sm font-medium transition duration-200 md:min-w-[112px]",
+                  draft.checklist
+                    ? "border-rose-200 bg-rose-50 text-rose-600 shadow-[0_10px_20px_rgba(244,63,94,0.08)]"
+                    : "border-slate-200 bg-white text-slate-500 hover:border-rose-200 hover:text-rose-600",
                 )}
+                aria-label="Alternar checklist"
+                title="Alternar checklist"
               >
-              ✓
-              </span>
-              Checklist
-            </button>
+                <span
+                  className={cn(
+                    "inline-flex h-4 w-4 items-center justify-center rounded-[4px] border text-[10px] leading-none",
+                    draft.checklist ? "border-rose-500 bg-rose-500 text-white" : "border-slate-300 bg-white text-transparent",
+                  )}
+                >
+                  ✓
+                </span>
+                Checklist
+              </button>
+            </div>
           </div>
-
         </div>
       </div>
     </div>
@@ -559,6 +577,7 @@ function CalendarSlot({
   onSelectEvent,
   onAddAtSlot,
   onDeleteEvent,
+  dataCy,
 }: {
   date: string;
   time: string;
@@ -568,6 +587,7 @@ function CalendarSlot({
   onSelectEvent: (event: CalendarEvent) => void;
   onAddAtSlot: (date: string, time: string) => void;
   onDeleteEvent: (event: CalendarEvent) => void;
+  dataCy?: string;
 }) {
   const { isDark } = useThemeMode();
   const [{ isOver }, drop] = useDrop(() => ({
@@ -585,6 +605,7 @@ function CalendarSlot({
     <div
       ref={attachDropRef}
       onClick={() => onAddAtSlot(date, time)}
+      data-cy={dataCy}
       className={cn(
         "relative min-h-[92px] border-l border-t p-2 transition",
         isDark ? "border-border/60 bg-card/90" : "border-border/30 bg-white/95",
@@ -876,6 +897,7 @@ export function CalendarPage() {
   const [eventForm, setEventForm] = useState<CalendarEventFormState | null>(null);
   const [pendingDelete, setPendingDelete] = useState<CalendarEvent | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState<CalendarEventFormState | null>(null);
   const [taskDraft, setTaskDraft] = useState<ActivityDraftState>(() => emptyActivityDraft());
   const [isEditingDayViews, setIsEditingDayViews] = useState(false);
   const [dayViewsDraft, setDayViewsDraft] = useState("0");
@@ -989,6 +1011,24 @@ export function CalendarPage() {
     setCurrentDate((previous) => new Date(previous.getFullYear(), previous.getMonth() + direction, 1));
   };
 
+  const createDefaultForm = (date = formatDateKey(currentDate), time = "09:00"): CalendarEventFormState => {
+    const fallbackResponsibleId = currentMember?.id ?? teamMembers[0]?.id ?? 1;
+
+    return {
+      title: "",
+      description: "",
+      type: "Reels",
+      status: "Agendado",
+      visualization: "Vídeo viral",
+      date,
+      time,
+      responsibleId: fallbackResponsibleId,
+      responsibleIds: [fallbackResponsibleId],
+      addedById: currentMember?.id ?? fallbackResponsibleId,
+      tasks: [],
+    };
+  };
+
   const handleDropEvent = (eventId: number, nextDate: string, nextTime: string) => {
     setEvents((previous) =>
       previous.map((event) => (event.id === eventId ? { ...event, date: nextDate, time: nextTime } : event)),
@@ -999,6 +1039,7 @@ export function CalendarPage() {
   };
 
   const handleOpenCreateModal = () => {
+    setCreateForm(createDefaultForm());
     setIsCreateOpen(true);
   };
 
@@ -1150,8 +1191,89 @@ export function CalendarPage() {
     });
   };
 
-  const handleOpenQuickCreate = (_date: string, _time: string) => {
+  const handleOpenQuickCreate = (date: string, time: string) => {
+    setCreateForm(createDefaultForm(date, time));
     setIsCreateOpen(true);
+  };
+
+  const handleCreateEvent = () => {
+    if (!createForm) {
+      return;
+    }
+
+    if (!createForm.title.trim() || !createForm.description.trim()) {
+      toast.error("Preencha título e descrição.");
+      return;
+    }
+
+    const nextId = Math.max(...events.map((event) => event.id), 0) + 1;
+    const nextResponsibleIds = getUniqueIds(
+      createForm.responsibleIds.length > 0 ? createForm.responsibleIds : [createForm.responsibleId],
+    );
+
+    const newEvent: CalendarEvent = {
+      id: nextId,
+      title: createForm.title.trim(),
+      description: createForm.description.trim(),
+      type: createForm.type,
+      status: createForm.status,
+      visualization: createForm.visualization,
+      date: createForm.date,
+      time: createForm.time,
+      responsibleId: nextResponsibleIds[0] ?? createForm.responsibleId,
+      responsibleIds: nextResponsibleIds,
+      addedById: createForm.addedById,
+      tasks: createForm.tasks,
+    };
+
+    setEvents((previous) => [...previous, newEvent]);
+    setSelectedEvent(newEvent);
+    setEventForm({
+      title: newEvent.title,
+      description: newEvent.description,
+      type: newEvent.type,
+      status: newEvent.status,
+      visualization: newEvent.visualization ?? inferEventVisualization(newEvent),
+      date: newEvent.date,
+      time: newEvent.time,
+      responsibleId: newEvent.responsibleId,
+      responsibleIds: newEvent.responsibleIds?.length ? newEvent.responsibleIds : [newEvent.responsibleId],
+      addedById: newEvent.addedById,
+      tasks: newEvent.tasks ?? [],
+    });
+    setIsCreateOpen(false);
+    setCreateForm(null);
+    toast.success("Tarefa criada com sucesso.");
+  };
+
+  const handleMarkCreateCompleted = () => {
+    setCreateForm((current) =>
+      current
+        ? {
+            ...current,
+            completed: true,
+            status: "Publicado",
+            tasks: (current.tasks ?? []).map((task) => ({ ...task, done: true })),
+          }
+        : current,
+    );
+    toast.success("Atividade marcada como concluída.");
+  };
+
+  const handleDuplicateCreate = () => {
+    if (!createForm) {
+      return;
+    }
+
+    setCreateForm((current) =>
+      current
+        ? {
+            ...current,
+            title: current.title ? `${current.title} - cópia` : current.title,
+          }
+        : current,
+    );
+    toast.success("Tarefa duplicada com sucesso.");
   };
 
   useEffect(() => {
@@ -1187,6 +1309,7 @@ export function CalendarPage() {
 
   useEffect(() => {
     if (!isCreateOpen) {
+      setCreateForm(null);
       return undefined;
     }
 
@@ -1230,7 +1353,19 @@ export function CalendarPage() {
     selectedEvent && selectedEventMembers.length > 0
       ? selectedEventMembers[0]
       : selectedEvent
-        ? teamMembers.find((item) => item.id === selectedEvent.responsibleId) ?? teamMembers[0]
+      ? teamMembers.find((item) => item.id === selectedEvent.responsibleId) ?? teamMembers[0]
+      : null;
+  const createResponsibleIds = createForm ? getUniqueIds(createForm.responsibleIds.length > 0 ? createForm.responsibleIds : [createForm.responsibleId]) : [];
+  const createSelectedMembers = createForm
+    ? createResponsibleIds
+        .map((id) => teamMembers.find((item) => item.id === id))
+        .filter((item): item is (typeof teamMembers)[number] => Boolean(item))
+    : [];
+  const createPrimaryMember =
+    createForm && createSelectedMembers.length > 0
+      ? createSelectedMembers[0]
+      : createForm
+        ? teamMembers.find((item) => item.id === createForm.responsibleId) ?? teamMembers[0]
         : null;
 
   return (
@@ -1238,7 +1373,7 @@ export function CalendarPage() {
       <PageHeader
         title="Calendário Orgânico"
         actions={
-          <ActionButton onClick={handleOpenCreateModal}>
+          <ActionButton dataCy="calendar-open-create" onClick={handleOpenCreateModal}>
             <Plus className="h-4 w-4" />
             Novo Post
           </ActionButton>
@@ -1304,6 +1439,8 @@ export function CalendarPage() {
                   <button
                     key={mode}
                     type="button"
+                    data-cy={`calendar-view-${mode.toLowerCase()}`}
+                    aria-pressed={view === mode}
                     onClick={() => setView(mode)}
                     className={cn(
                       "rounded-full px-4 py-2 text-sm font-medium transition",
@@ -1546,6 +1683,7 @@ export function CalendarPage() {
                           return (
                             <CalendarSlot
                               key={`${dateKey}-${hour}`}
+                              dataCy={`calendar-slot-${dateKey}-${hour.replace(":", "-")}`}
                               date={dateKey}
                               time={hour}
                               events={slotEvents}
@@ -1581,6 +1719,7 @@ export function CalendarPage() {
                       <div key={hour} className="grid gap-3 lg:grid-cols-[120px_minmax(0,1fr)] lg:items-start">
                         <div className="pt-3 text-sm font-medium text-muted-foreground">{hour}</div>
                         <CalendarSlot
+                          dataCy={`calendar-slot-${currentKey}-${hour.replace(":", "-")}`}
                           date={currentKey}
                           time={hour}
                           events={currentEvents}
@@ -1613,7 +1752,21 @@ export function CalendarPage() {
 
                     return (
                       <div
+                        data-cy={`calendar-month-day-${dateKey}`}
                         key={dateKey}
+                        tabIndex={0}
+                        role="button"
+                        onClick={() => {
+                          setCurrentDate(date);
+                          setView("Dia");
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setCurrentDate(date);
+                            setView("Dia");
+                          }
+                        }}
                         className={cn(
                           monthCellClass,
                           !isCurrentMonth && "opacity-45",
@@ -1951,11 +2104,15 @@ export function CalendarPage() {
           onConfirm={() => handleDeleteEvent(pendingDelete.id)}
         />
       ) : null}
-            {selectedEvent ? (
+
+      {isCreateOpen ? createPortal(
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4"
           onWheelCapture={(event) => event.stopPropagation()}
-          onClick={() => setSelectedEvent(null)}
+          onClick={() => {
+            setIsCreateOpen(false);
+            setCreateForm(null);
+          }}
         >
           <div
             className={modalClass}
@@ -1970,43 +2127,36 @@ export function CalendarPage() {
                   </div>
                   <div className="space-y-1">
                     <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Agenda</p>
-                    <h3 className="text-3xl font-semibold tracking-tight text-foreground">{selectedEvent.title}</h3>
+                    <h3 className="text-3xl font-semibold tracking-tight text-foreground">Criar atividade rápida</h3>
                     <p className="text-sm text-muted-foreground">Defina, confirme e acompanhe esta atividade.</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold",
-                      selectedEvent.completed ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700",
-                    )}
-                  >
-                    <CheckCircle2 className="h-4 w-4" />
-                    {selectedEvent.completed ? "Concluída" : "Agendada"}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedEvent(null)}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
-                  >
-                    ×
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCreateOpen(false);
+                    setCreateForm(null);
+                  }}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
+                  aria-label="Fechar"
+                >
+                  ×
+                </button>
               </div>
 
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-2xl bg-muted/45 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Data</p>
-                  <p className="mt-2 text-sm font-semibold text-foreground">{selectedEvent.date}</p>
+                  <p className="mt-2 text-sm font-semibold text-foreground">{createForm?.date ?? formatDateKey(currentDate)}</p>
                 </div>
                 <div className="rounded-2xl bg-muted/45 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Horário</p>
-                  <p className="mt-2 text-sm font-semibold text-foreground">{selectedEvent.time}</p>
+                  <p className="mt-2 text-sm font-semibold text-foreground">{createForm?.time ?? "09:00"}</p>
                 </div>
                 <div className="rounded-2xl bg-muted/45 p-4 sm:col-span-2">
                   <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Responsáveis</p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {selectedEventMembers.map((member) => (
+                    {createSelectedMembers.map((member) => (
                       <span
                         key={member.id}
                         className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
@@ -2020,29 +2170,21 @@ export function CalendarPage() {
                 </div>
                 <div className="rounded-2xl bg-muted/45 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Status</p>
-                  <div
-                    className={cn(
-                      "mt-2 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold",
-                      selectedEvent.completed ? "bg-emerald-100 text-emerald-700" : "bg-muted text-foreground",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "h-2.5 w-2.5 rounded-full",
-                        selectedEvent.completed ? "bg-emerald-500" : "bg-primary",
-                      )}
-                    />
-                    {selectedEvent.completed ? "Concluída" : selectedEvent.status}
+                  <div className="mt-2 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold bg-muted text-foreground">
+                    <span className="h-2.5 w-2.5 rounded-full bg-primary" />
+                    {createForm?.status ?? "Agendado"}
                   </div>
                 </div>
                 <div className="rounded-2xl bg-muted/45 p-4 sm:col-span-2">
                   <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Adicionado por</p>
                   <div className="mt-3">
-                    {teamMembers.find((item) => item.id === selectedEvent.addedById) ? (
-                      (() => {
-                        const addedBy = teamMembers.find((item) => item.id === selectedEvent.addedById)!;
-                        return <MemberChip name={addedBy.name} role={addedBy.role} color={addedBy.color} src={addedBy.avatarUrl} />;
-                      })()
+                    {createPrimaryMember ? (
+                      <MemberChip
+                        name={createPrimaryMember.name}
+                        role={createPrimaryMember.role}
+                        color={createPrimaryMember.color}
+                        src={createPrimaryMember.avatarUrl}
+                      />
                     ) : (
                       <p className="text-sm text-muted-foreground">Não informado.</p>
                     )}
@@ -2054,53 +2196,41 @@ export function CalendarPage() {
                 <div className="flex flex-wrap items-center gap-3">
                   <span
                     className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
-                    style={{ backgroundColor: `${selectedEventPrimaryMember?.color ?? "#7c3aed"}14`, color: selectedEventPrimaryMember?.color ?? "#7c3aed" }}
+                    style={{ backgroundColor: `${createPrimaryMember?.color ?? "#7c3aed"}14`, color: createPrimaryMember?.color ?? "#7c3aed" }}
                   >
-                    {selectedEvent.type}
+                    {createForm?.type ?? "Reels"}
                   </span>
-                  <span className="text-sm font-medium text-foreground">{selectedEvent.description}</span>
+                  <span className="text-sm font-medium text-foreground">
+                    {createForm?.description || "Defina, confirme e acompanhe esta atividade."}
+                  </span>
                 </div>
               </div>
 
               <ActivitySection
-                tasks={eventForm?.tasks ?? selectedEvent.tasks ?? []}
+                tasks={createForm?.tasks ?? []}
                 draft={taskDraft}
                 setDraft={setTaskDraft}
                 onAddTask={(task) => {
-                  setEventForm((current) =>
-                    current ? { ...current, tasks: [...(current.tasks ?? selectedEvent.tasks ?? []), task] } : current,
-                  );
+                  setCreateForm((current) => (current ? { ...current, tasks: [...(current.tasks ?? []), task] } : current));
                 }}
                 onToggleTask={(taskId) => {
-                  setEventForm((current) =>
+                  setCreateForm((current) =>
                     current
                       ? {
                           ...current,
-                          tasks: (current.tasks ?? selectedEvent.tasks ?? []).map((item) =>
-                            item.id === taskId ? { ...item, done: !item.done } : item,
-                          ),
+                          tasks: (current.tasks ?? []).map((item) => (item.id === taskId ? { ...item, done: !item.done } : item)),
                         }
                       : current,
                   );
                 }}
                 onRemoveTask={(taskId) => {
-                  setEventForm((current) =>
-                    current
-                      ? {
-                          ...current,
-                          tasks: (current.tasks ?? selectedEvent.tasks ?? []).filter((item) => item.id !== taskId),
-                        }
-                      : current,
+                  setCreateForm((current) =>
+                    current ? { ...current, tasks: (current.tasks ?? []).filter((item) => item.id !== taskId) } : current,
                   );
                 }}
                 onMarkAllDone={() => {
-                  setEventForm((current) =>
-                    current
-                      ? {
-                          ...current,
-                          tasks: (current.tasks ?? selectedEvent.tasks ?? []).map((task) => ({ ...task, done: true })),
-                        }
-                      : current,
+                  setCreateForm((current) =>
+                    current ? { ...current, tasks: (current.tasks ?? []).map((task) => ({ ...task, done: true })) } : current,
                   );
                 }}
                 onClearTaskDraft={() => setTaskDraft(emptyActivityDraft())}
@@ -2112,9 +2242,10 @@ export function CalendarPage() {
                   <label className="grid gap-2 md:col-span-2">
                     <span className="text-sm font-medium text-foreground">Título</span>
                     <input
-                      value={eventForm?.title ?? ""}
+                      data-cy="calendar-create-title"
+                      value={createForm?.title ?? ""}
                       onChange={(event) =>
-                        setEventForm((previous) => (previous ? { ...previous, title: event.target.value } : previous))
+                        setCreateForm((previous) => (previous ? { ...previous, title: event.target.value } : previous))
                       }
                       className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                     />
@@ -2122,9 +2253,10 @@ export function CalendarPage() {
                   <label className="grid gap-2 md:col-span-2">
                     <span className="text-sm font-medium text-foreground">Descrição</span>
                     <textarea
-                      value={eventForm?.description ?? ""}
+                      data-cy="calendar-create-description"
+                      value={createForm?.description ?? ""}
                       onChange={(event) =>
-                        setEventForm((previous) => (previous ? { ...previous, description: event.target.value } : previous))
+                        setCreateForm((previous) => (previous ? { ...previous, description: event.target.value } : previous))
                       }
                       rows={3}
                       className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
@@ -2134,10 +2266,10 @@ export function CalendarPage() {
                     <span className="text-sm font-medium text-foreground">Tipo</span>
                     <RoundedDropdown
                       label="Tipo"
-                      value={eventForm?.type ?? "Reels"}
+                      value={createForm?.type ?? "Reels"}
                       options={typeOptions}
                       onChange={(value) =>
-                        setEventForm((previous) => (previous ? { ...previous, type: value } : previous))
+                        setCreateForm((previous) => (previous ? { ...previous, type: value } : previous))
                       }
                     />
                   </label>
@@ -2145,10 +2277,10 @@ export function CalendarPage() {
                     <span className="text-sm font-medium text-foreground">Status</span>
                     <RoundedDropdown
                       label="Status"
-                      value={eventForm?.status ?? "Agendado"}
+                      value={createForm?.status ?? "Agendado"}
                       options={statusOptions}
                       onChange={(value) =>
-                        setEventForm((previous) => (previous ? { ...previous, status: value } : previous))
+                        setCreateForm((previous) => (previous ? { ...previous, status: value } : previous))
                       }
                     />
                   </label>
@@ -2156,10 +2288,10 @@ export function CalendarPage() {
                     <span className="text-sm font-medium text-foreground">Visualização</span>
                     <RoundedDropdown
                       label="Visualização"
-                      value={eventForm?.visualization ?? inferEventVisualization(selectedEvent)}
+                      value={createForm?.visualization ?? "Vídeo viral"}
                       options={visualizationOptions}
                       onChange={(value) =>
-                        setEventForm((previous) => (previous ? { ...previous, visualization: value } : previous))
+                        setCreateForm((previous) => (previous ? { ...previous, visualization: value } : previous))
                       }
                     />
                   </label>
@@ -2167,25 +2299,25 @@ export function CalendarPage() {
                     <span className="text-sm font-medium text-foreground">Data</span>
                     <RoundedDatePicker
                       label="Data"
-                      value={eventForm?.date ?? selectedEvent.date}
-                      onChange={(value) => setEventForm((previous) => (previous ? { ...previous, date: value } : previous))}
+                      value={createForm?.date ?? formatDateKey(currentDate)}
+                      onChange={(value) => setCreateForm((previous) => (previous ? { ...previous, date: value } : previous))}
                     />
                   </label>
                   <label className="grid gap-2">
                     <span className="text-sm font-medium text-foreground">Horário</span>
                     <RoundedTimePicker
                       label="Hora"
-                      value={eventForm?.time ?? selectedEvent.time}
-                      onChange={(value) => setEventForm((previous) => (previous ? { ...previous, time: value } : previous))}
+                      value={createForm?.time ?? "09:00"}
+                      onChange={(value) => setCreateForm((previous) => (previous ? { ...previous, time: value } : previous))}
                     />
                   </label>
                   <label className="grid gap-2 md:col-span-2">
                     <span className="text-sm font-medium text-foreground">Responsáveis</span>
                     <ResponsibleMultiPicker
-                      value={eventForm?.responsibleIds ?? selectedEventResponsibleIds}
+                      value={createForm?.responsibleIds ?? [currentMember?.id ?? teamMembers[0]?.id ?? 1]}
                       teamMembers={teamMembers}
                       onChange={(value) =>
-                        setEventForm((previous) =>
+                        setCreateForm((previous) =>
                           previous
                             ? {
                                 ...previous,
@@ -2200,9 +2332,9 @@ export function CalendarPage() {
                   <label className="grid gap-2 md:col-span-2">
                     <span className="text-sm font-medium text-foreground">Adicionado por</span>
                     <select
-                      value={eventForm?.addedById ?? currentMember?.id ?? teamMembers[0]?.id ?? ""}
+                      value={createForm?.addedById ?? currentMember?.id ?? teamMembers[0]?.id ?? ""}
                       onChange={(event) =>
-                        setEventForm((previous) =>
+                        setCreateForm((previous) =>
                           previous ? { ...previous, addedById: Number(event.target.value) } : previous,
                         )
                       }
@@ -2220,29 +2352,34 @@ export function CalendarPage() {
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <ActionButton
-                  onClick={handleMarkEventCompleted}
+                  onClick={handleMarkCreateCompleted}
                   className="bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
                 >
                   <CheckCircle2 className="h-4 w-4" />
-                  {selectedEvent.completed ? "Concluída" : "Concluir atividade"}
+                  {createForm?.completed ? "Concluída" : "Concluir atividade"}
                 </ActionButton>
-                <ActionButton onClick={handleSaveEvent} className="bg-primary text-primary-foreground shadow-lg shadow-primary/20">
-                  Salvar alterações
+                <ActionButton dataCy="calendar-create-submit" onClick={handleCreateEvent} className="bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+                  <Plus className="h-4 w-4" />
+                  Criar post
                 </ActionButton>
-                <ActionButton
-                  onClick={handleDuplicateEvent}
-                  className="bg-primary text-primary-foreground shadow-lg shadow-primary/20"
-                >
+                <ActionButton onClick={handleDuplicateCreate} className="bg-primary text-primary-foreground shadow-lg shadow-primary/20">
                   <Plus className="h-4 w-4" />
                   Duplicar tarefa
                 </ActionButton>
-                <ActionButton variant="secondary" onClick={() => setSelectedEvent(null)}>
+                <ActionButton
+                  variant="secondary"
+                  onClick={() => {
+                    setIsCreateOpen(false);
+                    setCreateForm(null);
+                  }}
+                >
                   Fechar
                 </ActionButton>
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </PageTransition>
   );

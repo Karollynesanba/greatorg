@@ -44,6 +44,8 @@ type LocalSession = {
 
 const SESSION_KEY = "great-organico:auth-session";
 const PASSWORDS_KEY = "great-organico:demo-passwords";
+export const authStorageKey = "great-organico-authenticated";
+export const authMemberIdKey = "great-organico-authenticated-member-id";
 
 const demoAccounts: DemoAccount[] = [
   {
@@ -134,7 +136,18 @@ function saveSession(session: LocalSession | null) {
 function readLocalSession() {
   const session = readLocalJson<LocalSession | null>(SESSION_KEY, null);
   if (!session) {
-    return null;
+    const legacyAuth = typeof window !== "undefined" ? window.localStorage.getItem(authStorageKey) : null;
+    if (legacyAuth !== "true") {
+      return null;
+    }
+
+    const legacyMemberId = typeof window !== "undefined" ? window.localStorage.getItem(authMemberIdKey) : null;
+    const parsedLegacyMemberId = legacyMemberId ? Number(legacyMemberId) : null;
+    const legacyAccount =
+      Number.isFinite(parsedLegacyMemberId) && parsedLegacyMemberId && parsedLegacyMemberId > 0
+        ? demoAccounts[parsedLegacyMemberId - 1] ?? demoAccounts[0]
+        : demoAccounts.find((account) => String(getDemoAccountUserId(account.email)) === legacyMemberId) ?? demoAccounts[0];
+    return createSession(legacyAccount);
   }
 
   const account = getDemoAccount(session.user.email);
@@ -181,10 +194,22 @@ export function isAuthenticated() {
 export function getAuthenticatedMemberId() {
   const session = readLocalSession();
   if (!session) {
-    return null;
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    const legacyAuth = window.localStorage.getItem(authStorageKey);
+    if (legacyAuth !== "true") {
+      return null;
+    }
+
+    const legacyMemberId = window.localStorage.getItem(authMemberIdKey);
+    const parsedLegacyMemberId = legacyMemberId ? Number(legacyMemberId) : null;
+    return Number.isFinite(parsedLegacyMemberId) ? parsedLegacyMemberId : null;
   }
 
-  return getDemoAccountUserId(session.user.email);
+  const profileIndex = demoAccounts.findIndex((account) => account.id === session.user.id);
+  return profileIndex >= 0 ? profileIndex + 1 : null;
 }
 
 export async function signInWithPassword(email: string, password: string) {

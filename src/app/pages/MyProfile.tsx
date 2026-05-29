@@ -191,6 +191,7 @@ export function MyProfilePage() {
                 <button
                   type="button"
                   onClick={() => setIsPreviewOpen(true)}
+                  data-cy="profile-avatar-preview"
                   className="group relative inline-flex shrink-0 cursor-zoom-in items-center justify-center rounded-3xl outline-none transition hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-primary/30"
                   aria-label="Ampliar foto de perfil"
                   title="Ampliar foto de perfil"
@@ -199,12 +200,12 @@ export function MyProfilePage() {
                 </button>
                 <div className="space-y-3">
                   <div>
-                    <h2 className="text-3xl font-semibold tracking-tight text-foreground">{member.name}</h2>
+                    <h2 data-cy="profile-name" className="text-3xl font-semibold tracking-tight text-foreground">{member.name}</h2>
                     <p className="mt-1 text-base text-muted-foreground">{member.role}</p>
                     <p className="mt-2 text-sm text-muted-foreground">{member.specialty}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <ActionButton onClick={() => setIsEditOpen(true)}>
+                    <ActionButton dataCy="profile-edit-open" onClick={() => setIsEditOpen(true)}>
                       <PencilLine className="h-4 w-4" />
                       Editar perfil
                     </ActionButton>

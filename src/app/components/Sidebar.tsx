@@ -104,6 +104,7 @@ export function Sidebar({ onLogout }: { onLogout?: () => void }) {
             <NavLink
               key={to}
               to={to}
+              data-cy={`nav-${to.slice(1)}`}
               className={({ isActive }) =>
                 cn(
                   "flex h-12 w-full items-center gap-4 rounded-full border px-4 text-[15px] font-medium transition duration-200",
@@ -125,6 +126,7 @@ export function Sidebar({ onLogout }: { onLogout?: () => void }) {
           <div className="space-y-3">
             <NavLink
               to="/settings"
+              data-cy="nav-settings"
               className={({ isActive }) =>
                 cn(
                   "flex items-center gap-4 rounded-full border px-4 py-3 text-[15px] font-medium transition",

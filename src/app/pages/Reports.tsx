@@ -128,6 +128,79 @@ function isCompletedCalendarEvent(event: CalendarEvent) {
   return event.completed || isFinalContentStatus(event.status);
 }
 
+function ReportMenuSelect<T extends string | number>({
+  label,
+  value,
+  options,
+  onChange,
+  triggerDataCy,
+  optionDataCyPrefix,
+}: {
+  label: string;
+  value: T;
+  options: Array<{ label: string; value: T }>;
+  onChange: (next: T) => void;
+  triggerDataCy: string;
+  optionDataCyPrefix: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const { isDark } = useThemeMode();
+  const selected = options.find((option) => option.value === value) ?? options[0];
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, []);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        data-cy={triggerDataCy}
+        onClick={() => setOpen((current) => !current)}
+        className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 px-4 py-3 text-sm transition hover:border-primary/25 hover:shadow-sm"
+        style={{ backgroundColor: isDark ? "rgb(var(--sidebar) / 1)" : "#ffffff" }}
+      >
+        <span className="min-w-0 truncate font-medium text-foreground">{selected?.label ?? label}</span>
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition", open && "rotate-180")} />
+      </button>
+
+      {open ? (
+        <div className="absolute left-0 top-full z-50 mt-2 w-full rounded-[1.4rem] border border-border/70 bg-white p-2 shadow-[0_20px_50px_rgba(15,23,42,0.16)]">
+          {options.map((option) => {
+            const active = option.value === value;
+            return (
+              <button
+                key={String(option.value)}
+                type="button"
+                data-cy={`${optionDataCyPrefix}-option-${String(option.value)}`}
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "flex w-full items-center justify-between rounded-full px-4 py-3 text-left text-sm transition",
+                  active ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted",
+                )}
+              >
+                <span className="font-medium">{option.label}</span>
+                {active ? <span className="text-xs font-semibold opacity-80">Ativo</span> : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function RoundedDropdown<T extends string | number>({
   label,
   value,
@@ -526,11 +599,13 @@ function DateRangePicker({
   startValue,
   endValue,
   onChange,
+  dataCy,
 }: {
   label: string;
   startValue: string;
   endValue: string;
   onChange: (next: { startValue: string; endValue: string }) => void;
+  dataCy?: string;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -579,6 +654,7 @@ function DateRangePicker({
     <div ref={rootRef} className="relative">
       <button
         type="button"
+        data-cy={dataCy}
         onClick={() => setOpen((current) => !current)}
         className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 px-5 py-3 text-left text-sm text-foreground transition hover:border-primary/25 hover:shadow-sm dark:border-white/8"
         style={{ backgroundColor: surfaceColor }}
@@ -649,6 +725,7 @@ function DateRangePicker({
                   <button
                     key={key}
                     type="button"
+                    data-cy={`reports-custom-range-day-${key}`}
                     onClick={() => {
                       if (!startValue || (startValue && endValue)) {
                         onChange({ startValue: key, endValue: "" });
@@ -1844,6 +1921,8 @@ export function ReportsPage() {
                   <button
                     key={item.value}
                     type="button"
+                    data-cy={`reports-period-${item.value === "custom" ? "custom" : item.value}`}
+                    aria-pressed={period === item.value}
                     onClick={() => setPeriod(item.value)}
                     className={cn(
                       "rounded-full px-4 py-2 text-sm font-medium transition",
@@ -1958,6 +2037,7 @@ export function ReportsPage() {
                           label="Intervalo de datas"
                           startValue={customStartDate}
                           endValue={customEndDate}
+                          dataCy="reports-custom-range-trigger"
                           onChange={({ startValue, endValue }) => {
                             setCustomStartDate(startValue);
                             setCustomEndDate(endValue);
@@ -1970,15 +2050,52 @@ export function ReportsPage() {
               ) : null}
 
               <div className="flex flex-wrap gap-2">
-                <ActionButton variant="secondary" onClick={handleExportCsv}>
+                <ActionButton dataCy="reports-save" variant="secondary" onClick={handleSaveReport}>
+                  <CheckCircle2 className="h-4 w-4" />
+                  Salvar relatório
+                </ActionButton>
+                <ActionButton dataCy="reports-export-csv" variant="secondary" onClick={handleExportCsv}>
                   <Download className="h-4 w-4" />
                   Exportar
                 </ActionButton>
-                <ActionButton variant="secondary" onClick={handleExportImage}>
+                <ActionButton dataCy="reports-export-image" variant="secondary" onClick={handleExportImage}>
                   <Share2 className="h-4 w-4" />
                   Compartilhar
                 </ActionButton>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.06)]">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Filtros</p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Ajuste o tipo e o responsável</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Esses filtros refinam os indicadores e os cards da página.
+              </p>
+            </div>
+            <div className="grid w-full gap-3 lg:max-w-2xl lg:grid-cols-2">
+              <ReportMenuSelect
+                label="Todos os tipos"
+                value={typeFilter}
+                options={contentTypeOptions}
+                onChange={setTypeFilter}
+                triggerDataCy="reports-filter-type-trigger"
+                optionDataCyPrefix="reports-filter-type"
+              />
+              <ReportMenuSelect
+                label="Todos os responsáveis"
+                value={responsibleFilter}
+                options={[
+                  { label: "Todos os responsáveis", value: "todos" as const },
+                  ...teamMembers.map((member) => ({ label: member.name, value: member.id })),
+                ]}
+                onChange={setResponsibleFilter}
+                triggerDataCy="reports-filter-responsible-trigger"
+                optionDataCyPrefix="reports-filter-responsible"
+              />
             </div>
           </div>
         </section>
@@ -2062,6 +2179,38 @@ export function ReportsPage() {
                 </div>
               ))}
             </div>
+          </div>
+        </section>
+
+        <section className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.06)]">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Histórico salvo</p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Relatórios recentes</h2>
+            </div>
+          </div>
+          <div className="mt-5 grid gap-3">
+            {savedReports.length > 0 ? (
+              savedReports.slice(0, 3).map((snapshot) => (
+                <div key={snapshot.id} className="flex items-center justify-between gap-4 rounded-[1.4rem] border border-border/60 bg-muted/20 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{snapshot.label}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{snapshot.generatedAt}</p>
+                  </div>
+                  <ActionButton
+                    dataCy="reports-history-restore"
+                    variant="secondary"
+                    onClick={() => handleRestoreReport(snapshot)}
+                  >
+                    Restaurar
+                  </ActionButton>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-[1.4rem] border border-dashed border-border/60 bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
+                Nenhum relatório salvo ainda.
+              </div>
+            )}
           </div>
         </section>
 
@@ -2160,7 +2309,7 @@ export function ReportsPage() {
                 Uma visão curta do que a equipe entregou neste recorte, com números que ajudam a tomar decisão sem sair da página.
               </p>
             </div>
-            <ActionButton variant="secondary" onClick={() => window.print()}>
+            <ActionButton dataCy="reports-export-pdf" variant="secondary" onClick={() => window.print()}>
               <Printer className="h-4 w-4" />
               Ver análise completa
             </ActionButton>
