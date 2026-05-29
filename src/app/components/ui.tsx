@@ -447,10 +447,12 @@ export function RoundedDatePicker({
   value,
   onChange,
   label = "Data",
+  dataCy,
 }: {
   value: string;
   onChange: (value: string) => void;
   label?: string;
+  dataCy?: string;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
@@ -500,6 +502,7 @@ export function RoundedDatePicker({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
+        data-cy={dataCy}
         className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 bg-card px-4 py-3 text-left text-sm text-foreground transition hover:border-primary/25 hover:shadow-sm dark:border-white/8 dark:hover:bg-card/98"
       >
         <span className="flex items-center gap-3">
@@ -614,10 +617,12 @@ export function RoundedTimePicker({
   value,
   onChange,
   label = "Hora",
+  dataCy,
 }: {
   value: string;
   onChange: (value: string) => void;
   label?: string;
+  dataCy?: string;
 }) {
   const hours = Array.from({ length: 24 }, (_, index) => pad(index));
   const minutes = Array.from({ length: 12 }, (_, index) => pad(index * 5));
@@ -660,6 +665,7 @@ export function RoundedTimePicker({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
+        data-cy={dataCy}
         className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 bg-card px-4 py-3 text-left text-sm text-foreground transition hover:border-primary/25 hover:shadow-sm dark:border-white/8 dark:hover:bg-card/98"
       >
         <span className="flex items-center gap-3">

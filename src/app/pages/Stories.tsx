@@ -253,7 +253,7 @@ export function StoriesPage() {
         title="Stories"
         description="Meta mensal: 168 stories, sendo 105 em vídeo. Registre o que foi feito por dia."
         actions={
-          <ActionButton onClick={openCreateModal}>
+          <ActionButton onClick={openCreateModal} dataCy="stories-create-open">
             <Plus className="h-4 w-4" />
             Adicionar
           </ActionButton>
@@ -319,7 +319,7 @@ export function StoriesPage() {
                 const status = getStoryStatus(item);
 
                 return (
-                  <div key={item.id} className={cardClass}>
+                  <div key={item.id} className={cardClass} data-cy={`stories-card-${item.id}`}>
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                       <div className="space-y-2">
                         <div className="flex flex-wrap items-center gap-2">
@@ -342,6 +342,7 @@ export function StoriesPage() {
                         <button
                           type="button"
                           onClick={() => openEditModal(item)}
+                          data-cy={`stories-edit-${item.id}`}
                           className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/60 text-muted-foreground transition hover:bg-muted hover:text-foreground"
                           aria-label="Editar registro"
                         >
@@ -350,6 +351,7 @@ export function StoriesPage() {
                         <button
                           type="button"
                           onClick={() => handleDelete(item.id)}
+                          data-cy={`stories-delete-${item.id}`}
                           className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/60 text-muted-foreground transition hover:bg-muted hover:text-foreground"
                           aria-label="Remover registro"
                         >
@@ -445,6 +447,7 @@ export function StoriesPage() {
                       label="Data"
                       value={form.date}
                       onChange={(value) => setForm((previous) => ({ ...previous, date: value }))}
+                      dataCy="stories-date"
                     />
                   </label>
 
@@ -454,6 +457,7 @@ export function StoriesPage() {
                       label="Hora"
                       value={form.time}
                       onChange={(value) => setForm((previous) => ({ ...previous, time: value }))}
+                      dataCy="stories-time"
                     />
                   </label>
 
@@ -464,7 +468,8 @@ export function StoriesPage() {
                       min="1"
                       value={form.quantity}
                       onChange={(event) => setForm((previous) => ({ ...previous, quantity: event.target.value }))}
-                    className="rounded-full border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                      data-cy="stories-quantity"
+                      className="rounded-full border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                     />
                   </label>
 
@@ -478,6 +483,8 @@ export function StoriesPage() {
                         { label: "Foto", value: "photo" },
                       ]}
                       onChange={(value) => setForm((previous) => ({ ...previous, mediaType: value }))}
+                      dataCy="stories-media-type"
+                      optionDataCyPrefix="stories-media-type"
                     />
                   </label>
 
@@ -492,6 +499,8 @@ export function StoriesPage() {
                         { label: "Rascunho", value: "Rascunho" },
                       ]}
                       onChange={(value) => setForm((previous) => ({ ...previous, status: value }))}
+                      dataCy="stories-status"
+                      optionDataCyPrefix="stories-status"
                     />
                   </label>
 
@@ -506,6 +515,8 @@ export function StoriesPage() {
                         color: member.color,
                       }))}
                       onChange={(value) => setForm((previous) => ({ ...previous, madeById: value }))}
+                      dataCy="stories-made-by"
+                      optionDataCyPrefix="stories-made-by"
                     />
                   </label>
 
@@ -520,6 +531,8 @@ export function StoriesPage() {
                         color: member.color,
                       }))}
                       onChange={(value) => setForm((previous) => ({ ...previous, postedById: value }))}
+                      dataCy="stories-posted-by"
+                      optionDataCyPrefix="stories-posted-by"
                     />
                   </label>
 
@@ -530,13 +543,14 @@ export function StoriesPage() {
                       onChange={(event) => setForm((previous) => ({ ...previous, notes: event.target.value }))}
                       rows={4}
                       placeholder="Opcional"
+                      data-cy="stories-notes"
                       className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                     />
                   </label>
                 </div>
 
                 <div className="mt-5 flex justify-end">
-                  <ActionButton onClick={handleSave}>
+                  <ActionButton onClick={handleSave} dataCy="stories-save">
                     <Plus className="h-4 w-4" />
                     {editingStoryId !== null ? "Salvar alterações" : "Adicionar"}
                   </ActionButton>
@@ -571,6 +585,7 @@ export function StoriesPage() {
                 <button
                   type="button"
                   onClick={closeModal}
+                  data-cy="stories-close"
                   className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-border/60 bg-background px-4 py-3 text-sm font-medium text-foreground transition hover:bg-muted/70"
                 >
                   <X className="h-4 w-4" />
