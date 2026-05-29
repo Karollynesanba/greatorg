@@ -1871,7 +1871,7 @@ export function CalendarPage() {
                 </div>
                 <div className="rounded-2xl bg-muted/45 p-4 sm:col-span-2">
                   <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Responsáveis</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="mt-3 flex flex-wrap gap-2" data-cy="calendar-selected-responsibles">
                     {selectedEventMembers.map((member) => (
                       <span
                         key={member.id}
@@ -1903,7 +1903,7 @@ export function CalendarPage() {
                 </div>
                 <div className="rounded-2xl bg-muted/45 p-4 sm:col-span-2">
                   <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Adicionado por</p>
-                  <div className="mt-3">
+                  <div className="mt-3" data-cy="calendar-selected-added-by">
                     {teamMembers.find((item) => item.id === selectedEvent.addedById) ? (
                       (() => {
                         const addedBy = teamMembers.find((item) => item.id === selectedEvent.addedById)!;
@@ -2193,7 +2193,7 @@ export function CalendarPage() {
                 </div>
                 <div className="rounded-2xl bg-muted/45 p-4 sm:col-span-2">
                   <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Adicionado por</p>
-                  <div className="mt-3">
+                  <div className="mt-3" data-cy="calendar-create-added-by">
                     {createPrimaryMember ? (
                       <MemberChip
                         name={createPrimaryMember.name}

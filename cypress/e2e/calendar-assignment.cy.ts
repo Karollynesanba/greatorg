@@ -5,6 +5,7 @@ describe("Calendário - atribuição de tarefas", () => {
   it("cria uma atividade e mostra o responsável e o adicionador corretos", () => {
     const title = `Revisar roteiro ${Date.now()}`;
     const description = "Ajustar o roteiro antes da publicação.";
+    const memberName = "Hannah";
 
     cy.visit("/calendar", {
       onBeforeLoad(win) {
@@ -24,10 +25,8 @@ describe("Calendário - atribuição de tarefas", () => {
     cy.contains("Agenda").should("be.visible");
     cy.contains(title).should("be.visible");
     cy.contains(description).should("be.visible");
-    cy.contains("Responsáveis").should("be.visible");
-    cy.contains("Clara").should("be.visible");
-    cy.contains("Adicionado por").should("be.visible");
-    cy.contains("Clara").should("be.visible");
+    cy.get('[data-cy="calendar-selected-responsibles"]').should("contain.text", memberName);
+    cy.get('[data-cy="calendar-selected-added-by"]').should("contain.text", memberName);
 
     cy.get('[data-cy="calendar-selected-close"]').click();
     cy.get('[data-cy="calendar-side-agenda"]').should("be.visible");
