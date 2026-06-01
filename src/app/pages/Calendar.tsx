@@ -44,7 +44,7 @@ import { useThemeMode } from "../theme";
 const viewModes = ["Dia", "Semana", "Mês"] as const;
 const dragType = "calendar-event";
 const getTodayDate = () => new Date();
-const weekHeaderLabels = ["DOM.", "SEG.", "TER.", "QUA.", "QUI.", "SEX.", "SÁB."];
+const weekHeaderLabels = ["SEG.", "TER.", "QUA.", "QUI.", "SEX.", "SÁB.", "DOM."];
 const typeOptions: Array<{ label: string; value: CalendarEvent["type"]; color: string }> = [
   { label: "Reels", value: "Reels", color: "#d946ef" },
   { label: "Stories", value: "Stories", color: "#ec4899" },
@@ -800,7 +800,6 @@ function MiniMonth({ date }: { date: Date }) {
     )}>
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-foreground">{formatMonthLabel(date)}</h3>
-        <span className="text-xs font-medium text-muted-foreground">Abr 2026</span>
       </div>
       <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
         {daysOfWeek.map((day) => (

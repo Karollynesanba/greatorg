@@ -6,6 +6,8 @@ describe("Calendário - atribuição de tarefas", () => {
     const title = `Revisar roteiro ${Date.now()}`;
     const description = "Ajustar o roteiro antes da publicação.";
     const memberName = "Hannah";
+    const today = new Date();
+    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
     cy.visit("/calendar", {
       onBeforeLoad(win) {
@@ -29,8 +31,7 @@ describe("Calendário - atribuição de tarefas", () => {
     cy.get('[data-cy="calendar-selected-added-by"]').should("contain.text", memberName);
 
     cy.get('[data-cy="calendar-selected-close"]').click();
-    cy.get('[data-cy="calendar-side-agenda"]').should("be.visible");
-    cy.get('[data-cy="calendar-side-agenda"]').within(() => {
+    cy.get(`[data-cy="calendar-slot-${todayKey}-09-00"]`).within(() => {
       cy.contains(title).should("be.visible");
     });
   });

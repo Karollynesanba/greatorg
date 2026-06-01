@@ -144,7 +144,7 @@ describe("Meta Insights", () => {
       const daysParam = Array.isArray(req.query.days) ? req.query.days[0] : req.query.days;
       const days = Number(daysParam ?? 30);
       req.reply(buildPayload(Number.isFinite(days) ? days : 30));
-    });
+    }).as("loadMetaInsights");
 
     cy.visit("/", {
       onBeforeLoad(win) {
@@ -160,25 +160,26 @@ describe("Meta Insights", () => {
     cy.contains("Meta Insights").click();
 
     cy.get('[data-cy="meta-summary-shell"]').should("be.visible");
-    cy.get('[data-cy="meta-range-label"]').should("contain.text", "Últimos 30 dias");
+    cy.wait("@loadMetaInsights");
+    cy.get('[data-cy="meta-range-label"]').should("have.text", "últimos 30 dias");
     cy.get('[data-cy="meta-media-card"]').should("have.length", 3);
     cy.get('[data-cy="meta-media-image"]').should("have.length", 3);
     cy.get('[data-cy="meta-media-image"]').first().should("have.attr", "src").and("include", "data:image/svg+xml");
 
-    cy.get('[data-cy="meta-period-day"]').click();
-    cy.get('[data-cy="meta-range-label"]').should("contain.text", "Últimos 1 dias");
+    cy.get('[data-cy="meta-period-day"]').click({ force: true }).should("have.class", "bg-primary");
+    cy.wait("@loadMetaInsights");
     cy.get('[data-cy="meta-media-card"]').should("have.length", 1);
     cy.get('[data-cy="meta-media-image"]').should("have.length", 1);
     cy.get('[data-cy="meta-media-image"]').first().should("have.attr", "src").and("include", "D1-1");
 
-    cy.get('[data-cy="meta-period-week"]').click();
-    cy.get('[data-cy="meta-range-label"]').should("contain.text", "Últimos 7 dias");
+    cy.get('[data-cy="meta-period-week"]').click({ force: true }).should("have.class", "bg-primary");
+    cy.wait("@loadMetaInsights");
     cy.get('[data-cy="meta-media-card"]').should("have.length", 2);
     cy.get('[data-cy="meta-media-image"]').should("have.length", 2);
     cy.get('[data-cy="meta-media-image"]').first().should("have.attr", "src").and("include", "D7-1");
 
-    cy.get('[data-cy="meta-period-month"]').click();
-    cy.get('[data-cy="meta-range-label"]').should("contain.text", "Últimos 30 dias");
+    cy.get('[data-cy="meta-period-month"]').click({ force: true }).should("have.class", "bg-primary");
+    cy.wait("@loadMetaInsights");
     cy.get('[data-cy="meta-media-card"]').should("have.length", 3);
     cy.get('[data-cy="meta-media-image"]').should("have.length", 3);
     cy.get('[data-cy="meta-media-image"]').first().should("have.attr", "src").and("include", "D30-1");

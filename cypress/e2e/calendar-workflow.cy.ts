@@ -43,15 +43,18 @@ describe("Calendário - fluxo principal", () => {
     });
 
     cy.get('[data-cy="calendar-open-create"]').should("be.visible").click();
+    cy.get('[data-cy="calendar-create-modal-scroll"]').scrollIntoView().should("be.visible");
     cy.get('[data-cy="calendar-create-submit"]').should("be.enabled");
-    cy.get('[data-cy="calendar-create-title"]').should("be.visible");
-    cy.get('[data-cy="calendar-create-title"]').type(firstTitle);
-    cy.get('[data-cy="calendar-create-description"]').type("Primeiro post do fluxo de teste.");
+    cy.get('[data-cy="calendar-create-title"]').scrollIntoView().should("be.visible").type(firstTitle);
+    cy.get('[data-cy="calendar-create-description"]').scrollIntoView().type("Primeiro post do fluxo de teste.");
     cy.get('[data-cy="calendar-create-submit"]').click();
+    cy.contains("Fechar").click();
+    cy.contains("Criar atividade rápida").should("not.exist");
 
     cy.get('[data-cy="calendar-open-create"]').click();
-    cy.get('[data-cy="calendar-create-title"]').type(secondTitle);
-    cy.get('[data-cy="calendar-create-description"]').type("Segundo post no mesmo horário.");
+    cy.get('[data-cy="calendar-create-modal-scroll"]').scrollIntoView().should("be.visible");
+    cy.get('[data-cy="calendar-create-title"]').scrollIntoView().type(secondTitle);
+    cy.get('[data-cy="calendar-create-description"]').scrollIntoView().type("Segundo post no mesmo horário.");
     cy.get('[data-cy="calendar-create-submit"]').click();
 
     cy.get(`[data-cy="calendar-slot-${todayKey}-09-00"]`).within(() => {
@@ -60,12 +63,12 @@ describe("Calendário - fluxo principal", () => {
     });
 
     const dataTransfer = createDataTransfer();
-    cy.contains('[data-cy^="calendar-event-"]', firstTitle)
+    cy.contains("button", firstTitle)
       .trigger("dragstart", { dataTransfer, force: true });
     cy.get(`[data-cy="calendar-slot-${todayKey}-11-00"]`)
       .trigger("dragover", { dataTransfer, force: true })
       .trigger("drop", { dataTransfer, force: true });
-    cy.contains('[data-cy^="calendar-event-"]', firstTitle)
+    cy.contains("button", firstTitle)
       .trigger("dragend", { dataTransfer, force: true });
 
     cy.get(`[data-cy="calendar-slot-${todayKey}-11-00"]`).within(() => {
@@ -76,9 +79,11 @@ describe("Calendário - fluxo principal", () => {
       cy.contains(secondTitle).should("be.visible");
     });
 
-    cy.get('[data-cy="calendar-view-mes"]').click();
-    cy.get('[data-cy="calendar-view-mes"]').should("have.attr", "aria-pressed", "true");
-    cy.get(`[data-cy="calendar-month-day-${todayKey}"]`).should("be.visible").trigger("keydown", { key: "Enter" });
+    cy.get('[data-cy="calendar-selected-close"]').click();
+
+    cy.get('[data-cy="calendar-view-mês"]').click();
+    cy.get('[data-cy="calendar-view-mês"]').should("have.attr", "aria-pressed", "true");
+    cy.get(`[data-cy="calendar-month-day-${todayKey}"]`).should("be.visible").trigger("keydown", { key: "Enter", force: true });
     cy.get('[data-cy="calendar-view-dia"]').should("have.attr", "aria-pressed", "true");
     cy.contains("Arraste e solte os posts para reagendar.").should("be.visible");
 
@@ -86,7 +91,7 @@ describe("Calendário - fluxo principal", () => {
     cy.get('[data-cy="calendar-view-semana"]').should("have.attr", "aria-pressed", "true");
     cy.get('[data-cy="calendar-view-dia"]').click();
     cy.get('[data-cy="calendar-view-dia"]').should("have.attr", "aria-pressed", "true");
-    cy.get('[data-cy="calendar-view-mes"]').click();
-    cy.get('[data-cy="calendar-view-mes"]').should("have.attr", "aria-pressed", "true");
+    cy.get('[data-cy="calendar-view-mês"]').click();
+    cy.get('[data-cy="calendar-view-mês"]').should("have.attr", "aria-pressed", "true");
   });
 });

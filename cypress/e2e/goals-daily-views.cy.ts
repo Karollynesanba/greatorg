@@ -63,28 +63,32 @@ describe("Metas - visualizações diárias", () => {
     });
 
     cy.get('[data-cy="goal-create-open"]').should("be.visible").click();
-    cy.get('[data-cy="goal-name-input"]').clear().type(goalName);
-    cy.get('[data-cy="goal-category-input"]').clear().type("Visualizações");
-    cy.get('[data-cy="goal-target-input"]').clear().type("12000");
-    cy.get('[data-cy="goal-description-input"]').clear().type("Meta travada com lançamento diário.");
-    cy.get('[data-cy="goal-save-button"]').click();
+    cy.get('[data-cy="goal-name-input"]').scrollIntoView().clear().type(goalName);
+    cy.get('[data-cy="goal-category-trigger"]').scrollIntoView().click();
+    cy.get('[data-cy="goal-category-option-Alcance"]').click();
+    cy.get('[data-cy="goal-period-trigger"]').scrollIntoView().click();
+    cy.get('[data-cy="goal-period-option-Mês"]').click();
+    cy.get('[data-cy="goal-target-input"]').scrollIntoView().clear().type("12000");
+    cy.get('[data-cy="goal-description-input"]').scrollIntoView().clear().type("Meta travada com lançamento diário.");
+    cy.get('[data-cy="goal-save-button"]').scrollIntoView().click();
 
     cy.contains('[data-cy="goal-card"]', goalName)
+      .scrollIntoView()
       .should("be.visible")
       .find('[data-cy="goal-daily-open"]')
-      .click();
+      .click({ force: true });
 
-    cy.get('[data-cy="goal-daily-date-input"]').should("be.visible");
+    cy.get('[data-cy="goal-daily-date-input"]').scrollIntoView().should("be.visible");
     cy.contains("12.000").should("be.visible");
 
-    cy.get('[data-cy="goal-daily-value-input"]').clear().type("6000");
-    cy.get('[data-cy="goal-daily-submit"]').click();
+    cy.get('[data-cy="goal-daily-value-input"]').scrollIntoView().clear().type("6000");
+    cy.get('[data-cy="goal-daily-submit"]').scrollIntoView().click();
 
     cy.contains("6.000").should("be.visible");
     cy.get('[data-cy="goal-history-row"]').should("have.length", 1);
 
-    cy.get('[data-cy="goal-daily-value-input"]').clear().type("5000");
-    cy.get('[data-cy="goal-daily-submit"]').click();
+    cy.get('[data-cy="goal-daily-value-input"]').scrollIntoView().clear().type("5000");
+    cy.get('[data-cy="goal-daily-submit"]').scrollIntoView().click();
 
     cy.contains("11.000").should("be.visible");
     cy.contains("1.000").should("be.visible");
