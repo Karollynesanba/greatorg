@@ -1005,7 +1005,6 @@ export function CalendarPage() {
         .sort((left, right) => left.time.localeCompare(right.time)),
     [currentDate, filteredEvents],
   );
-  const currentDateKey = formatDateKey(currentDate);
   const referenceDateKey = shiftBrazilDateKey(getBrazilDateKey(new Date()), -1);
   const referenceDateLabel = formatBrazilDateLabel(referenceDateKey);
   const currentDayViews = dayViewsByDate[referenceDateKey] ?? 0;
