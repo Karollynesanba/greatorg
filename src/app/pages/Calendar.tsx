@@ -43,6 +43,7 @@ import { useThemeMode } from "../theme";
 
 const viewModes = ["Dia", "Semana", "Mês"] as const;
 const dragType = "calendar-event";
+const BRAZIL_TIME_ZONE = "America/Fortaleza";
 const getTodayDate = () => new Date();
 const weekHeaderLabels = daysOfWeek.map((day) => `${day.toUpperCase()}.`);
 const typeOptions: Array<{ label: string; value: CalendarEvent["type"]; color: string }> = [
@@ -86,6 +87,54 @@ function formatDateKey(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function getBrazilDateKey(date: Date) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: BRAZIL_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = formatter.formatToParts(date);
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+
+  if (!year || !month || !day) {
+    return formatDateKey(date);
+  }
+
+  return `${year}-${month}-${day}`;
+}
+
+function shiftBrazilDateKey(dateKey: string, days: number) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+
+  if (!year || !month || !day) {
+    return dateKey;
+  }
+
+  const shifted = new Date(Date.UTC(year, month - 1, day));
+  shifted.setUTCDate(shifted.getUTCDate() + days);
+  return getBrazilDateKey(shifted);
+}
+
+function formatBrazilDateLabel(dateKey: string) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+
+  if (!year || !month || !day) {
+    return dateKey;
+  }
+
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: BRAZIL_TIME_ZONE,
+    weekday: "long",
+    day: "2-digit",
+    month: "short",
+  }).format(date);
 }
 
 function formatWeekRange(date: Date) {
@@ -957,12 +1006,14 @@ export function CalendarPage() {
     [currentDate, filteredEvents],
   );
   const currentDateKey = formatDateKey(currentDate);
-  const currentDayViews = dayViewsByDate[currentDateKey] ?? 0;
+  const referenceDateKey = shiftBrazilDateKey(getBrazilDateKey(new Date()), -1);
+  const referenceDateLabel = formatBrazilDateLabel(referenceDateKey);
+  const currentDayViews = dayViewsByDate[referenceDateKey] ?? 0;
   const dayCompletedCount = currentDayEvents.filter((event) => event.completed || event.status === "Publicado" || event.status === "Aprovado").length;
   useEffect(() => {
     setDayViewsDraft(String(currentDayViews));
     setIsEditingDayViews(false);
-  }, [currentDateKey, currentDayViews]);
+  }, [currentDayViews, referenceDateKey]);
 
   const handleStartEditingDayViews = () => {
     setDayViewsDraft(String(currentDayViews));
@@ -975,10 +1026,10 @@ export function CalendarPage() {
 
     setDayViewsByDate((previous) => ({
       ...previous,
-      [currentDateKey]: nextValue,
+      [referenceDateKey]: nextValue,
     }));
     setIsEditingDayViews(false);
-    toast.success("Visualizações do dia atualizadas.");
+    toast.success("Visualizações de ontem atualizadas.");
   };
 
   const handleCancelDayViewsEdit = () => {
@@ -1568,9 +1619,11 @@ export function CalendarPage() {
                   <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
                     Visualizações do dia
                   </p>
-                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{formatDayLabel(currentDate)}</h3>
+                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
+                    Visualizações referentes a {referenceDateLabel}
+                  </h3>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Edite o total diretamente no número, sem abrir formulário.
+                    Visualizações referentes a {referenceDateLabel}
                   </p>
                 </div>
                 <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-white px-4 py-2 text-xs font-semibold text-foreground shadow-sm">
@@ -1583,7 +1636,7 @@ export function CalendarPage() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Total do dia</p>
-                    <p className="mt-2 text-sm text-muted-foreground">Clique no número para editar na hora.</p>
+                    <p className="mt-2 text-sm text-muted-foreground">Clique no número para editar o dia de ontem.</p>
                   </div>
                   <button
                     type="button"
