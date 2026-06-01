@@ -1617,13 +1617,13 @@ export function CalendarPage() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                    Visualizações do dia
+                    Visualizações do dia anterior
                   </p>
                   <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
                     Visualizações referentes a {referenceDateLabel}
                   </h3>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Visualizações referentes a {referenceDateLabel}
+                    Visualizações referentes ao dia anterior: {referenceDateLabel}
                   </p>
                 </div>
                 <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-white px-4 py-2 text-xs font-semibold text-foreground shadow-sm">
@@ -1636,7 +1636,7 @@ export function CalendarPage() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Total do dia</p>
-                    <p className="mt-2 text-sm text-muted-foreground">Clique no número para editar o dia de ontem.</p>
+                    <p className="mt-2 text-sm text-muted-foreground">Clique no número para editar o dia anterior.</p>
                   </div>
                   <button
                     type="button"
