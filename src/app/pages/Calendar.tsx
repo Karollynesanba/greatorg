@@ -44,7 +44,7 @@ import { useThemeMode } from "../theme";
 const viewModes = ["Dia", "Semana", "Mês"] as const;
 const dragType = "calendar-event";
 const getTodayDate = () => new Date();
-const weekHeaderLabels = ["SEG.", "TER.", "QUA.", "QUI.", "SEX.", "SÁB.", "DOM."];
+const weekHeaderLabels = daysOfWeek.map((day) => `${day.toUpperCase()}.`);
 const typeOptions: Array<{ label: string; value: CalendarEvent["type"]; color: string }> = [
   { label: "Reels", value: "Reels", color: "#d946ef" },
   { label: "Stories", value: "Stories", color: "#ec4899" },
