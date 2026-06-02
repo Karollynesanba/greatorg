@@ -20,6 +20,7 @@ import {
   RoundedTimePicker,
   cn,
 } from "../components/ui";
+import { useSupabasePreference } from "../data/userPreferences";
 import { useThemeMode } from "../theme";
 
 type StoryMediaType = "video" | "photo";
@@ -37,8 +38,8 @@ type StoryFormState = {
   notes: string;
 };
 
+const defaultMonthlyGoalTotal = 168;
 const monthlyGoals = {
-  total: 168,
   video: 105,
   photo: 63,
 };
@@ -162,6 +163,9 @@ export function StoriesPage() {
     fallback: historyTimeline,
   });
   const [teamScope] = useTeamScope();
+  const [monthlyGoalTotal, setMonthlyGoalTotal] = useSupabasePreference<number>("stories-monthly-goal-total", defaultMonthlyGoalTotal);
+  const [isEditingMonthlyGoalTotal, setIsEditingMonthlyGoalTotal] = useState(false);
+  const [monthlyGoalTotalDraft, setMonthlyGoalTotalDraft] = useState(String(defaultMonthlyGoalTotal));
   const currentMonthAnchor = useMemo(() => new Date(), []);
   const [periodMode, setPeriodMode] = useState<StoryPeriodMode>("current");
   const [monthCursor, setMonthCursor] = useState(() => startOfMonth(currentMonthAnchor));
@@ -178,6 +182,14 @@ export function StoriesPage() {
   );
   const customRangeLabel = `${formatDate(formatDateKey(customRange.start))} até ${formatDate(formatDateKey(customRange.end))}`;
   const summaryTitle = periodMode === "custom" ? "Meta do período" : "Meta do mês";
+  const effectiveMonthlyGoals = useMemo(
+    () => ({
+      total: monthlyGoalTotal,
+      video: monthlyGoals.video,
+      photo: monthlyGoals.photo,
+    }),
+    [monthlyGoalTotal],
+  );
 
   const visibleItems = useMemo(
     () => {
@@ -215,9 +227,29 @@ export function StoriesPage() {
       total,
       video,
       photo,
-      remainingTotal: Math.max(monthlyGoals.total - total, 0),
+      remainingTotal: Math.max(effectiveMonthlyGoals.total - total, 0),
     };
-  }, [visibleItems]);
+  }, [effectiveMonthlyGoals.total, visibleItems]);
+
+  const handleStartEditingMonthlyGoalTotal = () => {
+    setMonthlyGoalTotalDraft(String(monthlyGoalTotal));
+    setIsEditingMonthlyGoalTotal(true);
+  };
+
+  const handleCommitMonthlyGoalTotal = () => {
+    const parsedValue = Number(String(monthlyGoalTotalDraft).replace(/[^\d]/g, ""));
+    const nextValue = Number.isFinite(parsedValue) ? Math.max(1, Math.round(parsedValue)) : defaultMonthlyGoalTotal;
+
+    setMonthlyGoalTotal(nextValue);
+    setMonthlyGoalTotalDraft(String(nextValue));
+    setIsEditingMonthlyGoalTotal(false);
+    toast.success("Meta total atualizada.");
+  };
+
+  const handleCancelMonthlyGoalTotalEdit = () => {
+    setMonthlyGoalTotalDraft(String(monthlyGoalTotal));
+    setIsEditingMonthlyGoalTotal(false);
+  };
 
   const sortedItems = useMemo(() => {
     return [...visibleItems].sort((a, b) => `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`));
@@ -487,25 +519,62 @@ export function StoriesPage() {
 
           <div className="grid gap-3 sm:grid-cols-3">
             <GlassPanel className="p-4">
-              <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Meta total</p>
-              <p className="mt-2 text-3xl font-semibold text-foreground">
-                {stats.total} / {monthlyGoals.total}
-              </p>
-              <ProgressBar value={stats.total} max={monthlyGoals.total} />
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Meta total</p>
+                  <p className="mt-2 text-3xl font-semibold text-foreground">
+                    {stats.total} / {effectiveMonthlyGoals.total}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleStartEditingMonthlyGoalTotal}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/60 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                  aria-label="Editar meta total"
+                >
+                  <PencilLine className="h-4 w-4" />
+                </button>
+              </div>
+              {isEditingMonthlyGoalTotal ? (
+                <div className="mt-4 flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
+                  <span className="text-sm font-semibold text-primary">Meta</span>
+                  <input
+                    autoFocus
+                    value={monthlyGoalTotalDraft}
+                    onChange={(event) => setMonthlyGoalTotalDraft(event.target.value)}
+                    onBlur={handleCommitMonthlyGoalTotal}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        handleCommitMonthlyGoalTotal();
+                      }
+
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        handleCancelMonthlyGoalTotalEdit();
+                      }
+                    }}
+                    inputMode="numeric"
+                    className="w-full border-0 bg-transparent text-2xl font-semibold tracking-tight text-foreground outline-none placeholder:text-muted-foreground"
+                    placeholder={String(defaultMonthlyGoalTotal)}
+                  />
+                </div>
+              ) : null}
+              <ProgressBar value={stats.total} max={effectiveMonthlyGoals.total} />
             </GlassPanel>
             <GlassPanel className="p-4">
               <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Vídeo</p>
               <p className="mt-2 text-3xl font-semibold text-foreground">
-                {stats.video} / {monthlyGoals.video}
+                {stats.video} / {effectiveMonthlyGoals.video}
               </p>
-              <ProgressBar value={stats.video} max={monthlyGoals.video} />
+              <ProgressBar value={stats.video} max={effectiveMonthlyGoals.video} />
             </GlassPanel>
             <GlassPanel className="p-4">
               <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Foto</p>
               <p className="mt-2 text-3xl font-semibold text-foreground">
-                {stats.photo} / {monthlyGoals.photo}
+                {stats.photo} / {effectiveMonthlyGoals.photo}
               </p>
-              <ProgressBar value={stats.photo} max={monthlyGoals.photo} />
+              <ProgressBar value={stats.photo} max={effectiveMonthlyGoals.photo} />
             </GlassPanel>
           </div>
 
@@ -595,19 +664,19 @@ export function StoriesPage() {
             <div className="flex items-center justify-between gap-3">
               <span className="text-sm text-muted-foreground">Total</span>
               <strong className="text-sm text-foreground">
-                {stats.total} / {monthlyGoals.total}
+                {stats.total} / {effectiveMonthlyGoals.total}
               </strong>
             </div>
             <div className="flex items-center justify-between gap-3">
               <span className="text-sm text-muted-foreground">Vídeo</span>
               <strong className="text-sm text-foreground">
-                {stats.video} / {monthlyGoals.video}
+                {stats.video} / {effectiveMonthlyGoals.video}
               </strong>
             </div>
             <div className="flex items-center justify-between gap-3">
               <span className="text-sm text-muted-foreground">Foto</span>
               <strong className="text-sm text-foreground">
-                {stats.photo} / {monthlyGoals.photo}
+                {stats.photo} / {effectiveMonthlyGoals.photo}
               </strong>
             </div>
           </div>
