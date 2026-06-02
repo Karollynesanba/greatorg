@@ -59,6 +59,7 @@ import {
   formatPercent,
 } from "../components/ui";
 import { useThemeMode } from "../theme";
+import { createEmptyMonthlyArchive, type MonthlyArchiveSnapshot } from "../data/monthlyArchive";
 const reportPeriods = [
   { label: "7 dias", value: "7" as const },
   { label: "30 dias", value: "30" as const },
@@ -787,7 +788,7 @@ function DateRangePicker({
 
 export function ReportsPage() {
   const { isDark } = useThemeMode();
-  const anchorDate = useMemo(() => new Date("2026-04-30T12:00:00"), []);
+  const anchorDate = useMemo(() => new Date(), []);
   const [period, setPeriod] = useState<ReportPeriod>("30");
   const [customPeriodMode, setCustomPeriodMode] = useState<CustomPeriodMode>("month");
   const [customMonth, setCustomMonth] = useState(anchorDate.getMonth());
@@ -805,6 +806,10 @@ export function ReportsPage() {
     fallback: calendarEvents,
   });
   const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
+  const [monthlyArchive] = useSupabaseSharedState<MonthlyArchiveSnapshot>({
+    key: createStorageKey("monthly-archive"),
+    fallback: createEmptyMonthlyArchive(),
+  });
   const [teamScope] = useTeamScope();
   const [savedReports, setSavedReports] = useSupabaseSharedState<SavedReport[]>({
     key: createStorageKey("reports-history"),
@@ -1033,10 +1038,13 @@ export function ReportsPage() {
     });
   }, [anchorDate, customEndDate, customMonth, customPastMonths, customPeriodMode, customStartDate, customYear, period]);
   const previousRange = useMemo(() => shiftRange(currentRange.start, currentRange.end), [currentRange]);
+  const allPosts = useMemo(() => [...monthlyArchive.posts, ...posts], [monthlyArchive.posts, posts]);
+  const allCalendarItems = useMemo(() => [...monthlyArchive.calendarEvents, ...calendarItems], [calendarItems, monthlyArchive.calendarEvents]);
+  const allGoals = useMemo(() => [...monthlyArchive.goals, ...goals], [goals, monthlyArchive.goals]);
 
   const filteredPosts = useMemo(
     () =>
-      posts.filter((post) => {
+      allPosts.filter((post) => {
         const matchesDate = inRange(post.date, currentRange.start, currentRange.end);
         const matchesType = typeFilter === "todos" || post.type === typeFilter;
         const matchesResponsible =
@@ -1045,12 +1053,12 @@ export function ReportsPage() {
 
         return matchesDate && matchesType && matchesResponsible && matchesScope;
       }),
-    [currentRange.end, currentRange.start, responsibleFilter, teamScope, typeFilter],
+    [allPosts, currentRange.end, currentRange.start, responsibleFilter, teamScope, typeFilter],
   );
 
   const previousPosts = useMemo(
     () =>
-      posts.filter((post) => {
+      allPosts.filter((post) => {
         const matchesDate = inRange(post.date, previousRange.start, previousRange.end);
         const matchesType = typeFilter === "todos" || post.type === typeFilter;
         const matchesResponsible =
@@ -1059,12 +1067,12 @@ export function ReportsPage() {
 
         return matchesDate && matchesType && matchesResponsible && matchesScope;
       }),
-    [previousRange.end, previousRange.start, responsibleFilter, teamScope, typeFilter],
+    [allPosts, previousRange.end, previousRange.start, responsibleFilter, teamScope, typeFilter],
   );
 
   const filteredCalendarItems = useMemo(
     () =>
-      calendarItems.filter((event) => {
+      allCalendarItems.filter((event) => {
         const responsibleIds = getCalendarResponsibleIds(event);
         const matchesDate = inRange(event.date, currentRange.start, currentRange.end);
         const matchesResponsible =
@@ -1073,12 +1081,12 @@ export function ReportsPage() {
 
         return matchesDate && matchesResponsible && matchesScope;
       }),
-    [calendarItems, currentRange.end, currentRange.start, responsibleFilter, teamScope],
+    [allCalendarItems, currentRange.end, currentRange.start, responsibleFilter, teamScope],
   );
 
   const previousCalendarItems = useMemo(
     () =>
-      calendarItems.filter((event) => {
+      allCalendarItems.filter((event) => {
         const responsibleIds = getCalendarResponsibleIds(event);
         const matchesDate = inRange(event.date, previousRange.start, previousRange.end);
         const matchesResponsible =
@@ -1087,21 +1095,21 @@ export function ReportsPage() {
 
         return matchesDate && matchesResponsible && matchesScope;
       }),
-    [calendarItems, previousRange.end, previousRange.start, responsibleFilter, teamScope],
+    [allCalendarItems, previousRange.end, previousRange.start, responsibleFilter, teamScope],
   );
 
   const filteredGoals = useMemo(() => {
-    const byResponsible = goals.filter((goal) => {
-      if (responsibleFilter === "todos") {
-        return getGoalResponsibleIds(goal).some((id) => matchesTeamScope(id, teamScope));
-      }
+    return allGoals.filter((goal) => {
+      const responsibleIds = getGoalResponsibleIds(goal);
+      const matchesResponsible =
+        responsibleFilter === "todos"
+          ? responsibleIds.some((id) => matchesTeamScope(id, teamScope))
+          : responsibleIds.includes(responsibleFilter) && responsibleIds.some((id) => matchesTeamScope(id, teamScope));
+      const matchesPeriod = inRange(goal.deadline, currentRange.start, currentRange.end);
 
-      return getGoalResponsibleIds(goal).includes(responsibleFilter) && getGoalResponsibleIds(goal).some((id) => matchesTeamScope(id, teamScope));
+      return matchesResponsible && matchesPeriod;
     });
-    const inPeriod = byResponsible.filter((goal) => inRange(goal.deadline, currentRange.start, currentRange.end));
-
-    return inPeriod.length > 0 ? inPeriod : byResponsible;
-  }, [currentRange.end, currentRange.start, responsibleFilter, teamScope]);
+  }, [allGoals, currentRange.end, currentRange.start, responsibleFilter, teamScope]);
 
   const currentSummary = useMemo(() => {
     const reach = filteredPosts.reduce((sum, post) => sum + post.reach, 0);

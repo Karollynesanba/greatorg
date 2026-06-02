@@ -16,10 +16,11 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
-import { goals as seedGoals, type ContentType, type Goal } from "../data/mockData";
+import { type ContentType, type Goal } from "../data/mockData";
+import { createEmptyMonthlyArchive, type MonthlyArchiveSnapshot } from "../data/monthlyArchive";
 import { useTeamProfiles } from "../data/profiles";
 import { usePosts, type Post } from "../data/posts";
-import { useSupabaseSyncedListState } from "../data/supabaseSync";
+import { useSupabaseSharedState, useSupabaseSyncedListState } from "../data/supabaseSync";
 import { useSupabasePreference } from "../data/userPreferences";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import {
@@ -677,11 +678,15 @@ export function ReportPreviewPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const anchorDate = useMemo(() => new Date("2026-04-30T12:00:00"), []);
+  const anchorDate = useMemo(() => new Date(), []);
   const defaultPreviewState = useMemo(() => createDefaultPreviewState(anchorDate), [anchorDate]);
   const [teamMembers] = useTeamProfiles();
   const [posts] = usePosts();
-  const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: seedGoals });
+  const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
+  const [monthlyArchive] = useSupabaseSharedState<MonthlyArchiveSnapshot>({
+    key: "great-organico-monthly-archive",
+    fallback: createEmptyMonthlyArchive(),
+  });
   const [teamScope] = useTeamScope();
   const [state, setState] = useSupabasePreference<PreviewState>("report-preview-state", defaultPreviewState);
   const emptyManualBlocks = useMemo<ManualBlock[]>(() => [], []);
@@ -749,41 +754,44 @@ export function ReportPreviewPage() {
 
   const previousRange = useMemo(() => shiftRange(currentRange.start, currentRange.end), [currentRange]);
 
+  const allPosts = useMemo(() => [...monthlyArchive.posts, ...posts], [monthlyArchive.posts, posts]);
+  const allGoals = useMemo(() => [...monthlyArchive.goals, ...goals], [goals, monthlyArchive.goals]);
+
   const filteredPosts = useMemo(
     () =>
-      posts.filter((post) => {
+      allPosts.filter((post) => {
         const matchesDate = inRange(post.date, currentRange.start, currentRange.end);
         const matchesType = state.typeFilter === "todos" || post.type === state.typeFilter;
         const matchesResponsible = state.responsibleFilter === "todos" || post.authorId === state.responsibleFilter;
         const matchesScope = matchesTeamScope(post.authorId, teamScope);
         return matchesDate && matchesType && matchesResponsible && matchesScope;
       }),
-    [currentRange.end, currentRange.start, posts, state.responsibleFilter, state.typeFilter, teamScope],
+    [allPosts, currentRange.end, currentRange.start, state.responsibleFilter, state.typeFilter, teamScope],
   );
 
   const previousPosts = useMemo(
     () =>
-      posts.filter((post) => {
+      allPosts.filter((post) => {
         const matchesDate = inRange(post.date, previousRange.start, previousRange.end);
         const matchesType = state.typeFilter === "todos" || post.type === state.typeFilter;
         const matchesResponsible = state.responsibleFilter === "todos" || post.authorId === state.responsibleFilter;
         const matchesScope = matchesTeamScope(post.authorId, teamScope);
         return matchesDate && matchesType && matchesResponsible && matchesScope;
       }),
-    [posts, previousRange.end, previousRange.start, state.responsibleFilter, state.typeFilter, teamScope],
+    [allPosts, previousRange.end, previousRange.start, state.responsibleFilter, state.typeFilter, teamScope],
   );
 
   const filteredGoals = useMemo(() => {
-    const byResponsible = goals.filter((goal) => {
-      if (state.responsibleFilter === "todos") {
-        return getGoalResponsibleIds(goal).some((id) => matchesTeamScope(id, teamScope));
-      }
+    return allGoals.filter((goal) => {
+      const responsibleIds = getGoalResponsibleIds(goal);
+      const matchesResponsible =
+        state.responsibleFilter === "todos"
+          ? responsibleIds.some((id) => matchesTeamScope(id, teamScope))
+          : responsibleIds.includes(state.responsibleFilter) && responsibleIds.some((id) => matchesTeamScope(id, teamScope));
 
-      return getGoalResponsibleIds(goal).includes(state.responsibleFilter) && getGoalResponsibleIds(goal).some((id) => matchesTeamScope(id, teamScope));
+      return matchesResponsible && inRange(goal.deadline, currentRange.start, currentRange.end);
     });
-
-    return byResponsible.filter((goal) => inRange(goal.deadline, currentRange.start, currentRange.end));
-  }, [currentRange.end, currentRange.start, goals, state.responsibleFilter, teamScope]);
+  }, [allGoals, currentRange.end, currentRange.start, state.responsibleFilter, teamScope]);
 
   const currentSummary = useMemo(() => {
     const reach = filteredPosts.reduce((sum, post) => sum + post.reach, 0);

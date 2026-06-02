@@ -24,6 +24,7 @@ import {
 } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
 import { useCurrentTeamMember } from "../data/profiles";
+import { formatBrazilDateLabel, getBrazilDateKey, shiftBrazilDateKey } from "../data/brazilDate";
 import { useSupabaseSharedState, useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import {
@@ -43,9 +44,15 @@ import { useThemeMode } from "../theme";
 
 const viewModes = ["Dia", "Semana", "Mês"] as const;
 const dragType = "calendar-event";
-const BRAZIL_TIME_ZONE = "America/Fortaleza";
 const getTodayDate = () => new Date();
 const weekHeaderLabels = daysOfWeek.map((day) => `${day.toUpperCase()}.`);
+
+function formatDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 const typeOptions: Array<{ label: string; value: CalendarEvent["type"]; color: string }> = [
   { label: "Reels", value: "Reels", color: "#d946ef" },
   { label: "Stories", value: "Stories", color: "#ec4899" },
@@ -80,61 +87,6 @@ function startOfWeek(date: Date) {
   nextDate.setDate(nextDate.getDate() - offset);
   nextDate.setHours(0, 0, 0, 0);
   return nextDate;
-}
-
-function formatDateKey(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function getBrazilDateKey(date: Date) {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: BRAZIL_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const parts = formatter.formatToParts(date);
-
-  const year = parts.find((part) => part.type === "year")?.value;
-  const month = parts.find((part) => part.type === "month")?.value;
-  const day = parts.find((part) => part.type === "day")?.value;
-
-  if (!year || !month || !day) {
-    return formatDateKey(date);
-  }
-
-  return `${year}-${month}-${day}`;
-}
-
-function shiftBrazilDateKey(dateKey: string, days: number) {
-  const [year, month, day] = dateKey.split("-").map(Number);
-
-  if (!year || !month || !day) {
-    return dateKey;
-  }
-
-  const shifted = new Date(Date.UTC(year, month - 1, day));
-  shifted.setUTCDate(shifted.getUTCDate() + days);
-  return getBrazilDateKey(shifted);
-}
-
-function formatBrazilDateLabel(dateKey: string) {
-  const [year, month, day] = dateKey.split("-").map(Number);
-
-  if (!year || !month || !day) {
-    return dateKey;
-  }
-
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return new Intl.DateTimeFormat("pt-BR", {
-    timeZone: BRAZIL_TIME_ZONE,
-    weekday: "long",
-    day: "2-digit",
-    month: "short",
-  }).format(date);
 }
 
 function formatWeekRange(date: Date) {
