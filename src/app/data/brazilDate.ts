@@ -1,10 +1,14 @@
-const BRAZIL_TIME_ZONE = "America/Fortaleza";
+const BRAZIL_TIME_ZONE = "America/Sao_Paulo";
 
 function formatDateKey(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function createUtcNoonDate(year: number, month: number, day: number) {
+  return new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0));
 }
 
 export function getBrazilDateKey(date: Date = new Date()) {
@@ -38,7 +42,7 @@ export function shiftBrazilDateKey(dateKey: string, days: number) {
     return dateKey;
   }
 
-  const shifted = new Date(Date.UTC(year, month - 1, day));
+  const shifted = createUtcNoonDate(year, month, day);
   shifted.setUTCDate(shifted.getUTCDate() + days);
   return getBrazilDateKey(shifted);
 }
@@ -50,7 +54,7 @@ export function formatBrazilDateLabel(dateKey: string) {
     return dateKey;
   }
 
-  const date = new Date(Date.UTC(year, month - 1, day));
+  const date = createUtcNoonDate(year, month, day);
   return new Intl.DateTimeFormat("pt-BR", {
     timeZone: BRAZIL_TIME_ZONE,
     weekday: "long",
@@ -59,3 +63,6 @@ export function formatBrazilDateLabel(dateKey: string) {
   }).format(date);
 }
 
+export function getBrazilYesterdayDateKey(date: Date = new Date()) {
+  return shiftBrazilDateKey(getBrazilDateKey(date), -1);
+}

@@ -24,7 +24,7 @@ import {
 } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
 import { useCurrentTeamMember } from "../data/profiles";
-import { formatBrazilDateLabel, getBrazilDateKey, shiftBrazilDateKey } from "../data/brazilDate";
+import { formatBrazilDateLabel, getBrazilYesterdayDateKey } from "../data/brazilDate";
 import { useSupabaseSharedState, useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import {
@@ -957,7 +957,7 @@ export function CalendarPage() {
         .sort((left, right) => left.time.localeCompare(right.time)),
     [currentDate, filteredEvents],
   );
-  const referenceDateKey = shiftBrazilDateKey(getBrazilDateKey(new Date()), -1);
+  const referenceDateKey = getBrazilYesterdayDateKey();
   const referenceDateLabel = formatBrazilDateLabel(referenceDateKey);
   const currentDayViews = dayViewsByDate[referenceDateKey] ?? 0;
   const dayCompletedCount = currentDayEvents.filter((event) => event.completed || event.status === "Publicado" || event.status === "Aprovado").length;
