@@ -11,10 +11,10 @@ import {
   YAxis,
 } from "recharts";
 import { BarChart3, Eye, Rocket, Sparkles, type LucideIcon } from "lucide-react";
-import { getGoalResponsibleIds } from "../data/mockData";
+import { calendarEvents, getGoalResponsibleIds, storyLogs, type CalendarEvent, type Goal, type StoryLog } from "../data/mockData";
 import { usePosts } from "../data/posts";
 import { useTeamProfiles } from "../data/profiles";
-import { useSupabaseSyncedListState } from "../data/supabaseSync";
+import { useSupabaseSharedState, useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import {
   GlassPanel,
@@ -26,9 +26,40 @@ import {
   formatLongNumber,
 } from "../components/ui";
 import { useThemeMode } from "../theme";
-import { type Goal } from "../data/mockData";
 
 const metricIcons = [Eye, BarChart3, Sparkles, Rocket];
+const defaultMonthlyViewsGoal = 1000000;
+
+function todayKey() {
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+function currentMonthKey() {
+  return todayKey().slice(0, 7);
+}
+
+function isCurrentMonthDate(value: string) {
+  return value.startsWith(currentMonthKey());
+}
+
+function getCalendarResponsibleIds(event: CalendarEvent) {
+  const ids = event.responsibleIds?.length ? event.responsibleIds : [event.responsibleId];
+  return Array.from(new Set(ids.filter((id) => Number.isFinite(id))));
+}
+
+function isCompletedCalendarEvent(event: CalendarEvent) {
+  const tasks = event.tasks ?? [];
+  const allTasksDone = tasks.length > 0 && tasks.every((task) => task.done);
+  return event.completed || event.status === "Publicado" || event.status === "Aprovado" || allTasksDone;
+}
+
+function sumMonthViews(dayViewsByDate: Record<string, number>, monthKey: string) {
+  return Object.entries(dayViewsByDate).reduce((sum, [dateKey, value]) => {
+    return dateKey.startsWith(monthKey) ? sum + Math.max(0, value) : sum;
+  }, 0);
+}
 
 const instagramThemeLight = {
   ["--primary" as never]: "131 58 180",
@@ -227,34 +258,55 @@ export function DashboardPage() {
   const [teamMembers] = useTeamProfiles();
   const [posts] = usePosts();
   const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
+  const [stories] = useSupabaseSyncedListState<StoryLog>({ key: "story-logs", table: "story_logs", fallback: storyLogs });
+  const [calendarItems] = useSupabaseSyncedListState<CalendarEvent>({ key: "calendar-events", table: "calendar_events", fallback: calendarEvents });
+  const [dayViewsByDate] = useSupabaseSharedState<Record<string, number>>({ key: "calendar-day-views", fallback: {} });
+  const [monthlyViewsGoal] = useSupabaseSharedState<number>({ key: "calendar-monthly-views-goal", fallback: defaultMonthlyViewsGoal });
   const [teamScope] = useTeamScope();
   const chartLegend = [
     { label: "Alcance", color: "#833AB4" },
     { label: "Engajamento", color: "#E1306C" },
   ];
-  const visiblePosts = posts.filter((post) => matchesTeamScope(post.authorId, teamScope));
-  const visibleGoals = goals.filter((goal) => getGoalResponsibleIds(goal).some((id) => matchesTeamScope(id, teamScope)));
+  const visiblePosts = posts.filter((post) => matchesTeamScope(post.authorId, teamScope) && isCurrentMonthDate(post.date));
+  const visibleGoals = goals.filter((goal) => getGoalResponsibleIds(goal).some((id) => matchesTeamScope(id, teamScope)) && isCurrentMonthDate(goal.deadline));
+  const visibleStories = stories.filter((story) => (matchesTeamScope(story.madeById, teamScope) || matchesTeamScope(story.postedById, teamScope)) && isCurrentMonthDate(story.date));
+  const visibleCalendarItems = calendarItems.filter((event) => getCalendarResponsibleIds(event).some((id) => matchesTeamScope(id, teamScope)) && isCurrentMonthDate(event.date));
   const topPosts = [...visiblePosts].sort((a, b) => b.engagement - a.engagement).slice(0, 5);
   const worstPosts = [...visiblePosts].sort((a, b) => a.engagement - b.engagement).slice(0, 2);
   const dashboardGoals = visibleGoals.slice(0, 3);
+  const monthViews = sumMonthViews(dayViewsByDate, currentMonthKey());
+  const remainingViews = Math.max(monthlyViewsGoal - monthViews, 0);
   const totalReach = visiblePosts.reduce((sum, post) => sum + post.reach, 0);
   const totalEngagement = visiblePosts.reduce((sum, post) => sum + post.engagement, 0);
   const completedGoals = visibleGoals.filter((goal) => goal.current >= goal.target).length;
-  const healthScore = visibleGoals.length > 0 ? Math.round((completedGoals / visibleGoals.length) * 100) : 0;
+  const completedCalendarItems = visibleCalendarItems.filter((event) => isCompletedCalendarEvent(event)).length;
+  const healthScore = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        (visibleGoals.length > 0 ? (completedGoals / visibleGoals.length) * 45 : 0) +
+        (visibleCalendarItems.length > 0 ? (completedCalendarItems / visibleCalendarItems.length) * 30 : 0) +
+        (monthlyViewsGoal > 0 ? (monthViews / monthlyViewsGoal) * 25 : 0),
+      ),
+    ),
+  );
   const showOverallGoalCard = teamScope === "todos";
   const dashboardSummary = {
     healthScore,
     completedGoals,
     totalReach,
     totalEngagement,
+    monthViews,
+    remainingViews,
   };
   const dashboardMetrics = [
     {
-      id: "reach",
-      label: "Alcance",
-      value: formatLongNumber(totalReach),
+      id: "views-goal",
+      label: "Visualizações do mês",
+      value: formatLongNumber(monthViews),
       change: 0,
-      highlight: visiblePosts.length > 0 ? "Dados vindos do Supabase." : "Nenhum post encontrado no recorte.",
+      highlight: remainingViews > 0 ? `Falta x ${formatLongNumber(remainingViews)} para bater a meta.` : "Meta mensal de visualizações batida.",
     },
     {
       id: "engagement",
@@ -264,18 +316,18 @@ export function DashboardPage() {
       highlight: visiblePosts.length > 0 ? "Soma de interações dos posts filtrados." : "Nenhum post encontrado no recorte.",
     },
     {
-      id: "posts",
-      label: "Publicações",
-      value: String(visiblePosts.length),
+      id: "stories",
+      label: "Stories do mês",
+      value: String(visibleStories.reduce((sum, story) => sum + story.quantity, 0)),
       change: 0,
-      highlight: visiblePosts.length > 0 ? "Quantidade total de conteúdos visíveis." : "Nenhum post encontrado no recorte.",
+      highlight: visibleStories.length > 0 ? "Dados puxados direto da aba de stories." : "Nenhum story registrado neste mês.",
     },
     {
-      id: "goals",
-      label: "Metas concluídas",
-      value: `${completedGoals}/${visibleGoals.length}`,
+      id: "calendar",
+      label: "Posts concluídos no calendário",
+      value: `${completedCalendarItems}/${visibleCalendarItems.length || 0}`,
       change: 0,
-      highlight: visibleGoals.length > 0 ? "Metas concluídas dentro do recorte selecionado." : "Nenhuma meta encontrada no recorte.",
+      highlight: visibleCalendarItems.length > 0 ? "Acompanhando os posts marcados como concluídos no calendário." : "Nenhum post de calendário neste mês.",
     },
   ] as const;
   const evolutionBuckets = visiblePosts.reduce<Map<string, { date: string; reach: number; engagement: number }>>(
@@ -327,6 +379,14 @@ export function DashboardPage() {
                   <p data-cy="dashboard-summary-engagement" className="mt-2 text-2xl font-semibold text-white">
                     {formatLongNumber(dashboardSummary.totalEngagement)}
                   </p>
+                </div>
+                <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
+                  <p className="text-xs uppercase tracking-[0.16em] text-white/72">Visualizações do mês</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">{formatLongNumber(dashboardSummary.monthViews)}</p>
+                </div>
+                <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
+                  <p className="text-xs uppercase tracking-[0.16em] text-white/72">Falta para a meta</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">x {formatLongNumber(dashboardSummary.remainingViews)}</p>
                 </div>
               </div>
             </GlassPanel>

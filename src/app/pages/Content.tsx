@@ -1,7 +1,6 @@
 ﻿import { useMemo, useState, type ChangeEvent } from "react";
 import { Link } from "react-router-dom";
 import {
-  Eye,
   FileText,
   ImagePlus,
   Pencil,
@@ -83,6 +82,7 @@ type ProgressSummary = {
 };
 
 const storyGoalTarget = 168;
+const currentMonthPostStatuses = new Set<PostStatus>(["Aprovado", "Publicado"]);
 const statusPalette: Record<string, { bg: string; text: string; border: string }> = {
   Agendado: { bg: "#fff7ed", text: "#f97316", border: "#fdba74" },
   "Em produção": { bg: "#eff6ff", text: "#2563eb", border: "#93c5fd" },
@@ -258,13 +258,57 @@ function getCalendarResponsibleIds(event: CalendarEvent) {
   return Array.from(new Set(ids.filter((id) => Number.isFinite(id))));
 }
 
-function computeCalendarProgress(events: CalendarEvent[]) {
-  const total = events.length;
-  const percent = Math.min(100, total);
+function isCurrentMonthDate(value: string) {
+  return value.startsWith(todayKey().slice(0, 7));
+}
+
+function isCompletedCalendarEvent(event: CalendarEvent) {
+  const tasks = event.tasks ?? [];
+  const allTasksDone = tasks.length > 0 && tasks.every((task) => task.done);
+
+  return event.completed || currentMonthPostStatuses.has(event.status) || allTasksDone;
+}
+
+function getCalendarEventUnitCount(event: CalendarEvent) {
+  return Math.max(event.tasks?.length ?? 0, 1);
+}
+
+function getCalendarCompletedUnits(event: CalendarEvent) {
+  if (!isCompletedCalendarEvent(event)) {
+    return 0;
+  }
+
+  return getCalendarEventUnitCount(event);
+}
+
+function getCalendarCreditedMemberId(event: CalendarEvent) {
+  if (typeof event.completedById === "number") {
+    return event.completedById;
+  }
+
+  const responsibleIds = getCalendarResponsibleIds(event);
+  return responsibleIds.length === 1 ? responsibleIds[0] : null;
+}
+
+function computeCalendarProgress(events: CalendarEvent[], memberId?: number) {
+  const scopedEvents =
+    typeof memberId === "number"
+      ? events.filter((event) => getCalendarResponsibleIds(event).includes(memberId))
+      : events;
+  const total = scopedEvents.reduce((sum, event) => sum + getCalendarEventUnitCount(event), 0);
+  const completed = scopedEvents.reduce((sum, event) => {
+    if (typeof memberId === "number") {
+      return getCalendarCreditedMemberId(event) === memberId ? sum + getCalendarCompletedUnits(event) : sum;
+    }
+
+    return sum + getCalendarCompletedUnits(event);
+  }, 0);
+  const percent = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
 
   return {
     percent,
     total,
+    completed,
   };
 }
 
@@ -619,7 +663,7 @@ export function ContentPage() {
       posts.filter((post) => {
         const matchesScope = matchesTeamScope(post.authorId, teamScope);
         const matchesOwner = ownerFilter === "all" || post.authorId === ownerFilter;
-        return matchesScope && matchesOwner;
+        return matchesScope && matchesOwner && isCurrentMonthDate(post.date);
       }),
     [ownerFilter, posts, teamScope],
   );
@@ -630,7 +674,7 @@ export function ContentPage() {
         const responsibleIds = getGoalResponsibleIds(goal);
         const matchesScope = responsibleIds.some((id) => matchesTeamScope(id, teamScope));
         const matchesOwner = ownerFilter === "all" || responsibleIds.includes(ownerFilter);
-        return matchesScope && matchesOwner;
+        return matchesScope && matchesOwner && isCurrentMonthDate(goal.deadline);
       }),
     [goals, ownerFilter, teamScope],
   );
@@ -640,7 +684,7 @@ export function ContentPage() {
       stories.filter((story) => {
         const matchesScope = matchesTeamScope(story.madeById, teamScope) || matchesTeamScope(story.postedById, teamScope);
         const matchesOwner = ownerFilter === "all" || story.madeById === ownerFilter || story.postedById === ownerFilter;
-        return matchesScope && matchesOwner;
+        return matchesScope && matchesOwner && isCurrentMonthDate(story.date);
       }),
     [ownerFilter, stories, teamScope],
   );
@@ -651,7 +695,7 @@ export function ContentPage() {
         const responsibleIds = getCalendarResponsibleIds(event);
         const matchesScope = responsibleIds.some((id) => matchesTeamScope(id, teamScope));
         const matchesOwner = ownerFilter === "all" || responsibleIds.includes(ownerFilter);
-        return matchesScope && matchesOwner;
+        return matchesScope && matchesOwner && isCurrentMonthDate(event.date);
       }),
     [calendarItems, ownerFilter, teamScope],
   );
@@ -667,6 +711,7 @@ export function ContentPage() {
 
   const totalReach = visiblePosts.reduce((sum, post) => sum + post.reach, 0);
   const totalEngagement = visiblePosts.reduce((sum, post) => sum + post.engagement, 0);
+  const completedCalendarUnits = visibleCalendarItems.reduce((sum, event) => sum + getCalendarCompletedUnits(event), 0);
   const overallGoalProgress = computeGoalProgress(visibleGoals);
   const overallStoryProgress = computeStoryProgress(visibleStories);
   const previewPost = topPosts.find((post) => post.id === hoveredPostId) ?? topPosts[0] ?? visiblePosts[0] ?? null;
@@ -682,23 +727,25 @@ export function ContentPage() {
       ? visibleStories.filter((story) => story.madeById === selectedMember.id || story.postedById === selectedMember.id)
       : visibleStories,
   );
-  const selectedCalendarProgress = computeCalendarProgress(
-    selectedMember
-      ? visibleCalendarItems.filter((event) => getCalendarResponsibleIds(event).includes(selectedMember.id))
-      : visibleCalendarItems,
-  );
+  const selectedCalendarProgress = computeCalendarProgress(visibleCalendarItems, selectedMember?.id);
 
   const progressEntries = selectedMembers.map((member) => {
     if (member.id === 1) {
+      const brendaStories = computeStoryProgress(
+        visibleStories.filter((story) => story.madeById === 1 || story.postedById === 1),
+      );
+      const brendaCompletedUnits = computeCalendarProgress(visibleCalendarItems, 1).completed;
+
       return {
         member,
-        score: computeStoryProgress(
-          visibleStories.filter((story) => story.madeById === 1 || story.postedById === 1),
-        ).percent,
+        score: Math.min(
+          100,
+          Math.round(((brendaStories.total + brendaCompletedUnits) / storyGoalTarget) * 100),
+        ),
       };
     }
 
-    const memberProgress = computeCalendarProgress(visibleCalendarItems.filter((event) => getCalendarResponsibleIds(event).includes(member.id)));
+    const memberProgress = computeCalendarProgress(visibleCalendarItems, member.id);
     return { member, score: memberProgress.percent };
   });
   const groupProgressScore =
@@ -708,43 +755,47 @@ export function ContentPage() {
     selectedMember && isStoryMember(selectedMember.id)
       ? {
           label: "Progresso em stories",
-          score: selectedStoryProgress.percent,
+          score: Math.min(
+            100,
+            Math.round(((selectedStoryProgress.total + selectedCalendarProgress.completed) / storyGoalTarget) * 100),
+          ),
           detail:
-            selectedStoryProgress.total > 0
-              ? `${formatLongNumber(selectedStoryProgress.total)} de ${formatLongNumber(selectedStoryProgress.target)} stories`
-              : "Nenhum story encontrado no recorte",
-          subtitle: "Brenda acompanha o avanço pela entrega de stories no mês.",
+            selectedStoryProgress.total > 0 || selectedCalendarProgress.completed > 0
+              ? `${formatLongNumber(selectedStoryProgress.total)} stories e ${formatLongNumber(selectedCalendarProgress.completed)} atividades concluídas`
+            : "Nenhum story ou atividade concluída neste mês",
+          subtitle: "Brenda acompanha o avanço deste mês com stories registrados e atividades concluídas.",
         }
       : selectedMember
         ? {
-            label: "Progressos",
+            label: "Pontuação em conteúdo",
             score: selectedCalendarProgress.percent,
             detail:
               selectedCalendarProgress.total > 0
-                ? `${formatLongNumber(selectedCalendarProgress.total)} atividades na agenda`
-                : "Nenhuma atividade encontrada no recorte",
-            subtitle: `O progresso de ${selectedMember.name} cresce conforme novas atividades entram na agenda.`,
+                ? `${formatLongNumber(selectedCalendarProgress.completed)} de ${formatLongNumber(selectedCalendarProgress.total)} atividades concluídas`
+                : "Nenhuma atividade encontrada neste mês",
+            subtitle: `A pontuação de ${selectedMember.name} sobe quando os posts do calendário são concluídos.`,
           }
         : {
             label: "Progresso geral do grupo",
             score: groupProgressScore,
-            detail: `${progressEntries.length} pessoas na média`,
-            subtitle: "Média entre Brenda, Hannah e Thiago, considerando stories e atividades da agenda.",
+            detail: `${progressEntries.length} pessoas na média do mês atual`,
+            subtitle: "Média entre Brenda, Hannah e Thiago, considerando stories e atividades concluídas.",
           };
 
   const memberCards = selectedMembers.map((member) => {
     const memberPosts = visiblePosts.filter((post) => post.authorId === member.id);
     const memberGoals = visibleGoals.filter((goal) => getGoalResponsibleIds(goal).includes(member.id));
     const memberStories = visibleStories.filter((story) => story.madeById === member.id || story.postedById === member.id);
-    const memberCalendarItems = visibleCalendarItems.filter((event) => getCalendarResponsibleIds(event).includes(member.id));
     const storyProgress = computeStoryProgress(memberStories);
     const isBrenda = member.id === 1;
-    const calendarProgress = computeCalendarProgress(memberCalendarItems);
-    const progressPercent = isBrenda ? storyProgress.percent : calendarProgress.percent;
-    const progressLabel = isBrenda ? "Stories" : "Progressos";
+    const calendarProgress = computeCalendarProgress(visibleCalendarItems, member.id);
+    const progressPercent = isBrenda
+      ? Math.min(100, Math.round(((storyProgress.total + calendarProgress.completed) / storyGoalTarget) * 100))
+      : calendarProgress.percent;
+    const progressLabel = isBrenda ? "Stories" : "Atividades";
     const progressDetail = isBrenda
-      ? `${formatLongNumber(storyProgress.total)} de ${formatLongNumber(storyProgress.target)} stories`
-      : `${formatLongNumber(calendarProgress.total)} atividades na agenda`;
+      ? `${formatLongNumber(storyProgress.total)} stories e ${formatLongNumber(calendarProgress.completed)} atividades concluídas`
+      : `${formatLongNumber(calendarProgress.completed)} de ${formatLongNumber(calendarProgress.total)} atividades concluídas`;
 
     return {
       member,
@@ -830,14 +881,14 @@ export function ContentPage() {
 
   const metricCards: MetricCard[] = [
     {
-      id: "reach",
-      label: "Visualizações",
-      value: formatLongNumber(totalReach),
-      detail: "Total de visualizações dos conteúdos publicados.",
-      icon: Eye,
+      id: "completed-activities",
+      label: "Atividades concluídas",
+      value: formatLongNumber(completedCalendarUnits),
+      detail: "Posts do calendário finalizados pela equipe neste mês.",
+      icon: Sparkles,
       delta: 0,
       onEdit: openCreateEditor,
-      dataCy: "content-metric-reach",
+      dataCy: "content-metric-completed",
     },
     {
       id: "engagement",
@@ -973,8 +1024,8 @@ export function ContentPage() {
                     </p>
                   </div>
                   <div className="rounded-[1.5rem] bg-white/14 p-4 backdrop-blur">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-white/75">Visualizações totais</p>
-                    <p className="mt-2 text-3xl font-semibold text-white">{formatLongNumber(totalReach)}</p>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-white/75">Atividades concluídas</p>
+                    <p className="mt-2 text-3xl font-semibold text-white">{formatLongNumber(completedCalendarUnits)}</p>
                   </div>
                 </div>
               </div>
@@ -1289,7 +1340,7 @@ export function ContentPage() {
                     <ProgressBar
                       value={entry.progressPercent}
                       max={100}
-                      label={entry.member.id === 1 ? "Progresso em stories" : "Conclusão das metas"}
+                      label={entry.member.id === 1 ? "Progresso em stories" : "Pontuação em conteúdo"}
                     />
                     <p className="mt-2 text-xs text-slate-500">{entry.progressDetail}</p>
                   </div>

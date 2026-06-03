@@ -45,6 +45,7 @@ import { useThemeMode } from "../theme";
 const viewModes = ["Dia", "Semana", "Mês"] as const;
 const dragType = "calendar-event";
 const getTodayDate = () => new Date();
+const defaultMonthlyViewsGoal = 1000000;
 const weekHeaderLabels = daysOfWeek.map((day) => `${day.toUpperCase()}.`);
 
 function formatDateKey(date: Date) {
@@ -136,6 +137,12 @@ function inferEventVisualization(event: CalendarEvent & { visualization?: Calend
 
 function getMonthKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function sumMonthViews(dayViewsByDate: Record<string, number>, monthKey: string) {
+  return Object.entries(dayViewsByDate).reduce((sum, [dateKey, value]) => {
+    return dateKey.startsWith(monthKey) ? sum + Math.max(0, value) : sum;
+  }, 0);
 }
 
 function buildMonthCells(date: Date) {
@@ -308,6 +315,31 @@ function createTaskItem(label: string, note = "", checklist = false): CalendarTa
     note,
     checklist,
     done: false,
+  };
+}
+
+function isCalendarEventFullyCompleted(event: Pick<CalendarEvent, "completed" | "status" | "tasks">) {
+  const tasks = event.tasks ?? [];
+  const allTasksDone = tasks.length > 0 && tasks.every((task) => task.done);
+
+  return event.completed || event.status === "Publicado" || event.status === "Aprovado" || allTasksDone;
+}
+
+function applyCalendarCompletionMetadata(event: CalendarEvent, actorId?: number | null) {
+  if (!isCalendarEventFullyCompleted(event)) {
+    return {
+      ...event,
+      completed: false,
+      completedAt: undefined,
+      completedById: undefined,
+    };
+  }
+
+  return {
+    ...event,
+    completed: true,
+    completedAt: event.completedAt ?? formatDateKey(getTodayDate()),
+    completedById: actorId ?? event.completedById ?? event.addedById ?? event.responsibleId,
   };
 }
 
@@ -907,6 +939,10 @@ export function CalendarPage() {
     key: "calendar-day-views",
     fallback: {},
   });
+  const [monthlyViewsGoal, setMonthlyViewsGoal] = useSupabaseSharedState<number>({
+    key: "calendar-monthly-views-goal",
+    fallback: defaultMonthlyViewsGoal,
+  });
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [eventForm, setEventForm] = useState<CalendarEventFormState | null>(null);
   const [pendingDelete, setPendingDelete] = useState<CalendarEvent | null>(null);
@@ -915,6 +951,8 @@ export function CalendarPage() {
   const [taskDraft, setTaskDraft] = useState<ActivityDraftState>(() => emptyActivityDraft());
   const [isEditingDayViews, setIsEditingDayViews] = useState(false);
   const [dayViewsDraft, setDayViewsDraft] = useState("0");
+  const [isEditingMonthlyViewsGoal, setIsEditingMonthlyViewsGoal] = useState(false);
+  const [monthlyViewsGoalDraft, setMonthlyViewsGoalDraft] = useState(String(defaultMonthlyViewsGoal));
 
   const weekDates = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(startOfWeek(currentDate), index)), [currentDate]);
   const monthCells = useMemo(() => buildMonthCells(currentDate), [currentDate]);
@@ -960,11 +998,19 @@ export function CalendarPage() {
   const referenceDateKey = getBrazilYesterdayDateKey();
   const referenceDateLabel = formatBrazilDateLabel(referenceDateKey);
   const currentDayViews = dayViewsByDate[referenceDateKey] ?? 0;
+  const currentMonthKey = getMonthKey(currentDate);
+  const currentMonthViews = useMemo(() => sumMonthViews(dayViewsByDate, currentMonthKey), [currentMonthKey, dayViewsByDate]);
+  const remainingMonthViews = Math.max(monthlyViewsGoal - currentMonthViews, 0);
   const dayCompletedCount = currentDayEvents.filter((event) => event.completed || event.status === "Publicado" || event.status === "Aprovado").length;
   useEffect(() => {
     setDayViewsDraft(String(currentDayViews));
     setIsEditingDayViews(false);
   }, [currentDayViews, referenceDateKey]);
+
+  useEffect(() => {
+    setMonthlyViewsGoalDraft(String(monthlyViewsGoal));
+    setIsEditingMonthlyViewsGoal(false);
+  }, [monthlyViewsGoal]);
 
   const handleStartEditingDayViews = () => {
     setDayViewsDraft(String(currentDayViews));
@@ -986,6 +1032,26 @@ export function CalendarPage() {
   const handleCancelDayViewsEdit = () => {
     setDayViewsDraft(String(currentDayViews));
     setIsEditingDayViews(false);
+  };
+
+  const handleStartEditingMonthlyViewsGoal = () => {
+    setMonthlyViewsGoalDraft(String(monthlyViewsGoal));
+    setIsEditingMonthlyViewsGoal(true);
+  };
+
+  const handleCommitMonthlyViewsGoal = () => {
+    const parsedValue = Number(String(monthlyViewsGoalDraft).replace(/[^\d]/g, ""));
+    const nextValue = Number.isFinite(parsedValue) ? Math.max(1, Math.round(parsedValue)) : defaultMonthlyViewsGoal;
+
+    setMonthlyViewsGoal(nextValue);
+    setMonthlyViewsGoalDraft(String(nextValue));
+    setIsEditingMonthlyViewsGoal(false);
+    toast.success("Meta mensal de visualizações atualizada.");
+  };
+
+  const handleCancelMonthlyViewsGoalEdit = () => {
+    setMonthlyViewsGoalDraft(String(monthlyViewsGoal));
+    setIsEditingMonthlyViewsGoal(false);
   };
 
   const controlBarClass = isDark
@@ -1090,7 +1156,7 @@ export function CalendarPage() {
       eventForm.responsibleIds.length > 0 ? eventForm.responsibleIds : [eventForm.responsibleId],
     );
 
-    const updatedEvent: CalendarEvent = {
+    const updatedEvent = applyCalendarCompletionMetadata({
       ...selectedEvent,
       title: eventForm.title.trim(),
       description: eventForm.description.trim(),
@@ -1103,7 +1169,7 @@ export function CalendarPage() {
       responsibleIds: nextResponsibleIds,
       addedById: eventForm.addedById,
       tasks: eventForm.tasks,
-    };
+    }, currentMemberId ?? currentMember?.id ?? null);
 
     setEvents((previous) => previous.map((event) => (event.id === selectedEvent.id ? updatedEvent : event)));
     setSelectedEvent(updatedEvent);
@@ -1133,12 +1199,12 @@ export function CalendarPage() {
       return;
     }
 
-    const completedEvent: CalendarEvent = {
+    const completedEvent = applyCalendarCompletionMetadata({
       ...selectedEvent,
       completed: true,
       status: "Publicado",
       tasks: (selectedEvent.tasks ?? []).map((task) => ({ ...task, done: true })),
-    };
+    }, currentMemberId ?? currentMember?.id ?? null);
 
     setEvents((previous) => previous.map((event) => (event.id === selectedEvent.id ? completedEvent : event)));
     setSelectedEvent(completedEvent);
@@ -1226,7 +1292,7 @@ export function CalendarPage() {
       createForm.responsibleIds.length > 0 ? createForm.responsibleIds : [createForm.responsibleId],
     );
 
-    const newEvent: CalendarEvent = {
+    const newEvent = applyCalendarCompletionMetadata({
       id: nextId,
       title: createForm.title.trim(),
       description: createForm.description.trim(),
@@ -1239,7 +1305,7 @@ export function CalendarPage() {
       responsibleIds: nextResponsibleIds,
       addedById: createForm.addedById,
       tasks: createForm.tasks,
-    };
+    }, currentMemberId ?? currentMember?.id ?? null);
 
     setEvents((previous) => [...previous, newEvent]);
     setSelectedEvent(newEvent);
@@ -1471,7 +1537,7 @@ export function CalendarPage() {
             </div>
           </GlassPanel>
 
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)_minmax(0,1fr)]">
+          <div className="grid gap-4 xl:grid-cols-2">
             <GlassPanel className="overflow-hidden p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -1508,6 +1574,74 @@ export function CalendarPage() {
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {currentDayEvents[0]?.title ?? "Nenhuma atividade agendada."}
+                  </p>
+                </div>
+              </div>
+            </GlassPanel>
+
+            <GlassPanel className="overflow-hidden p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                    Visualizações do mês
+                  </p>
+                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
+                    {formatMonthLabel(currentDate)}
+                  </h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Total acumulado do mês e quanto ainda falta para bater a meta.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleStartEditingMonthlyViewsGoal}
+                  className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-white px-4 py-2 text-xs font-semibold text-foreground shadow-sm transition hover:border-primary/25 hover:bg-primary/5"
+                >
+                  <Pencil className="h-4 w-4 text-primary" />
+                  Editar meta
+                </button>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-[1.25rem] border border-border/60 bg-muted/25 p-4">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Meta</p>
+                  {isEditingMonthlyViewsGoal ? (
+                    <div className="mt-2 flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-3 py-2">
+                      <input
+                        autoFocus
+                        value={monthlyViewsGoalDraft}
+                        onChange={(event) => setMonthlyViewsGoalDraft(event.target.value)}
+                        onBlur={handleCommitMonthlyViewsGoal}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            handleCommitMonthlyViewsGoal();
+                          }
+
+                          if (event.key === "Escape") {
+                            event.preventDefault();
+                            handleCancelMonthlyViewsGoalEdit();
+                          }
+                        }}
+                        inputMode="numeric"
+                        className="w-full border-0 bg-transparent text-2xl font-semibold tracking-tight text-foreground outline-none"
+                        placeholder={String(defaultMonthlyViewsGoal)}
+                      />
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
+                      {formatViewsNumber(monthlyViewsGoal)}
+                    </p>
+                  )}
+                </div>
+                <div className="rounded-[1.25rem] border border-border/60 bg-muted/25 p-4">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Total</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{formatViewsNumber(currentMonthViews)}</p>
+                </div>
+                <div className="rounded-[1.25rem] border border-border/60 bg-muted/25 p-4">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Falta</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
+                    x {formatViewsNumber(remainingMonthViews)}
                   </p>
                 </div>
               </div>
