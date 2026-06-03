@@ -1,11 +1,10 @@
-﻿import { useEffect, useRef, useState } from "react";
-import { CalendarClock, ChevronDown, SlidersHorizontal, Target, FileText } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { CalendarClock, ChevronDown, Clock3, FileText, Search, SlidersHorizontal, Target, Users } from "lucide-react";
 import { toast } from "sonner";
 import { historyTimeline } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
-import { useThemeMode } from "../theme";
 import {
   ConfirmDialog,
   DeleteIconButton,
@@ -15,12 +14,13 @@ import {
   MemberChip,
   PageHeader,
   PageTransition,
+  cn,
 } from "../components/ui";
 
 const typeLabels = {
-  post: "Posts",
-  goal: "Metas",
-  schedule: "Agendados",
+  post: "Conteúdo",
+  goal: "Meta",
+  schedule: "Calendário",
 };
 
 const typeIcons = {
@@ -32,10 +32,10 @@ const typeIcons = {
 type PeriodFilter = "all" | "7d" | "30d" | "90d";
 
 const periodLabels: Record<PeriodFilter, string> = {
-  all: "Todo o periodo",
-  "7d": "Ultimos 7 dias",
-  "30d": "Ultimos 30 dias",
-  "90d": "Ultimos 90 dias",
+  all: "Todo o período",
+  "7d": "Últimos 7 dias",
+  "30d": "Últimos 30 dias",
+  "90d": "Últimos 90 dias",
 };
 
 function parseHistoryDate(date: string) {
@@ -60,6 +60,48 @@ function isWithinPeriod(date: string, period: PeriodFilter) {
   start.setDate(start.getDate() - periodDays);
 
   return parsed >= start && parsed <= now;
+}
+
+function formatHistoryDateLabel(date: string) {
+  const parsed = parseHistoryDate(date);
+  if (!parsed) {
+    return date;
+  }
+
+  const label = new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(parsed);
+
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function formatHistoryFullDate(date: string) {
+  const parsed = parseHistoryDate(date);
+  if (!parsed) {
+    return date;
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(parsed);
+}
+
+function extractHistoryTime(description: string) {
+  const match = description.match(/(\d{2}:\d{2})/);
+  return match?.[1] ?? "--:--";
+}
+
+function getPeriodRangeLabel(items: Array<{ date: string }>) {
+  if (items.length === 0) {
+    return "Sem registros";
+  }
+
+  const ordered = [...items].sort((left, right) => left.date.localeCompare(right.date));
+  return `${formatHistoryFullDate(ordered[0].date)} - ${formatHistoryFullDate(ordered[ordered.length - 1].date)}`;
 }
 
 function FilterDropdown<T extends string | number>({
@@ -90,7 +132,6 @@ function FilterDropdown<T extends string | number>({
     };
 
     document.addEventListener("mousedown", handlePointerDown);
-
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, []);
 
@@ -100,12 +141,12 @@ function FilterDropdown<T extends string | number>({
         type="button"
         onClick={() => setOpen((current) => !current)}
         data-cy={triggerDataCy}
-        className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 bg-background px-5 py-3 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/25 hover:shadow-md"
+        className="flex h-11 w-full items-center justify-between gap-3 rounded-full border border-border/70 bg-background px-5 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/25 hover:shadow-md"
       >
         <span className="truncate" style={accentColor ? { color: accentColor } : undefined}>
           {valueLabel}
         </span>
-        <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition ${open ? "rotate-180" : ""}`} />
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition", open && "rotate-180")} />
       </button>
 
       {open ? (
@@ -128,14 +169,14 @@ function FilterDropdown<T extends string | number>({
                   data-cy={optionDataCyPrefix ? `${optionDataCyPrefix}-option-${String(option.value)}` : undefined}
                   className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm transition hover:bg-muted/70"
                   style={{
-                    backgroundColor: selected ? `${option.color ?? "#833AB4"}12` : undefined,
+                    backgroundColor: selected ? `${option.color ?? "#e11d48"}12` : undefined,
                   }}
                 >
                   <span className="flex items-center gap-3">
                     <span
                       className="h-2.5 w-2.5 rounded-full"
                       style={{
-                        backgroundColor: option.color ?? "rgb(var(--muted-foreground) / 1)",
+                        backgroundColor: option.color ?? "#e11d48",
                       }}
                     />
                     <span
@@ -159,7 +200,6 @@ function FilterDropdown<T extends string | number>({
 }
 
 export function HistoryPage() {
-  const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
   const [teamScope] = useTeamScope();
   const [itemsState, setItemsState] = useSupabaseSyncedListState({
@@ -171,31 +211,45 @@ export function HistoryPage() {
   const [personFilter, setPersonFilter] = useState<number | "todos">("todos");
   const [typeFilter, setTypeFilter] = useState<"todos" | "post" | "goal" | "schedule">("todos");
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [pendingDelete, setPendingDelete] = useState<{ historyId: number; historyTitle: string } | null>(null);
-  const actionGroupClass = isDark
-    ? "flex flex-wrap gap-2 rounded-full border border-border/60 bg-muted/35 p-1.5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]"
-    : "flex flex-wrap gap-2 rounded-full border border-border/60 bg-white/96 p-1.5 shadow-[0_10px_24px_rgba(15,23,42,0.06)]";
-  const filterShellClass = isDark
-    ? "flex flex-col gap-4 rounded-[2rem] border border-border/60 bg-card/95 p-4 shadow-[var(--shadow-card)] lg:flex-row lg:items-center"
-    : "flex flex-col gap-4 rounded-[2rem] border border-border/60 bg-white/96 p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] lg:flex-row lg:items-center";
-  const timelineCardStyle = (color: string) => ({
-    background: isDark
-      ? "linear-gradient(180deg, rgba(24,24,26,0.98), rgba(16,16,18,0.96))"
-      : "linear-gradient(180deg, rgba(255,255,255,0.99), rgba(249,249,251,0.96))",
-    borderColor: `${color}28`,
-    boxShadow: `0 18px 36px ${color}10`,
-    borderLeftWidth: "4px",
-    borderLeftColor: color,
-  });
 
   const items = itemsState.filter((item) => {
     const matchesPerson = personFilter === "todos" || item.authorId === personFilter;
     const matchesType = typeFilter === "todos" || item.type === typeFilter;
     const matchesPeriod = isWithinPeriod(item.date, periodFilter);
     const matchesScope = matchesTeamScope(item.authorId, teamScope);
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const matchesSearch =
+      normalizedQuery.length === 0 ||
+      `${item.title} ${item.description} ${item.result} ${item.metrics ?? ""}`.toLowerCase().includes(normalizedQuery);
 
-    return matchesPerson && matchesType && matchesPeriod && matchesScope;
+    return matchesPerson && matchesType && matchesPeriod && matchesScope && matchesSearch;
   });
+
+  const orderedItems = [...items].sort((left, right) => {
+    const leftKey = `${left.date} ${extractHistoryTime(left.description)}`;
+    const rightKey = `${right.date} ${extractHistoryTime(right.description)}`;
+    return rightKey.localeCompare(leftKey);
+  });
+
+  const groupedTimeline = orderedItems.reduce<Array<{ date: string; entries: typeof orderedItems }>>((groups, item) => {
+    const current = groups[groups.length - 1];
+    if (!current || current.date !== item.date) {
+      groups.push({ date: item.date, entries: [item] });
+      return groups;
+    }
+
+    current.entries.push(item);
+    return groups;
+  }, []);
+
+  const totalRecords = orderedItems.length;
+  const publicationCount = orderedItems.filter((item) => item.type === "post").length;
+  const goalsCount = orderedItems.filter((item) => item.type === "goal").length;
+  const peopleCount = new Set(orderedItems.map((item) => item.authorId)).size;
+  const periodRangeLabel = getPeriodRangeLabel(orderedItems);
+  const latestTableItems = orderedItems.slice(0, 8);
 
   const handleDeleteHistory = (historyId: number) => {
     const removedHistory = itemsState.find((item) => item.id === historyId);
@@ -228,191 +282,316 @@ export function HistoryPage() {
         eyebrow="Linha do tempo"
         title="Histórico completo da operação"
         description="Acompanhe publicações, metas e movimentações do calendário em ordem cronológica ou em formato de tabela."
-        actions={
-          <div className={actionGroupClass}>
-            {(["Timeline", "Tabela"] as const).map((item) => (
-              <FilterPill
-                key={item}
-                label={item}
-                active={view === item}
-                onClick={() => setView(item)}
-                dataCy={`history-view-${item.toLowerCase()}`}
-              />
-            ))}
-          </div>
-        }
       />
 
-      <GlassPanel index={1} className="relative z-30 overflow-visible">
-        <div
-          className={filterShellClass}
-          style={{
-            backgroundColor: isDark ? "rgb(var(--card) / 0.96)" : "rgb(var(--card) / 0.95)",
-          }}
-        >
-          <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background px-4 py-2.5 text-sm font-medium text-muted-foreground shadow-sm dark:bg-card/80">
-            <SlidersHorizontal className="h-4 w-4" />
-            Filtros
+      <div className="space-y-6">
+        <GlassPanel index={1} className="relative z-30 overflow-visible border border-border/60 bg-white/96 p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)]">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+            <div className="inline-flex h-11 items-center gap-2 rounded-full border border-border/70 bg-background px-4 text-sm font-medium text-muted-foreground shadow-sm">
+              <SlidersHorizontal className="h-4 w-4" />
+              Filtros
+            </div>
+
+            <div className="flex flex-1 flex-wrap gap-3">
+              <FilterDropdown<number | "todos">
+                label="Pessoa"
+                valueLabel={
+                  personFilter === "todos"
+                    ? "Todas as pessoas"
+                    : teamMembers.find((member) => member.id === personFilter)?.name ?? "Todas as pessoas"
+                }
+                accentColor={
+                  personFilter === "todos"
+                    ? undefined
+                    : teamMembers.find((member) => member.id === personFilter)?.color
+                }
+                onChange={(value) => setPersonFilter(value)}
+                triggerDataCy="history-filter-person-trigger"
+                optionDataCyPrefix="history-filter-person"
+                options={[
+                  { label: "Todas as pessoas", value: "todos" as const, color: "#e11d48" },
+                  ...teamMembers.map((member) => ({
+                    label: member.name,
+                    value: member.id,
+                    color: member.color,
+                  })),
+                ]}
+              />
+
+              <FilterDropdown<"todos" | "post" | "goal" | "schedule">
+                label="Tipo"
+                valueLabel={typeFilter === "todos" ? "Todos os tipos" : typeLabels[typeFilter]}
+                onChange={(value) => setTypeFilter(value)}
+                triggerDataCy="history-filter-type-trigger"
+                optionDataCyPrefix="history-filter-type"
+                options={[
+                  { label: "Todos os tipos", value: "todos" as const, color: "#e11d48" },
+                  { label: "Conteúdo", value: "post" as const, color: "#ef4444" },
+                  { label: "Meta", value: "goal" as const, color: "#f43f5e" },
+                  { label: "Calendário", value: "schedule" as const, color: "#fb7185" },
+                ]}
+              />
+
+              <FilterDropdown<PeriodFilter>
+                label="Período"
+                valueLabel={periodLabels[periodFilter]}
+                onChange={(value) => setPeriodFilter(value)}
+                options={[
+                  { label: periodLabels.all, value: "all" as const, color: "#e11d48" },
+                  { label: periodLabels["7d"], value: "7d" as const, color: "#ef4444" },
+                  { label: periodLabels["30d"], value: "30d" as const, color: "#f43f5e" },
+                  { label: periodLabels["90d"], value: "90d" as const, color: "#fb7185" },
+                ]}
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-2 rounded-full border border-border/60 bg-white/96 p-1.5 shadow-[0_10px_24px_rgba(15,23,42,0.06)]">
+              {(["Timeline", "Tabela"] as const).map((item) => (
+                <FilterPill
+                  key={item}
+                  label={item}
+                  active={view === item}
+                  onClick={() => setView(item)}
+                  dataCy={`history-view-${item.toLowerCase()}`}
+                />
+              ))}
+            </div>
           </div>
+        </GlassPanel>
 
-          <div className="flex flex-1 flex-wrap gap-3">
-            <FilterDropdown<number | "todos">
-              label="Pessoa"
-              valueLabel={
-                personFilter === "todos"
-                  ? "Todas as pessoas"
-                  : teamMembers.find((member) => member.id === personFilter)?.name ?? "Todas as pessoas"
-              }
-              accentColor={
-                personFilter === "todos"
-                  ? undefined
-                  : teamMembers.find((member) => member.id === personFilter)?.color
-              }
-              onChange={(value) => setPersonFilter(value)}
-              triggerDataCy="history-filter-person-trigger"
-              optionDataCyPrefix="history-filter-person"
-              options={[
-                { label: "Todas as pessoas", value: "todos" as const },
-                ...teamMembers.map((member) => ({
-                  label: member.name,
-                  value: member.id,
-                  color: member.color,
-                })),
-              ]}
-            />
-
-            <FilterDropdown<"todos" | "post" | "goal" | "schedule">
-              label="Tipo"
-              valueLabel={typeFilter === "todos" ? "Todos os tipos" : typeLabels[typeFilter]}
-              onChange={(value) => setTypeFilter(value)}
-              triggerDataCy="history-filter-type-trigger"
-              optionDataCyPrefix="history-filter-type"
-              options={[
-                { label: "Todos os tipos", value: "todos" as const },
-                { label: "Posts", value: "post" as const },
-                { label: "Metas", value: "goal" as const },
-                { label: "Agendados", value: "schedule" as const },
-              ]}
-            />
-
-            <FilterDropdown<PeriodFilter>
-              label="Periodo"
-              valueLabel={periodLabels[periodFilter]}
-              onChange={(value) => setPeriodFilter(value)}
-              options={[
-                { label: periodLabels.all, value: "all" as const },
-                { label: periodLabels["7d"], value: "7d" as const },
-                { label: periodLabels["30d"], value: "30d" as const },
-                { label: periodLabels["90d"], value: "90d" as const },
-              ]}
-            />
-          </div>
-        </div>
-      </GlassPanel>
-
-      {items.length === 0 ? (
-        <EmptyState
-          title="Nenhum registro encontrado"
-          description="Tente limpar os filtros para ver o histórico completo da operação."
-        />
-      ) : view === "Timeline" ? (
-        <div className="grid gap-4">
-          {items.map((item, index) => {
-            const member = teamMembers.find((person) => person.id === item.authorId)!;
-            const Icon = typeIcons[item.type];
-
+        <div className="grid gap-4 xl:grid-cols-5">
+          {[
+            {
+              label: "Total de registros",
+              value: String(totalRecords),
+              detail: "Visão geral do período filtrado",
+              delta: "+18%",
+              icon: FileText,
+            },
+            {
+              label: "Publicações",
+              value: String(publicationCount),
+              detail: "Itens de conteúdo movimentados",
+              delta: "+22%",
+              icon: CalendarClock,
+            },
+            {
+              label: "Metas atualizadas",
+              value: String(goalsCount),
+              detail: "Metas criadas ou ajustadas",
+              delta: "+8%",
+              icon: Target,
+            },
+            {
+              label: "Pessoas envolvidas",
+              value: String(peopleCount),
+              detail: peopleCount > 0 ? "Sem alteração" : "Nenhuma pessoa no recorte",
+              delta: null,
+              icon: Users,
+            },
+            {
+              label: "Período exibido",
+              value: periodRangeLabel,
+              detail: periodFilter === "all" ? "Período completo" : periodLabels[periodFilter],
+              delta: null,
+              icon: Clock3,
+            },
+          ].map((card) => {
+            const Icon = card.icon;
             return (
-              <GlassPanel
-                key={item.id}
-                index={index + 2}
-                className="group relative"
-                style={timelineCardStyle(member.color)}
-              >
-                <div className="absolute right-4 top-4 z-10 opacity-0 transition group-hover:opacity-100">
-                  <DeleteIconButton onClick={() => setPendingDelete({ historyId: item.id, historyTitle: item.title })} />
-                </div>
-                <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="flex gap-4">
-                    <div
-                      className="inline-flex h-12 w-12 items-center justify-center rounded-2xl"
-                      style={{
-                        backgroundColor: `${member.color}14`,
-                        color: member.color,
-                      }}
-                    >
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <h2 className="text-lg font-semibold text-foreground">{item.title}</h2>
-                        <span
-                          className="rounded-full px-3 py-1 text-xs font-semibold"
-                          style={{
-                            backgroundColor: `${member.color}10`,
-                            color: member.color,
-                          }}
-                        >
-                          {typeLabels[item.type]}
-                        </span>
-                      </div>
-                      <p className="text-sm leading-6 text-muted-foreground">{item.description}</p>
-                      <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                        <span>{item.date}</span>
-                        <span>{item.result}</span>
-                        {item.metrics ? <span>{item.metrics}</span> : null}
-                      </div>
+              <GlassPanel key={card.label} className="border border-border/60 bg-white/96 p-5 shadow-[0_16px_38px_rgba(15,23,42,0.05)]">
+                <div className="flex items-start gap-4">
+                  <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 ring-1 ring-rose-100">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{card.label}</p>
+                    <p className="mt-2 truncate text-[clamp(1.45rem,1.8vw,2rem)] font-semibold tracking-tight text-foreground">{card.value}</p>
+                    <div className="mt-3 flex items-center gap-2 text-sm">
+                      {card.delta ? <span className="font-semibold text-rose-600">{card.delta}</span> : null}
+                      <span className="text-muted-foreground">{card.detail}</span>
                     </div>
                   </div>
-                  <MemberChip name={member.name} role={member.role} color={member.color} src={member.avatarUrl} />
                 </div>
               </GlassPanel>
             );
           })}
         </div>
-      ) : (
-        <GlassPanel index={2} className="overflow-hidden p-0">
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left">
-              <thead className="bg-muted/60 text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                <tr>
-                  <th className="px-5 py-4">Título / Descrição</th>
-                  <th className="px-5 py-4">Tipo</th>
-                  <th className="px-5 py-4">Responsável</th>
-                  <th className="px-5 py-4">Data</th>
-                  <th className="px-5 py-4">Resultado</th>
-                  <th className="px-5 py-4">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item) => {
-                  const member = teamMembers.find((person) => person.id === item.authorId)!;
 
-                  return (
-                    <tr key={item.id} className="border-t border-border/60">
-                      <td className="px-5 py-4">
-                        <p className="font-medium text-foreground">{item.title}</p>
-                        <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>
-                      </td>
-                      <td className="px-5 py-4 text-sm text-muted-foreground">{typeLabels[item.type]}</td>
-                      <td className="px-5 py-4">
-                        <MemberChip name={member.name} role={member.role} color={member.color} src={member.avatarUrl} />
-                      </td>
-                      <td className="px-5 py-4 text-sm text-muted-foreground">{item.date}</td>
-                      <td className="px-5 py-4 text-sm text-foreground">{item.result}</td>
-                      <td className="px-5 py-4">
-                        <DeleteIconButton
-                          dataCy={`history-delete-table-${item.id}`}
-                          onClick={() => setPendingDelete({ historyId: item.id, historyTitle: item.title })}
-                        />
-                      </td>
+        {orderedItems.length === 0 ? (
+          <EmptyState
+            title="Nenhum registro encontrado"
+            description="Tente limpar os filtros para ver o histórico completo da operação."
+          />
+        ) : (
+          <div className={cn("grid gap-6 xl:grid-cols-[0.95fr_1.05fr]", view === "Tabela" && "xl:grid-cols-[1.05fr_0.95fr]")}>
+            <GlassPanel
+              index={2}
+              className={cn(
+                "overflow-hidden border border-border/60 bg-white/96 p-5 shadow-[0_18px_42px_rgba(15,23,42,0.05)]",
+                view === "Tabela" ? "xl:order-2" : "xl:order-1",
+              )}
+            >
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-[1.65rem] font-semibold tracking-tight text-foreground">Linha do tempo</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">Movimentações organizadas por dia e prioridade.</p>
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-8">
+                {groupedTimeline.map((group) => (
+                  <div key={group.date} className="relative pl-7">
+                    <div className="absolute left-[8px] top-9 bottom-0 w-px bg-gradient-to-b from-rose-300 via-rose-200 to-transparent" />
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <span className="h-4 w-4 rounded-full border-4 border-white bg-rose-500 shadow-[0_0_0_1px_rgba(244,63,94,0.18)]" />
+                        <h3 className="text-base font-semibold text-foreground">{formatHistoryDateLabel(group.date)}</h3>
+                      </div>
+                      <span className="inline-flex h-9 min-w-9 items-center justify-center rounded-full border border-rose-200 bg-rose-50 px-3 text-sm font-semibold text-rose-600">
+                        {group.entries.length}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 space-y-3">
+                      {group.entries.map((item) => {
+                        const member = teamMembers.find((person) => person.id === item.authorId)!;
+                        const Icon = typeIcons[item.type];
+
+                        return (
+                          <div key={item.id} className="group flex gap-4">
+                            <div className="w-12 pt-5 text-sm font-medium text-muted-foreground">{extractHistoryTime(item.description)}</div>
+                            <div className="flex-1 rounded-[1.7rem] border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(249,249,251,0.97))] p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition hover:shadow-[0_16px_28px_rgba(15,23,42,0.06)]">
+                              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                <div className="flex min-w-0 gap-4">
+                                  <div className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 ring-1 ring-rose-100">
+                                    <Icon className="h-4.5 w-4.5" />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <h4 className="text-base font-semibold text-foreground">{item.title}</h4>
+                                      <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-600">{typeLabels[item.type]}</span>
+                                    </div>
+                                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.description}</p>
+                                    <div className="mt-3 flex flex-wrap items-center gap-3 text-xs font-medium text-muted-foreground">
+                                      <span>{item.result}</span>
+                                      {item.metrics ? <span>{item.metrics}</span> : null}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <MemberChip name={member.name} role={member.role} color={member.color} src={member.avatarUrl} />
+                                  <DeleteIconButton onClick={() => setPendingDelete({ historyId: item.id, historyTitle: item.title })} />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </GlassPanel>
+
+            <GlassPanel
+              index={3}
+              className={cn(
+                "overflow-hidden border border-border/60 bg-white/96 p-0 shadow-[0_18px_42px_rgba(15,23,42,0.05)]",
+                view === "Tabela" ? "xl:order-1" : "xl:order-2",
+              )}
+            >
+              <div className="flex flex-col gap-4 border-b border-border/60 px-5 py-5 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <h2 className="text-[1.65rem] font-semibold tracking-tight text-foreground">Últimos registros</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">Tabela resumida com os eventos mais recentes do histórico.</p>
+                </div>
+
+                <label className="flex h-11 min-w-[280px] items-center gap-3 rounded-full border border-border/70 bg-background px-4 text-sm text-muted-foreground shadow-sm">
+                  <Search className="h-4 w-4" />
+                  <input
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Buscar registros..."
+                    className="w-full border-0 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                  />
+                </label>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left">
+                  <thead className="border-b border-border/60 bg-[linear-gradient(180deg,rgba(250,250,252,0.95),rgba(248,250,252,0.96))] text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                    <tr>
+                      <th className="px-5 py-4">Data e hora</th>
+                      <th className="px-5 py-4">Tipo</th>
+                      <th className="px-5 py-4">Descrição</th>
+                      <th className="px-5 py-4">Pessoa</th>
+                      <th className="px-5 py-4">Categoria</th>
+                      <th className="px-5 py-4 text-right">Ações</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody>
+                    {latestTableItems.map((item) => {
+                      const member = teamMembers.find((person) => person.id === item.authorId)!;
+                      const Icon = typeIcons[item.type];
+
+                      return (
+                        <tr key={item.id} className="border-t border-border/60">
+                          <td className="px-5 py-4 text-sm text-muted-foreground">
+                            <div>{formatHistoryFullDate(item.date)}</div>
+                            <div className="mt-1 text-xs">{extractHistoryTime(item.description)}</div>
+                          </td>
+                          <td className="px-5 py-4">
+                            <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 ring-1 ring-rose-100">
+                              <Icon className="h-4 w-4" />
+                            </div>
+                          </td>
+                          <td className="px-5 py-4">
+                            <p className="font-medium text-foreground">{item.title}</p>
+                            <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>
+                          </td>
+                          <td className="px-5 py-4">
+                            <MemberChip name={member.name} role={member.role} color={member.color} src={member.avatarUrl} />
+                          </td>
+                          <td className="px-5 py-4">
+                            <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-600">{typeLabels[item.type]}</span>
+                          </td>
+                          <td className="px-5 py-4 text-right">
+                            <div className="flex justify-end">
+                              <DeleteIconButton
+                                dataCy={`history-delete-table-${item.id}`}
+                                onClick={() => setPendingDelete({ historyId: item.id, historyTitle: item.title })}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex flex-col gap-4 border-t border-border/60 px-5 py-4 text-sm text-muted-foreground lg:flex-row lg:items-center lg:justify-between">
+                <p>Mostrando 1 a {latestTableItems.length} de {totalRecords} registros</p>
+                <div className="flex items-center gap-2">
+                  {[1, 2, 3, 4].map((page) => (
+                    <button
+                      key={page}
+                      type="button"
+                      className={cn(
+                        "inline-flex h-10 w-10 items-center justify-center rounded-xl border text-sm font-semibold transition",
+                        page === 1 ? "border-rose-600 bg-rose-600 text-white" : "border-border/70 bg-white text-foreground hover:border-rose-200 hover:text-rose-600",
+                      )}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </GlassPanel>
           </div>
-        </GlassPanel>
-      )}
+        )}
+      </div>
 
       {pendingDelete ? (
         <ConfirmDialog
@@ -427,4 +606,3 @@ export function HistoryPage() {
     </PageTransition>
   );
 }
-

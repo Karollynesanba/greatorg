@@ -357,7 +357,7 @@ function ActivityCheckIcon({ done }: { done: boolean }) {
       className={cn(
         "inline-flex h-6 w-6 items-center justify-center rounded-full border text-[11px] transition duration-200",
         done
-          ? "border-emerald-500 bg-emerald-500 text-white shadow-[0_8px_18px_rgba(16,185,129,0.18)]"
+          ? "border-rose-500 bg-rose-500 text-white shadow-[0_8px_18px_rgba(244,63,94,0.18)]"
           : "border-slate-200 bg-white text-transparent shadow-[0_6px_14px_rgba(15,23,42,0.04)]",
       )}
     >
@@ -1133,8 +1133,8 @@ export function CalendarPage() {
     ? "rounded-full border border-border/70 bg-card/90 px-4 py-2.5 text-sm font-semibold text-foreground shadow-sm transition hover:bg-card"
     : "rounded-full border border-border/70 bg-white px-4 py-2.5 text-sm font-semibold text-foreground shadow-sm transition hover:bg-muted";
   const calendarShellClass = isDark
-    ? "min-w-[980px] rounded-[2rem] bg-card/95"
-    : "min-w-[980px] rounded-[2rem] bg-white";
+    ? "w-full rounded-[2rem] bg-card/95"
+    : "w-full rounded-[2rem] bg-white";
   const calendarHeaderClass = isDark
     ? "sticky top-0 z-10 grid grid-cols-[72px_repeat(7,minmax(0,1fr))] border-b border-border/50 bg-card/95"
     : "sticky top-0 z-10 grid grid-cols-[72px_repeat(7,minmax(0,1fr))] border-b border-border/50 bg-white/98 backdrop-blur";
@@ -1532,7 +1532,7 @@ export function CalendarPage() {
           {!isSidebarCollapsed ? (
             <>
               <GlassPanel className="overflow-hidden p-0">
-                <div className="border-b border-border/50 bg-gradient-to-br from-primary/12 via-background to-transparent px-5 py-5">
+                <div className="border-b border-border/50 bg-[linear-gradient(135deg,rgba(225,29,72,0.12),rgba(255,255,255,0.96),rgba(251,113,133,0.08))] px-5 py-5">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Calendário do mês</p>
                   <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{formatMonthLabel(currentDate)}</h3>
                   <p className="mt-2 text-sm text-muted-foreground">Acompanhe agenda, ritmo de publicação e o pulso da operação criativa.</p>
@@ -1542,13 +1542,13 @@ export function CalendarPage() {
                 </div>
               </GlassPanel>
 
-              <GlassPanel className="overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,250,252,0.97))] p-6 shadow-[0_18px_42px_rgba(15,23,42,0.06)]">
+              <GlassPanel className="overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,251,252,0.99),rgba(255,247,249,0.97))] p-6 shadow-[0_18px_42px_rgba(15,23,42,0.06)]">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Resumo rápido</p>
                     <h3 className="mt-2 text-lg font-semibold tracking-tight text-foreground">Saúde da agenda</h3>
                   </div>
-                  <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                  <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-600">
                     {Math.round(monthlyGoalProgress)}%
                   </span>
                 </div>
@@ -1560,12 +1560,12 @@ export function CalendarPage() {
                         <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Visualizações do mês</p>
                         <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{formatViewsNumber(currentMonthViews)}</p>
                       </div>
-                      <div className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                      <div className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-600">
                         {formatViewsNumber(remainingMonthViews)} faltam
                       </div>
                     </div>
-                    <div className="mt-4 h-2 overflow-hidden rounded-full bg-primary/10">
-                      <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${monthlyGoalProgress}%` }} />
+                    <div className="mt-4 h-2 overflow-hidden rounded-full bg-rose-100">
+                      <div className="h-full rounded-full bg-[linear-gradient(90deg,#fb7185_0%,#f43f5e_50%,#e11d48_100%)] transition-all" style={{ width: `${monthlyGoalProgress}%` }} />
                     </div>
                   </div>
 
@@ -1596,7 +1596,7 @@ export function CalendarPage() {
         </aside>
 
         <div className="space-y-5">
-          <GlassPanel className={cn(controlBarClass, "overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.96))] p-6 shadow-[0_18px_40px_rgba(15,23,42,0.06)]")}>
+          <GlassPanel className={cn(controlBarClass, "overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,251,252,0.99),rgba(255,247,249,0.97))] p-6 shadow-[0_18px_40px_rgba(15,23,42,0.06)]")}>
             <div className="flex flex-col gap-5">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                 <div className="flex items-center gap-2">
@@ -1684,7 +1684,7 @@ export function CalendarPage() {
           </GlassPanel>
 
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_380px]">
-            <GlassPanel className="overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,250,252,0.97))] p-6 shadow-[0_18px_42px_rgba(15,23,42,0.06)]">
+            <GlassPanel className="overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,251,252,0.99),rgba(255,247,249,0.97))] p-6 shadow-[0_18px_42px_rgba(15,23,42,0.06)]">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Planejamento do dia</p>
@@ -1715,28 +1715,28 @@ export function CalendarPage() {
               </div>
             </GlassPanel>
 
-            <GlassPanel className="overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,250,252,0.97))] p-6 shadow-[0_18px_42px_rgba(15,23,42,0.06)]">
-              <div className="flex items-start justify-between gap-4">
-                <div>
+            <GlassPanel className="overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,251,252,0.99),rgba(255,247,249,0.97))] p-6 shadow-[0_18px_42px_rgba(15,23,42,0.06)]">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="max-w-[36rem] min-w-0">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Visualizações do mês</p>
-                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{formatMonthLabel(currentDate)}</h3>
-                  <p className="mt-2 text-sm text-muted-foreground">Confira o desempenho geral dos conteúdos publicados neste mês.</p>
+                  <h3 className="mt-2 text-[clamp(1.5rem,2vw,2rem)] font-semibold tracking-tight text-foreground">{formatMonthLabel(currentDate)}</h3>
+                  <p className="mt-2 max-w-[28rem] text-sm leading-6 text-muted-foreground">Confira o desempenho geral dos conteúdos publicados neste mês.</p>
                 </div>
                 <button
                   type="button"
                   onClick={handleStartEditingMonthlyViewsGoal}
-                  className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-white px-4 py-2 text-xs font-semibold text-foreground shadow-sm transition hover:border-primary/25 hover:bg-primary/5"
+                  className="inline-flex h-8.5 items-center gap-1.5 self-start rounded-full border border-border/60 bg-white/88 px-3 text-[10px] font-semibold text-foreground shadow-[0_4px_12px_rgba(15,23,42,0.04)] transition hover:border-primary/20 hover:bg-primary/4"
                 >
-                  <Pencil className="h-4 w-4 text-primary" />
+                  <Pencil className="h-3 w-3 text-primary" />
                   Editar meta
                 </button>
               </div>
 
-              <div className="mt-5 grid gap-4 md:grid-cols-3">
-                <div className="rounded-[1.45rem] border border-border/60 bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+              <div className="mt-6 grid gap-4 sm:grid-cols-3">
+                <div className="group min-w-0 rounded-[1.55rem] border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(249,250,252,0.97))] px-5 py-5.5 shadow-[0_8px_18px_rgba(15,23,42,0.04)] transition duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_14px_28px_rgba(15,23,42,0.06)]">
                   <p className="text-[11px] uppercase tracking-[0.2em] text-primary">Meta</p>
                   {isEditingMonthlyViewsGoal ? (
-                    <div className="mt-3 flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-3 py-3">
+                    <div className="mt-4 flex min-w-0 items-center gap-2 rounded-[1.15rem] border border-primary/20 bg-primary/5 px-4 py-4">
                       <input
                         autoFocus
                         value={monthlyViewsGoalDraft}
@@ -1754,31 +1754,46 @@ export function CalendarPage() {
                           }
                         }}
                         inputMode="numeric"
-                        className="w-full border-0 bg-transparent text-3xl font-semibold tracking-tight text-foreground outline-none"
+                        className="min-w-0 w-full border-0 bg-transparent text-center text-[clamp(18px,2vw,28px)] font-semibold tracking-tight text-foreground outline-none"
                         placeholder={String(defaultMonthlyViewsGoal)}
                       />
                     </div>
                   ) : (
-                    <p className="mt-3 text-3xl font-semibold tracking-tight text-foreground">{formatViewsNumber(monthlyViewsGoal)}</p>
+                    <p className="mt-4 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-center text-[clamp(18px,2vw,28px)] font-semibold tracking-tight text-foreground">
+                      {formatViewsNumber(monthlyViewsGoal)}
+                    </p>
                   )}
                 </div>
-                <div className="rounded-[1.45rem] border border-border/60 bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-sky-600">Atual</p>
-                  <p className="mt-3 text-3xl font-semibold tracking-tight text-foreground">{formatViewsNumber(currentMonthViews)}</p>
+                <div className="group min-w-0 rounded-[1.55rem] border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(255,248,250,0.97))] px-5 py-5.5 shadow-[0_8px_18px_rgba(15,23,42,0.04)] transition duration-200 hover:-translate-y-0.5 hover:border-rose-300/40 hover:shadow-[0_14px_28px_rgba(15,23,42,0.06)]">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-rose-500">Atual</p>
+                  <p className="mt-4 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-center text-[clamp(18px,2vw,28px)] font-semibold tracking-tight text-foreground">
+                    {formatViewsNumber(currentMonthViews)}
+                  </p>
                 </div>
-                <div className="rounded-[1.45rem] border border-border/60 bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-orange-600">Falta</p>
-                  <p className="mt-3 text-3xl font-semibold tracking-tight text-foreground">{formatViewsNumber(remainingMonthViews)}</p>
+                <div className="group min-w-0 rounded-[1.55rem] border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(255,248,250,0.97))] px-5 py-5.5 shadow-[0_8px_18px_rgba(15,23,42,0.04)] transition duration-200 hover:-translate-y-0.5 hover:border-rose-300/40 hover:shadow-[0_14px_28px_rgba(15,23,42,0.06)]">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-rose-400">Falta</p>
+                  <p className="mt-4 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-center text-[clamp(18px,2vw,28px)] font-semibold tracking-tight text-foreground">
+                    {formatViewsNumber(remainingMonthViews)}
+                  </p>
                 </div>
               </div>
 
-              <div className="mt-5 rounded-[1.45rem] border border-primary/10 bg-primary/[0.035] p-4">
-                <div className="flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  <span>Ritmo da meta</span>
-                  <span>{Math.round(monthlyGoalProgress)}%</span>
+              <div className="mt-5 rounded-[1.6rem] border border-primary/15 bg-[linear-gradient(180deg,rgba(225,29,72,0.06),rgba(251,113,133,0.04))] px-5 py-5.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    Ritmo da meta
+                  </span>
+                  <span className="text-base font-semibold text-foreground">{Math.round(monthlyGoalProgress)}%</span>
                 </div>
-                <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-primary/10">
-                  <div className="h-full rounded-full bg-gradient-to-r from-primary to-primary/70 transition-all" style={{ width: `${monthlyGoalProgress}%` }} />
+                <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-[linear-gradient(90deg,rgba(251,113,133,0.12),rgba(225,29,72,0.1))]">
+                  <div
+                    className="h-full rounded-full bg-[linear-gradient(90deg,#fb7185_0%,#f43f5e_50%,#e11d48_100%)] shadow-[0_4px_14px_rgba(225,29,72,0.24)] transition-all"
+                    style={{ width: `${monthlyGoalProgress}%` }}
+                  />
+                </div>
+                <div className="mt-4 flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  <span>Ritmo da meta</span>
+                  <span className="text-[11px] text-muted-foreground/80">Meta mensal em andamento</span>
                 </div>
               </div>
             </GlassPanel>
@@ -1797,7 +1812,7 @@ export function CalendarPage() {
                   </div>
                 </div>
                 {view === "Semana" ? (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-hidden">
                     <div className={calendarShellClass}>
                       <div className={calendarHeaderClass}>
                         <div className="px-3 py-4" />
@@ -1997,10 +2012,10 @@ export function CalendarPage() {
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   {[
-                    { label: "Agendados", value: monthStatusCounts.scheduled, tone: "text-primary", bg: "bg-primary/10" },
-                    { label: "Em produção", value: monthStatusCounts.production, tone: "text-sky-600", bg: "bg-sky-500/10" },
-                    { label: "Aprovados", value: monthStatusCounts.approved, tone: "text-amber-600", bg: "bg-amber-500/10" },
-                    { label: "Publicados", value: monthStatusCounts.published, tone: "text-emerald-600", bg: "bg-emerald-500/10" },
+                    { label: "Agendados", value: monthStatusCounts.scheduled, tone: "text-rose-600", bg: "bg-rose-100" },
+                    { label: "Em produção", value: monthStatusCounts.production, tone: "text-rose-500", bg: "bg-rose-50" },
+                    { label: "Aprovados", value: monthStatusCounts.approved, tone: "text-rose-400", bg: "bg-rose-50" },
+                    { label: "Publicados", value: monthStatusCounts.published, tone: "text-red-600", bg: "bg-red-50" },
                   ].map((item) => (
                     <div key={item.label} className="rounded-[1.15rem] border border-border/60 bg-muted/15 p-4">
                       <div className="flex items-center justify-between gap-3">
@@ -2171,7 +2186,7 @@ export function CalendarPage() {
                   <span
                     className={cn(
                       "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold",
-                      selectedEvent.completed ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700",
+                      selectedEvent.completed ? "bg-rose-100 text-rose-700" : "bg-rose-50 text-rose-600",
                     )}
                   >
                     <CheckCircle2 className="h-4 w-4" />
@@ -2217,13 +2232,13 @@ export function CalendarPage() {
                   <div
                     className={cn(
                       "mt-2 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold",
-                      selectedEvent.completed ? "bg-emerald-100 text-emerald-700" : "bg-muted text-foreground",
+                      selectedEvent.completed ? "bg-rose-100 text-rose-700" : "bg-muted text-foreground",
                     )}
                   >
                     <span
                       className={cn(
                         "h-2.5 w-2.5 rounded-full",
-                        selectedEvent.completed ? "bg-emerald-500" : "bg-primary",
+                        selectedEvent.completed ? "bg-rose-500" : "bg-primary",
                       )}
                     />
                     {selectedEvent.completed ? "Concluída" : selectedEvent.status}
@@ -2415,7 +2430,7 @@ export function CalendarPage() {
               <div className="mt-6 flex flex-wrap gap-3">
                 <ActionButton
                   onClick={handleMarkEventCompleted}
-                  className="bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
+                  className="bg-rose-600 text-white shadow-lg shadow-rose-500/20"
                 >
                   <CheckCircle2 className="h-4 w-4" />
                   {selectedEvent.completed ? "Concluída" : "Concluir atividade"}
@@ -2697,7 +2712,7 @@ export function CalendarPage() {
               <div className="mt-6 flex flex-wrap gap-3">
                 <ActionButton
                   onClick={handleMarkCreateCompleted}
-                  className="bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
+                  className="bg-rose-600 text-white shadow-lg shadow-rose-500/20"
                 >
                   <CheckCircle2 className="h-4 w-4" />
                   {createForm?.completed ? "Concluída" : "Concluir atividade"}

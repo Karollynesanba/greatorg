@@ -87,7 +87,7 @@ const statusPalette: Record<string, { bg: string; text: string; border: string }
   Agendado: { bg: "#fff7ed", text: "#f97316", border: "#fdba74" },
   "Em produção": { bg: "#eff6ff", text: "#2563eb", border: "#93c5fd" },
   Aprovado: { bg: "#f0fdf4", text: "#16a34a", border: "#86efac" },
-  Publicado: { bg: "#f5f3ff", text: "#7c3aed", border: "#c4b5fd" },
+  Publicado: { bg: "#fff1f2", text: "#e11d48", border: "#fda4af" },
 };
 
 function todayKey() {
@@ -327,11 +327,11 @@ function MetricTile({
 }: MetricCard) {
   return (
     <div
-      className="rounded-[1.6rem] border border-slate-200/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(250,250,252,0.98))] p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]"
+      className="rounded-[1.6rem] border border-slate-200/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(250,250,252,0.98))] p-5 shadow-[0_12px_26px_rgba(15,23,42,0.04)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(15,23,42,0.05)]"
       data-cy={dataCy}
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,rgba(124,58,237,0.08),rgba(219,39,119,0.08),rgba(245,158,11,0.08))] text-violet-600 ring-1 ring-violet-100">
+        <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,rgba(225,29,72,0.08),rgba(248,113,113,0.1),rgba(251,113,133,0.08))] text-rose-600 ring-1 ring-rose-100">
           <Icon className="h-5 w-5" />
         </div>
         <div className="flex items-center gap-2">
@@ -348,7 +348,7 @@ function MetricTile({
             <button
               type="button"
               onClick={onEdit}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:border-primary/25 hover:text-primary"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:border-rose-200 hover:text-rose-600"
               aria-label={`Editar ${label}`}
             >
               <Pencil className="h-3.5 w-3.5" />
@@ -357,7 +357,7 @@ function MetricTile({
         </div>
       </div>
       <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
-      <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">{value}</p>
+      <p className="mt-2 text-[1.9rem] font-semibold tracking-tight text-slate-950">{value}</p>
       <p className="mt-2 text-sm leading-6 text-slate-500">{detail}</p>
     </div>
   );
@@ -383,19 +383,19 @@ function ContentEditorModal({
   const authorOptions = teamMembers.map((member) => ({
     label: `${member.name} - ${member.role}`,
     value: member.id,
-    color: member.id === 1 ? "#7c3aed" : member.id === 2 ? "#db2777" : "#3b82f6",
+    color: member.id === 1 ? "#e11d48" : member.id === 2 ? "#f43f5e" : "#fb7185",
   }));
   const typeOptions = [
-    { label: "Reels", value: "Reels" as const, color: "#d946ef" },
-    { label: "Stories", value: "Stories" as const, color: "#f97316" },
-    { label: "Carrossel", value: "Carrossel" as const, color: "#22c55e" },
-    { label: "Feed", value: "Feed" as const, color: "#0ea5e9" },
+    { label: "Reels", value: "Reels" as const, color: "#e11d48" },
+    { label: "Stories", value: "Stories" as const, color: "#f43f5e" },
+    { label: "Carrossel", value: "Carrossel" as const, color: "#fb7185" },
+    { label: "Feed", value: "Feed" as const, color: "#ef4444" },
   ];
   const statusOptions = [
-    { label: "Agendado", value: "Agendado" as const, color: "#f59e0b" },
-    { label: "Em produção", value: "Em produção" as PostStatus, color: "#3b82f6" },
-    { label: "Aprovado", value: "Aprovado" as const, color: "#22c55e" },
-    { label: "Publicado", value: "Publicado" as const, color: "#8b5cf6" },
+    { label: "Agendado", value: "Agendado" as const, color: "#fb7185" },
+    { label: "Em produção", value: "Em produção" as PostStatus, color: "#ef4444" },
+    { label: "Aprovado", value: "Aprovado" as const, color: "#f43f5e" },
+    { label: "Publicado", value: "Publicado" as const, color: "#e11d48" },
   ];
   const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -448,7 +448,7 @@ function ContentEditorModal({
                 value={draft.title}
                 onChange={(event) => onChange({ ...draft, title: event.target.value })}
                 data-cy="content-create-title"
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
                 placeholder="Ex.: Antes e depois da landing page"
               />
             </label>
@@ -460,7 +460,7 @@ function ContentEditorModal({
                 onChange={(event) => onChange({ ...draft, description: event.target.value })}
                 data-cy="content-create-description"
                 rows={4}
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
                 placeholder="Explique o conteúdo, contexto e o objetivo..."
               />
             </label>
@@ -509,7 +509,7 @@ function ContentEditorModal({
 
             <div className="grid gap-2 md:col-span-2">
               <span className="text-sm font-medium text-slate-800">Arquivo da capa</span>
-              <label className="group flex cursor-pointer flex-col gap-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500 transition hover:border-violet-300 hover:bg-violet-50/60">
+              <label className="group flex cursor-pointer flex-col gap-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500 transition hover:border-rose-300 hover:bg-rose-50/60">
                 <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
                 <div className="flex items-center justify-between gap-4">
                   <div className="min-w-0">
@@ -520,7 +520,7 @@ function ContentEditorModal({
                       Formatos aceitos: PNG, JPG, JPEG e WEBP. A imagem fica salva junto do card.
                     </p>
                   </div>
-                  <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-100 text-violet-600 transition group-hover:scale-105">
+                  <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600 transition group-hover:scale-105">
                     <ImagePlus className="h-5 w-5" />
                   </div>
                 </div>
@@ -536,7 +536,7 @@ function ContentEditorModal({
                   </button>
                 ) : null}
                 {draft.thumbnailName ? (
-                  <span className="rounded-full bg-violet-50 px-3 py-2 text-xs font-medium text-violet-700">
+                  <span className="rounded-full bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
                     {draft.thumbnailName}
                   </span>
                 ) : null}
@@ -549,7 +549,7 @@ function ContentEditorModal({
                 value={draft.reach}
                 onChange={(event) => onChange({ ...draft, reach: event.target.value })}
                 data-cy="content-create-reach"
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
                 placeholder="235000"
                 inputMode="numeric"
               />
@@ -561,7 +561,7 @@ function ContentEditorModal({
                 value={draft.engagement}
                 onChange={(event) => onChange({ ...draft, engagement: event.target.value })}
                 data-cy="content-create-engagement"
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
                 placeholder="19600"
                 inputMode="numeric"
               />
@@ -569,8 +569,8 @@ function ContentEditorModal({
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-[1.5rem] border border-slate-200 bg-gradient-to-br from-violet-50 to-pink-50 p-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-violet-600">Ação</p>
+            <div className="rounded-[1.5rem] border border-slate-200 bg-gradient-to-br from-rose-50 to-red-50 p-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-rose-600">Ação</p>
               <h4 className="mt-2 text-xl font-semibold text-slate-950">Conteúdo editável</h4>
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 As alterações feitas aqui são salvas no mesmo conjunto compartilhado do Supabase.
@@ -598,7 +598,7 @@ function ContentEditorModal({
 
             <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
               <div className="flex items-center gap-3">
-                <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-100 text-violet-600">
+                <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-100 text-rose-600">
                   <ImagePlus className="h-5 w-5" />
                 </div>
                 <div>
@@ -607,7 +607,7 @@ function ContentEditorModal({
                 </div>
               </div>
               <div className="mt-4 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_12px_24px_rgba(15,23,42,0.05)]">
-                <div className="aspect-[16/10] bg-gradient-to-br from-violet-100 via-fuchsia-100 to-orange-100">
+                <div className="aspect-[16/10] bg-gradient-to-br from-rose-100 via-red-100 to-rose-200">
                   {draft.thumbnail ? (
                     <img src={draft.thumbnail} alt={draft.title || "Prévia"} className="h-full w-full object-cover" />
                   ) : null}
@@ -936,12 +936,12 @@ export function ContentPage() {
       />
 
       <div className="space-y-6" data-cy="content-page-shell">
-        <div className="flex flex-wrap gap-3 rounded-[1.6rem] border border-slate-200/70 bg-white/80 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+        <div className="flex flex-wrap gap-3 rounded-[1.7rem] border border-slate-200/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,250,252,0.98))] p-3.5 shadow-[0_12px_26px_rgba(15,23,42,0.04)]">
           {[
-            { id: "all" as const, label: "Todos", color: "#7c3aed" },
-            { id: 1 as const, label: "Brenda", color: "#7c3aed" },
-            { id: 2 as const, label: "Hannah", color: "#db2777" },
-            { id: 3 as const, label: "Thiago", color: "#f59e0b" },
+            { id: "all" as const, label: "Todos", color: "#e11d48" },
+            { id: 1 as const, label: "Brenda", color: "#e11d48" },
+            { id: 2 as const, label: "Hannah", color: "#f43f5e" },
+            { id: 3 as const, label: "Thiago", color: "#fb7185" },
           ].map((item) => {
             const active = ownerFilter === item.id;
             return (
@@ -953,8 +953,8 @@ export function ContentPage() {
                 className={cn(
                   "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition duration-200",
                   active
-                    ? "border-transparent bg-violet-600 text-white shadow-[0_14px_30px_rgba(124,58,237,0.25)]"
-                    : "border-slate-200/80 bg-white text-slate-700 hover:border-violet-200 hover:text-violet-700",
+                    ? "border-transparent bg-rose-600 text-white shadow-[0_14px_30px_rgba(225,29,72,0.22)]"
+                    : "border-slate-200/80 bg-white text-slate-700 hover:border-rose-200 hover:text-rose-600",
                 )}
               >
                 <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
@@ -964,28 +964,28 @@ export function ContentPage() {
           })}
         </div>
 
-        <div className="grid gap-6 2xl:grid-cols-[1.08fr_0.92fr]">
+        <div className="grid gap-6 2xl:grid-cols-[1.04fr_0.96fr]">
           <GlassPanel
-            className="overflow-hidden border-slate-200/80 bg-white p-0 shadow-[0_18px_44px_rgba(15,23,42,0.05)]"
+            className="overflow-hidden border-slate-200/80 bg-white p-0 shadow-[0_20px_48px_rgba(15,23,42,0.05)]"
             index={0}
             dataCy="content-main-progress"
             style={{ borderRadius: "2.5rem" }}
           >
-            <div className="grid min-h-[480px] gap-0 lg:grid-cols-[0.78fr_1.22fr]">
-              <div className="flex flex-col justify-between bg-[linear-gradient(155deg,#7c3aed_0%,#c026d3_48%,#f97316_100%)] p-6 text-white sm:p-7">
+            <div className="grid min-h-[500px] gap-0 lg:grid-cols-[0.76fr_1.24fr]">
+              <div className="flex flex-col justify-between bg-[linear-gradient(180deg,#e11d48_0%,#e11d48_100%)] p-6 text-white sm:p-7">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-2">
                     <div className="inline-flex items-center gap-2 rounded-full bg-white/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/85">
                       <Sparkles className="h-3.5 w-3.5" />
                       Pontuação de desempenho
                     </div>
-                    <h2 className="max-w-[220px] text-[2rem] font-semibold leading-tight tracking-tight">{mainProgress.label}</h2>
+                    <h2 className="max-w-[220px] text-[1.9rem] font-semibold leading-tight tracking-tight">{mainProgress.label}</h2>
                     <p className="max-w-md text-sm leading-6 text-white/80">{mainProgress.subtitle}</p>
                   </div>
                   <button
                     type="button"
                     onClick={openCreateEditor}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/20"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/14 text-white transition hover:bg-white/20"
                     title="Adicionar card"
                   >
                     <Pencil className="h-4 w-4" />
@@ -993,8 +993,8 @@ export function ContentPage() {
                 </div>
 
                 <div className="flex flex-1 items-center justify-center py-5">
-                  <div className="relative flex h-[200px] w-[200px] items-center justify-center">
-                    <svg viewBox="0 0 180 180" className="-rotate-90 h-[200px] w-[200px]">
+                  <div className="relative flex h-[188px] w-[188px] items-center justify-center">
+                    <svg viewBox="0 0 180 180" className="-rotate-90 h-[188px] w-[188px]">
                       <circle cx="90" cy="90" r="74" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="12" />
                       <circle
                         cx="90"
@@ -1010,7 +1010,7 @@ export function ContentPage() {
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/75">Excelente</p>
-                      <p className="mt-1 text-5xl font-semibold tracking-tight">{mainProgress.score}</p>
+                      <p className="mt-1 text-[3rem] font-semibold tracking-tight">{mainProgress.score}</p>
                       <p className="text-sm text-white/80">de 100 pontos</p>
                     </div>
                   </div>
@@ -1019,13 +1019,13 @@ export function ContentPage() {
                 <div className="grid gap-3">
                   <div className="rounded-[1.4rem] bg-white/12 p-4 backdrop-blur">
                     <p className="text-[11px] uppercase tracking-[0.18em] text-white/75">Metas concluídas</p>
-                    <p className="mt-2 text-3xl font-semibold text-white">
+                    <p className="mt-2 text-[2rem] font-semibold text-white">
                       {`${overallGoalProgress.completed}/${overallGoalProgress.total}`}
                     </p>
                   </div>
                   <div className="rounded-[1.4rem] bg-white/12 p-4 backdrop-blur">
                     <p className="text-[11px] uppercase tracking-[0.18em] text-white/75">Atividades concluídas</p>
-                    <p className="mt-2 text-3xl font-semibold text-white">{formatLongNumber(completedCalendarUnits)}</p>
+                    <p className="mt-2 text-[2rem] font-semibold text-white">{formatLongNumber(completedCalendarUnits)}</p>
                   </div>
                 </div>
               </div>
@@ -1037,10 +1037,10 @@ export function ContentPage() {
                   ))}
                 </div>
 
-                <div className="rounded-[1.8rem] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,249,251,0.98))] p-5 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
+                <div className="rounded-[1.9rem] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,249,251,0.98))] p-5 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Retrospectiva visual</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-rose-500">Retrospectiva visual</p>
                       <h3 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
                         {previewPost?.title ?? "Sem conteúdo no recorte"}
                       </h3>
@@ -1053,7 +1053,7 @@ export function ContentPage() {
                         type="button"
                         onClick={() => (previewPost ? openEditEditor(previewPost) : openCreateEditor())}
                         data-cy="content-preview-edit"
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:border-violet-200 hover:text-violet-700"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:border-rose-200 hover:text-rose-600"
                         aria-label={previewPost ? `Editar ${previewPost.title}` : "Adicionar conteúdo"}
                       >
                         <Pencil className="h-4 w-4" />
@@ -1066,7 +1066,7 @@ export function ContentPage() {
                       {previewPost?.thumbnail ? (
                         <img src={previewPost.thumbnail} alt={previewPost.title} className="h-full w-full object-cover" />
                       ) : (
-                        <div className="flex h-full items-center justify-center bg-gradient-to-br from-violet-600 via-fuchsia-600 to-orange-500 text-white">
+                        <div className="flex h-full items-center justify-center bg-gradient-to-br from-rose-700 via-red-600 to-rose-500 text-white">
                           <div className="text-center">
                             <Sparkles className="mx-auto h-10 w-10 opacity-80" />
                             <p className="mt-3 text-sm font-medium">Adicione uma capa para este card</p>
@@ -1112,7 +1112,7 @@ export function ContentPage() {
           </GlassPanel>
 
           <div className="space-y-6">
-            <GlassPanel className="border-slate-200/80 bg-white shadow-[0_14px_34px_rgba(15,23,42,0.05)]" index={1}>
+            <GlassPanel className="border-slate-200/80 bg-white shadow-[0_16px_38px_rgba(15,23,42,0.05)]" index={1}>
               <SectionTitle
                 title="Conteúdos com baixa performance"
                 description="Revisite ou otimize esses conteúdos para melhorar os resultados."
@@ -1120,10 +1120,10 @@ export function ContentPage() {
               <div className="mt-5 space-y-3">
                 {lowPosts.length > 0 ? (
                   lowPosts.map((post) => (
-                    <div key={post.id} className="rounded-[1.6rem] border border-rose-200/60 bg-[linear-gradient(180deg,rgba(255,248,250,0.95),rgba(255,245,240,0.92))] p-4">
+                    <div key={post.id} className="rounded-[1.6rem] border border-rose-200/70 bg-[linear-gradient(180deg,rgba(255,248,250,0.96),rgba(255,245,240,0.94))] p-4 shadow-[0_10px_24px_rgba(244,63,94,0.05)]">
                       <div className="flex flex-wrap items-center gap-2">
                         <TypeBadge value={post.type} />
-                        <span className="rounded-full border border-orange-200/80 bg-white px-3 py-1 text-xs font-semibold text-orange-600">
+                        <span className="rounded-full border border-rose-200/80 bg-white px-3 py-1 text-xs font-semibold text-rose-600">
                           Atenção suave
                         </span>
                       </div>
@@ -1141,7 +1141,7 @@ export function ContentPage() {
                           <button
                             type="button"
                             onClick={() => openEditEditor(post)}
-                            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:border-violet-200 hover:text-violet-700"
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:border-rose-200 hover:text-rose-600"
                           >
                             <Pencil className="h-4 w-4" />
                           </button>
@@ -1157,7 +1157,7 @@ export function ContentPage() {
                     </div>
                   ))
                 ) : (
-                  <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+                  <div className="rounded-3xl border border-dashed border-rose-200 bg-rose-50/40 p-6 text-sm text-slate-500">
                     Nenhum conteúdo de baixa performance encontrado.
                   </div>
                 )}
@@ -1165,7 +1165,7 @@ export function ContentPage() {
             </GlassPanel>
 
             <GlassPanel
-              className="overflow-hidden border-slate-200/80 bg-white p-0 shadow-[0_14px_34px_rgba(15,23,42,0.05)]"
+              className="overflow-hidden border-slate-200/80 bg-white p-0 shadow-[0_16px_38px_rgba(15,23,42,0.05)]"
               index={2}
               style={{ borderRadius: "2.5rem" }}
             >
@@ -1199,7 +1199,7 @@ export function ContentPage() {
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
-          <GlassPanel className="border-slate-200/80 bg-white shadow-[0_14px_34px_rgba(15,23,42,0.05)]" index={3}>
+          <GlassPanel className="border-slate-200/80 bg-white shadow-[0_16px_38px_rgba(15,23,42,0.05)]" index={3}>
             <SectionTitle title="Top 5 conteúdos" description="Os conteúdos mais populares, com base em visualizações." />
             <div className="mt-5 space-y-3">
               {topPosts.length > 0 ? (
@@ -1210,20 +1210,20 @@ export function ContentPage() {
                       key={post.id}
                       onMouseEnter={() => setHoveredPostId(post.id)}
                       onMouseLeave={() => setHoveredPostId(null)}
-                      className="flex flex-col gap-4 rounded-[1.7rem] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,249,251,0.98))] p-4 transition duration-200 hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-[0_14px_26px_rgba(131,58,180,0.06)] sm:flex-row sm:items-center sm:justify-between"
+                      className="flex flex-col gap-4 rounded-[1.7rem] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(249,249,251,0.98))] p-4 transition duration-200 hover:-translate-y-0.5 hover:border-rose-200 hover:shadow-[0_14px_26px_rgba(244,63,94,0.06)] sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div className="flex items-center gap-4">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-sm font-semibold text-violet-600 ring-1 ring-violet-200/70">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-sm font-semibold text-rose-600 ring-1 ring-rose-200/70">
                           #{index + 1}
                         </div>
-                        <div className="h-16 w-24 overflow-hidden rounded-2xl bg-gradient-to-br from-violet-100 via-fuchsia-100 to-orange-100">
+                        <div className="h-16 w-24 overflow-hidden rounded-2xl bg-gradient-to-br from-rose-100 via-red-100 to-rose-200">
                           {post.thumbnail ? (
                             <img src={post.thumbnail} alt={post.title} className="h-full w-full object-cover" />
                           ) : null}
                         </div>
                         <div className="space-y-2">
                           <div className="flex flex-wrap items-center gap-2">
-                            <Link to={`/post/${post.id}`} className="text-sm font-semibold text-slate-950 transition hover:text-violet-700 sm:text-base">
+                            <Link to={`/post/${post.id}`} className="text-sm font-semibold text-slate-950 transition hover:text-rose-600 sm:text-base">
                               {post.title}
                             </Link>
                             <TypeBadge value={post.type} />
@@ -1243,7 +1243,7 @@ export function ContentPage() {
                         <button
                           type="button"
                           onClick={() => openEditEditor(post)}
-                          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:border-violet-200 hover:text-violet-700"
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:border-rose-200 hover:text-rose-600"
                         >
                           <Pencil className="h-4 w-4" />
                         </button>
@@ -1259,18 +1259,18 @@ export function ContentPage() {
                   );
                 })
               ) : (
-                <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+                <div className="rounded-3xl border border-dashed border-rose-200 bg-rose-50/40 p-6 text-sm text-slate-500">
                   Nenhum conteúdo encontrado para este filtro.
                 </div>
               )}
             </div>
           </GlassPanel>
 
-          <GlassPanel className="border-slate-200/80 bg-white shadow-[0_14px_34px_rgba(15,23,42,0.05)]" index={4}>
+          <GlassPanel className="border-slate-200/80 bg-white shadow-[0_16px_38px_rgba(15,23,42,0.05)]" index={4}>
             <SectionTitle title="Equipe" description="Leitura por responsável para Brenda, Hannah e Thiago." />
             <div className="mt-5 space-y-4">
               {memberCards.map((entry) => (
-                <div key={entry.member.id} className="rounded-[1.8rem] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(250,250,252,0.98),rgba(245,246,249,0.98))] p-5">
+                <div key={entry.member.id} className="rounded-[1.8rem] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(250,250,252,0.98),rgba(245,246,249,0.98))] p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div className="flex items-center gap-3">
                       <Avatar name={entry.member.name} color={entry.member.color} size="md" />
@@ -1282,15 +1282,15 @@ export function ContentPage() {
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-2 text-right text-sm">
-                      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+                      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-[0_4px_12px_rgba(15,23,42,0.03)]">
                         <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Posts</p>
                         <p className="mt-1 font-semibold text-slate-950">{entry.posts.length}</p>
                       </div>
-                      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+                      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-[0_4px_12px_rgba(15,23,42,0.03)]">
                         <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Visualizações</p>
                         <p className="mt-1 font-semibold text-slate-950">{formatLongNumber(entry.reach)}</p>
                       </div>
-                      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+                      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-[0_4px_12px_rgba(15,23,42,0.03)]">
                         <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{entry.progressLabel}</p>
                         <p className="mt-1 font-semibold text-slate-950">{entry.progressPercent}%</p>
                       </div>
@@ -1306,7 +1306,7 @@ export function ContentPage() {
                         onFocus={() => setHoveredPostId(post.id)}
                         onMouseLeave={() => setHoveredPostId(null)}
                         onClick={() => openEditEditor(post)}
-                        className="group overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white text-left shadow-[0_10px_24px_rgba(15,23,42,0.05)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_18px_34px_rgba(15,23,42,0.08)]"
+                        className="group overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white text-left shadow-[0_10px_24px_rgba(15,23,42,0.05)] transition duration-300 hover:-translate-y-1 hover:border-rose-200 hover:shadow-[0_18px_34px_rgba(15,23,42,0.08)]"
                       >
                         <div className="relative aspect-[16/10] overflow-hidden">
                           {post.thumbnail ? (
@@ -1316,8 +1316,8 @@ export function ContentPage() {
                               className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                             />
                           ) : (
-                            <div className="flex h-full items-center justify-center bg-gradient-to-br from-violet-100 via-fuchsia-100 to-orange-100">
-                              <Sparkles className="h-5 w-5 text-violet-600" />
+                            <div className="flex h-full items-center justify-center bg-gradient-to-br from-rose-100 via-red-100 to-rose-200">
+                              <Sparkles className="h-5 w-5 text-rose-600" />
                             </div>
                           )}
                           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/10 to-transparent" />
@@ -1351,22 +1351,22 @@ export function ContentPage() {
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-          <GlassPanel className="border-slate-200/80 bg-white shadow-[0_14px_34px_rgba(15,23,42,0.05)]" index={5}>
+          <GlassPanel className="border-slate-200/80 bg-white shadow-[0_16px_38px_rgba(15,23,42,0.05)]" index={5}>
             <SectionTitle title="Resumo do período" description="Leitura rápida do que foi feito." />
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
+              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]">
                 <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Visualizações totais</p>
                 <p className="mt-2 text-xl font-semibold text-slate-950">{formatLongNumber(totalReach)}</p>
               </div>
-              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
+              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]">
                 <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Engajamento</p>
                 <p className="mt-2 text-xl font-semibold text-slate-950">{formatLongNumber(totalEngagement)}</p>
               </div>
-              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
+              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]">
                 <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Publicações</p>
                 <p className="mt-2 text-xl font-semibold text-slate-950">{visiblePosts.length}</p>
               </div>
-              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
+              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]">
                 <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Metas concluídas</p>
                 <p className="mt-2 text-xl font-semibold text-slate-950">
                   {overallGoalProgress.completed}/{overallGoalProgress.total || 0}
@@ -1374,7 +1374,7 @@ export function ContentPage() {
               </div>
             </div>
 
-            <div className="mt-5 rounded-[1.5rem] border border-slate-200 bg-white p-4">
+            <div className="mt-5 rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
               <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Stories no recorte</p>
               <p className="mt-2 text-xl font-semibold text-slate-950">
                 {formatLongNumber(overallStoryProgress.total)} / {formatLongNumber(storyGoalTarget)}
@@ -1383,11 +1383,11 @@ export function ContentPage() {
             </div>
           </GlassPanel>
 
-          <GlassPanel className="border-slate-200/80 bg-white shadow-[0_14px_34px_rgba(15,23,42,0.05)]" index={6}>
+          <GlassPanel className="border-slate-200/80 bg-white shadow-[0_16px_38px_rgba(15,23,42,0.05)]" index={6}>
             <SectionTitle title="Metas e conteúdo" description="Tudo o que foi publicado e acompanhado no período." />
             <div className="mt-5 space-y-4">
               {visibleGoals.slice(0, 3).map((goal) => (
-                <div key={goal.id} className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
+                <div key={goal.id} className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-slate-950">{goal.name}</p>
@@ -1395,13 +1395,13 @@ export function ContentPage() {
                         {goal.category} â€¢ {goal.period} â€¢ {formatDateTime(goal.deadline)}
                       </p>
                     </div>
-                    <Target className="h-5 w-5 text-violet-500" />
+                    <Target className="h-5 w-5 text-rose-500" />
                   </div>
                   <ProgressBar value={goal.current} max={goal.target} label="Progresso da meta" />
                 </div>
               ))}
               {visibleGoals.length === 0 ? (
-                <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+                <div className="rounded-3xl border border-dashed border-rose-200 bg-rose-50/40 p-6 text-sm text-slate-500">
                   Nenhuma meta encontrada para o recorte selecionado.
                 </div>
               ) : null}

@@ -615,23 +615,23 @@ export function DashboardPage() {
                 <div className="mt-5 grid w-full gap-3">
                   <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
                     <p className="text-[11px] uppercase tracking-[0.16em] text-white/72">Metas concluídas</p>
-                    <p data-cy="dashboard-summary-goals" className="mt-2 text-2xl font-semibold text-white">
+                    <p data-cy="dashboard-summary-goals" className="mt-2 text-[1.85rem] font-semibold text-white">
                       {dashboardSummary.completedGoals}/{visibleGoals.length}
                     </p>
                   </div>
                   <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
                     <p className="text-[11px] uppercase tracking-[0.16em] text-white/72">Engajamento total</p>
-                    <p data-cy="dashboard-summary-engagement" className="mt-2 text-2xl font-semibold text-white">
+                    <p data-cy="dashboard-summary-engagement" className="mt-2 text-[1.85rem] font-semibold text-white">
                       {formatLongNumber(dashboardSummary.totalEngagement)}
                     </p>
                   </div>
                   <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
                     <p className="text-[11px] uppercase tracking-[0.16em] text-white/72">Visualizações do mês</p>
-                    <p className="mt-2 text-2xl font-semibold text-white">{formatLongNumber(dashboardSummary.monthViews)}</p>
+                    <p className="mt-2 text-[1.85rem] font-semibold text-white">{formatLongNumber(dashboardSummary.monthViews)}</p>
                   </div>
                   <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
                     <p className="text-[11px] uppercase tracking-[0.16em] text-white/72">Falta para a meta</p>
-                    <p className="mt-2 text-2xl font-semibold text-white">{formatLongNumber(dashboardSummary.remainingViews)}</p>
+                    <p className="mt-2 text-[1.85rem] font-semibold text-white">{formatLongNumber(dashboardSummary.remainingViews)}</p>
                   </div>
                 </div>
               </GlassPanel>

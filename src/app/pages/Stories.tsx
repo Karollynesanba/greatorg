@@ -352,8 +352,8 @@ export function StoriesPage() {
   };
 
   const cardClass = isDark
-    ? "rounded-[2rem] border border-border/60 bg-background/90 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.08)]"
-    : "rounded-[2rem] border border-border/60 bg-white/96 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.06)]";
+    ? "rounded-[1.6rem] border border-border/60 bg-background/90 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.08)]"
+    : "rounded-[1.6rem] border border-border/60 bg-white/96 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.06)]";
   const summaryBoxClass = isDark
     ? "space-y-3 rounded-2xl border border-border/60 bg-muted/20 p-4"
     : "space-y-3 rounded-2xl border border-border/60 bg-white/96 p-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]";
@@ -389,7 +389,7 @@ export function StoriesPage() {
         }
       />
 
-      <div className={cn(filterPanelClass, "relative z-30 space-y-4 p-5 sm:p-6")}>
+      <div className={cn(filterPanelClass, "relative z-30 space-y-5 p-5 sm:p-6")}>
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Período</p>
@@ -404,7 +404,7 @@ export function StoriesPage() {
           </div>
         </div>
 
-        <div className="relative z-40 grid gap-3 xl:grid-cols-[260px_minmax(0,1fr)_auto] xl:items-center">
+        <div className="relative z-40 grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)_auto] xl:items-center">
           <RoundedDropdown
             label="Período"
             value={periodMode}
@@ -455,6 +455,9 @@ export function StoriesPage() {
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
+              <span className="rounded-full border border-border/60 bg-muted/35 px-3 py-1 text-xs font-semibold text-muted-foreground">
+                {sortedItems.length} registros
+              </span>
             </div>
 
             <button
@@ -496,40 +499,44 @@ export function StoriesPage() {
         ) : null}
       </div>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_320px]">
+      <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-6">
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-4 xl:grid-cols-3">
             {memberContributions.map((entry) => (
-              <GlassPanel key={entry.member.id} className="p-4" style={teamScope === entry.member.id ? { borderColor: `${entry.member.color}55` } : undefined}>
-                <div className="flex items-center justify-between gap-3">
+              <GlassPanel
+                key={entry.member.id}
+                className="overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,250,252,0.96))] p-5 shadow-[0_16px_36px_rgba(15,23,42,0.05)]"
+                style={teamScope === entry.member.id ? { borderColor: `${entry.member.color}55` } : undefined}
+              >
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{entry.member.name}</p>
-                    <p className="mt-2 text-2xl font-semibold text-foreground">{entry.total}</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">{entry.member.name}</p>
+                    <p className="mt-3 text-[clamp(1.8rem,2.4vw,2.3rem)] font-semibold tracking-tight text-foreground">{entry.total}</p>
                   </div>
-                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-semibold text-white" style={{ backgroundColor: entry.member.color }}>
+                  <span className="inline-flex h-11 w-11 items-center justify-center rounded-full text-sm font-semibold text-white shadow-[0_10px_22px_rgba(15,23,42,0.12)]" style={{ backgroundColor: entry.member.color }}>
                     {entry.member.name.charAt(0)}
                   </span>
                 </div>
-                <p className="mt-3 text-xs text-muted-foreground">
+                <p className="mt-3 text-sm text-muted-foreground">
                   {entry.video} vídeo(s) • {entry.photo} foto(s) • {entry.count} registro(s)
                 </p>
               </GlassPanel>
             ))}
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-3">
-            <GlassPanel className="p-4">
+          <div className="grid gap-4 xl:grid-cols-3">
+            <GlassPanel className="overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,250,252,0.96))] p-5 shadow-[0_16px_36px_rgba(15,23,42,0.05)]">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Meta total</p>
-                  <p className="mt-2 text-3xl font-semibold text-foreground">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">Meta total</p>
+                  <p className="mt-3 text-[clamp(1.65rem,2.4vw,2.15rem)] font-semibold tracking-tight text-foreground">
                     {stats.total} / {effectiveMonthlyGoals.total}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={handleStartEditingMonthlyGoalTotal}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/60 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-white/90 text-muted-foreground transition hover:border-primary/25 hover:bg-primary/5 hover:text-primary"
                   aria-label="Editar meta total"
                 >
                   <PencilLine className="h-4 w-4" />
@@ -562,29 +569,39 @@ export function StoriesPage() {
               ) : null}
               <ProgressBar value={stats.total} max={effectiveMonthlyGoals.total} />
             </GlassPanel>
-            <GlassPanel className="p-4">
+            <GlassPanel className="overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,250,252,0.96))] p-5 shadow-[0_16px_36px_rgba(15,23,42,0.05)]">
               <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Vídeo</p>
-              <p className="mt-2 text-3xl font-semibold text-foreground">
+              <p className="mt-3 text-[clamp(1.65rem,2.4vw,2.15rem)] font-semibold tracking-tight text-foreground">
                 {stats.video} / {effectiveMonthlyGoals.video}
               </p>
               <ProgressBar value={stats.video} max={effectiveMonthlyGoals.video} />
             </GlassPanel>
-            <GlassPanel className="p-4">
+            <GlassPanel className="overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,250,252,0.96))] p-5 shadow-[0_16px_36px_rgba(15,23,42,0.05)]">
               <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Foto</p>
-              <p className="mt-2 text-3xl font-semibold text-foreground">
+              <p className="mt-3 text-[clamp(1.65rem,2.4vw,2.15rem)] font-semibold tracking-tight text-foreground">
                 {stats.photo} / {effectiveMonthlyGoals.photo}
               </p>
               <ProgressBar value={stats.photo} max={effectiveMonthlyGoals.photo} />
             </GlassPanel>
           </div>
 
-          <GlassPanel className="space-y-4">
-            <div>
+          <GlassPanel className="overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,250,252,0.97))] p-4 shadow-[0_18px_42px_rgba(15,23,42,0.05)] sm:p-5">
+            <div className="flex flex-col gap-4 border-b border-border/60 pb-4 lg:flex-row lg:items-end lg:justify-between">
               <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Histórico</p>
               <h2 className="text-xl font-semibold text-foreground">Lançamentos recentes</h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary">Todos</span>
+                <span className="rounded-full border border-border/60 bg-white/90 px-4 py-2 text-sm font-semibold text-foreground">Agendados</span>
+                {sortedItems[0] ? (
+                  <span className="rounded-full border border-border/60 bg-white/90 px-4 py-2 text-sm text-muted-foreground">
+                    {formatDate(sortedItems[0].date)} - {sortedItems[0].time}
+                  </span>
+                ) : null}
+                <span className="rounded-full border border-primary/15 bg-primary/5 px-4 py-2 text-sm font-medium text-muted-foreground">{stats.total} stories</span>
+              </div>
             </div>
 
-            <div className="space-y-3">
+            <div className="mt-4 space-y-3">
               {sortedItems.length > 0 ? sortedItems.map((item) => {
                 const madeBy = teamMembers.find((member) => member.id === item.madeById);
                 const postedBy = teamMembers.find((member) => member.id === item.postedById);
@@ -592,31 +609,31 @@ export function StoriesPage() {
                 const status = getStoryStatus(item);
 
                 return (
-                  <div key={item.id} className={cardClass} data-cy={`stories-card-${item.id}`}>
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                      <div className="space-y-2">
+                  <div key={item.id} className={cn(cardClass, "rounded-[1.4rem] px-4 py-4")} data-cy={`stories-card-${item.id}`}>
+                    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_88px] lg:items-center">
+                      <div className="space-y-3">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                          <span className="rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary">
                             {formatLabel(item.mediaType)}
                           </span>
-                          <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground">
+                          <span className="rounded-full border border-emerald-200/80 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-600">
                             {formatStatusLabel(status)}
                           </span>
-                          <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground">
+                          <span className="rounded-full border border-border/60 bg-white/90 px-4 py-2 text-sm font-medium text-muted-foreground">
                             {formatDate(item.date)} · {item.time}
                           </span>
-                          <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground">
-                            {item.quantity} stories
+                          <span className="rounded-full border border-primary/10 bg-primary/5 px-4 py-2 text-sm font-semibold text-primary">
+                            {item.quantity} {item.quantity === 1 ? "story" : "stories"}
                           </span>
                         </div>
                         <p className="text-sm text-muted-foreground">{item.notes || "Sem observação"}</p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-end gap-2">
                         <button
                           type="button"
                           onClick={() => openEditModal(item)}
                           data-cy={`stories-edit-${item.id}`}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/60 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-primary/15 bg-primary/5 text-primary transition hover:bg-primary/12"
                           aria-label="Editar registro"
                         >
                           <PencilLine className="h-4 w-4" />
@@ -625,7 +642,7 @@ export function StoriesPage() {
                           type="button"
                           onClick={() => handleDelete(item.id)}
                           data-cy={`stories-delete-${item.id}`}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/60 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-rose-200/70 bg-rose-50 text-rose-500 transition hover:bg-rose-100"
                           aria-label="Remover registro"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -633,7 +650,7 @@ export function StoriesPage() {
                       </div>
                     </div>
 
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div className="mt-1 grid gap-3 border-t border-border/50 pt-4 sm:grid-cols-2">
                       {madeBy ? <MemberChip name={madeBy.name} role={madeBy.role} color={madeBy.color} src={madeBy.avatarUrl} /> : null}
                       {postedBy ? <MemberChip name={postedBy.name} role={postedBy.role} color={postedBy.color} src={postedBy.avatarUrl} /> : null}
                     </div>
@@ -649,41 +666,41 @@ export function StoriesPage() {
           </GlassPanel>
         </div>
 
-        <GlassPanel className="space-y-4 self-start">
+        <GlassPanel className="space-y-5 self-start overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.995),rgba(244,248,255,0.97))] p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)] lg:sticky lg:top-6">
           <div className="flex items-center gap-3">
-            <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               <Film className="h-5 w-5" />
             </div>
             <div>
               <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Resumo</p>
-              <h2 className="text-xl font-semibold text-foreground">{summaryTitle}</h2>
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground">{summaryTitle}</h2>
             </div>
           </div>
 
-          <div className={summaryBoxClass}>
-            <div className="flex items-center justify-between gap-3">
+          <div className={cn(summaryBoxClass, "space-y-4 p-4")}>
+            <div className="flex items-center justify-between gap-3 border-b border-border/50 pb-3">
               <span className="text-sm text-muted-foreground">Total</span>
-              <strong className="text-sm text-foreground">
+              <strong className="text-base font-semibold text-foreground">
                 {stats.total} / {effectiveMonthlyGoals.total}
               </strong>
             </div>
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center justify-between gap-3 border-b border-border/50 pb-3">
               <span className="text-sm text-muted-foreground">Vídeo</span>
-              <strong className="text-sm text-foreground">
+              <strong className="text-base font-semibold text-foreground">
                 {stats.video} / {effectiveMonthlyGoals.video}
               </strong>
             </div>
             <div className="flex items-center justify-between gap-3">
               <span className="text-sm text-muted-foreground">Foto</span>
-              <strong className="text-sm text-foreground">
+              <strong className="text-base font-semibold text-foreground">
                 {stats.photo} / {effectiveMonthlyGoals.photo}
               </strong>
             </div>
           </div>
 
-          <div className={previewClass}>
+          <div className="rounded-[1.6rem] border border-primary/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(247,250,255,0.96))] px-5 py-4 shadow-[0_12px_30px_rgba(59,130,246,0.05)]">
             <p className="text-sm text-muted-foreground">Faltam</p>
-            <p className="mt-1 text-2xl font-semibold text-foreground">{stats.remainingTotal} stories</p>
+            <p className="mt-2 text-[clamp(1.9rem,2.7vw,2.5rem)] font-semibold tracking-tight text-primary">{stats.remainingTotal} stories</p>
           </div>
         </GlassPanel>
       </div>
