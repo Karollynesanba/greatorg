@@ -939,6 +939,10 @@ export function CalendarPage() {
     key: "calendar-day-views",
     fallback: {},
   });
+  const [dayReachByDate, setDayReachByDate] = useSupabaseSharedState<Record<string, number>>({
+    key: "calendar-day-reach",
+    fallback: {},
+  });
   const [monthlyViewsGoal, setMonthlyViewsGoal] = useSupabaseSharedState<number>({
     key: "calendar-monthly-views-goal",
     fallback: defaultMonthlyViewsGoal,
@@ -951,6 +955,8 @@ export function CalendarPage() {
   const [taskDraft, setTaskDraft] = useState<ActivityDraftState>(() => emptyActivityDraft());
   const [isEditingDayViews, setIsEditingDayViews] = useState(false);
   const [dayViewsDraft, setDayViewsDraft] = useState("0");
+  const [isEditingDayReach, setIsEditingDayReach] = useState(false);
+  const [dayReachDraft, setDayReachDraft] = useState("0");
   const [isEditingMonthlyViewsGoal, setIsEditingMonthlyViewsGoal] = useState(false);
   const [monthlyViewsGoalDraft, setMonthlyViewsGoalDraft] = useState(String(defaultMonthlyViewsGoal));
 
@@ -998,14 +1004,21 @@ export function CalendarPage() {
   const referenceDateKey = getBrazilYesterdayDateKey();
   const referenceDateLabel = formatBrazilDateLabel(referenceDateKey);
   const currentDayViews = dayViewsByDate[referenceDateKey] ?? 0;
+  const currentDayReach = dayReachByDate[referenceDateKey] ?? 0;
   const currentMonthKey = getMonthKey(currentDate);
   const currentMonthViews = useMemo(() => sumMonthViews(dayViewsByDate, currentMonthKey), [currentMonthKey, dayViewsByDate]);
+  const currentMonthReach = useMemo(() => sumMonthViews(dayReachByDate, currentMonthKey), [currentMonthKey, dayReachByDate]);
   const remainingMonthViews = Math.max(monthlyViewsGoal - currentMonthViews, 0);
   const dayCompletedCount = currentDayEvents.filter((event) => event.completed || event.status === "Publicado" || event.status === "Aprovado").length;
   useEffect(() => {
     setDayViewsDraft(String(currentDayViews));
     setIsEditingDayViews(false);
   }, [currentDayViews, referenceDateKey]);
+
+  useEffect(() => {
+    setDayReachDraft(String(currentDayReach));
+    setIsEditingDayReach(false);
+  }, [currentDayReach, referenceDateKey]);
 
   useEffect(() => {
     setMonthlyViewsGoalDraft(String(monthlyViewsGoal));
@@ -1032,6 +1045,28 @@ export function CalendarPage() {
   const handleCancelDayViewsEdit = () => {
     setDayViewsDraft(String(currentDayViews));
     setIsEditingDayViews(false);
+  };
+
+  const handleStartEditingDayReach = () => {
+    setDayReachDraft(String(currentDayReach));
+    setIsEditingDayReach(true);
+  };
+
+  const handleCommitDayReach = () => {
+    const parsedValue = Number(String(dayReachDraft).replace(/[^\d]/g, ""));
+    const nextValue = Number.isFinite(parsedValue) ? Math.max(0, Math.round(parsedValue)) : 0;
+
+    setDayReachByDate((previous) => ({
+      ...previous,
+      [referenceDateKey]: nextValue,
+    }));
+    setIsEditingDayReach(false);
+    toast.success("Alcance de ontem atualizado.");
+  };
+
+  const handleCancelDayReachEdit = () => {
+    setDayReachDraft(String(currentDayReach));
+    setIsEditingDayReach(false);
   };
 
   const handleStartEditingMonthlyViewsGoal = () => {
@@ -1778,6 +1813,94 @@ export function CalendarPage() {
                   <div className="hidden rounded-full border border-border/60 bg-muted/20 px-4 py-2 text-sm font-semibold text-muted-foreground sm:inline-flex">
                     Atualização em tempo real
                   </div>
+                </div>
+              </div>
+            </GlassPanel>
+
+            <GlassPanel className="overflow-hidden p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                    Alcance do dia anterior
+                  </p>
+                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
+                    Alcance referente a {referenceDateLabel}
+                  </h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Alcance referente ao dia anterior e acumulado do mês.
+                  </p>
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-white px-4 py-2 text-xs font-semibold text-foreground shadow-sm">
+                  <Eye className="h-4 w-4 text-primary" />
+                  {formatViewsNumber(currentDayReach)} de alcance
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-[1.75rem] border border-border/60 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Alcance do dia</p>
+                      <p className="mt-2 text-sm text-muted-foreground">Clique no número para editar o dia anterior.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleStartEditingDayReach}
+                      className="inline-flex items-center gap-2 self-start rounded-full border border-border/60 bg-muted/20 px-3 py-2 text-sm font-medium text-foreground transition hover:border-primary/25 hover:bg-primary/5"
+                    >
+                      <Pencil className="h-4 w-4 text-primary" />
+                      Editar valor
+                    </button>
+                  </div>
+
+                  <div className="mt-5 flex items-end justify-between gap-4">
+                    <div className="min-w-0">
+                      {isEditingDayReach ? (
+                        <div className="flex max-w-[260px] items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
+                          <span className="text-sm font-semibold text-primary">◎</span>
+                          <input
+                            autoFocus
+                            value={dayReachDraft}
+                            onChange={(event) => setDayReachDraft(event.target.value)}
+                            onBlur={handleCommitDayReach}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                handleCommitDayReach();
+                              }
+
+                              if (event.key === "Escape") {
+                                event.preventDefault();
+                                handleCancelDayReachEdit();
+                              }
+                            }}
+                            inputMode="numeric"
+                            className="w-full border-0 bg-transparent text-4xl font-semibold tracking-tight text-foreground outline-none placeholder:text-muted-foreground"
+                            placeholder="0"
+                          />
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleStartEditingDayReach}
+                          className="group inline-flex items-end gap-3 text-left transition hover:-translate-y-0.5"
+                        >
+                          <span className="text-5xl font-semibold tracking-tight text-foreground">
+                            {formatViewsNumber(currentDayReach)}
+                          </span>
+                          <span className="pb-2 text-sm font-medium text-muted-foreground transition group-hover:text-foreground">
+                            alcance
+                          </span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-[1.75rem] border border-border/60 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Alcance do mês</p>
+                  <p className="mt-3 text-4xl font-semibold tracking-tight text-foreground">{formatViewsNumber(currentMonthReach)}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">Soma automática de todos os alcances lançados neste mês.</p>
                 </div>
               </div>
             </GlassPanel>
