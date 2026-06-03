@@ -1,15 +1,6 @@
 ﻿import type { CSSProperties } from "react";
+import React from "react";
 import { Link } from "react-router-dom";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  Line,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { BarChart3, Eye, Rocket, Sparkles, type LucideIcon } from "lucide-react";
 import { calendarEvents, getGoalResponsibleIds, storyLogs, type CalendarEvent, type Goal, type StoryLog } from "../data/mockData";
 import { usePosts } from "../data/posts";
@@ -19,16 +10,60 @@ import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import {
   GlassPanel,
   EmptyState,
-  PageHeader,
   PageTransition,
   SectionTitle,
   formatCompactNumber,
   formatLongNumber,
+  formatPercent,
 } from "../components/ui";
 import { useThemeMode } from "../theme";
 
 const metricIcons = [Eye, BarChart3, Sparkles, Rocket];
 const defaultMonthlyViewsGoal = 1000000;
+type ComparisonMetricId = "views" | "reach" | "engagement" | "followers";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeNumberRecord(value: unknown) {
+  if (!isRecord(value)) {
+    return {} as Record<string, number>;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [key, Number(item) || 0]),
+  );
+}
+
+function normalizeMetricGoals(value: unknown) {
+  if (!isRecord(value)) {
+    return { reach: 0, engagement: 0, followers: 0 };
+  }
+
+  return {
+    reach: Number(value.reach) || 0,
+    engagement: Number(value.engagement) || 0,
+    followers: Number(value.followers) || 0,
+  };
+}
+
+function asNumber(value: unknown) {
+  return Number(value) || 0;
+}
+
+function asString(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
+function formatDashboardDateRange() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const monthLabel = new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(now);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  return `1 — ${daysInMonth} de ${monthLabel} de ${year}`;
+}
 
 function todayKey() {
   const now = new Date();
@@ -59,6 +94,53 @@ function sumMonthViews(dayViewsByDate: Record<string, number>, monthKey: string)
   return Object.entries(dayViewsByDate).reduce((sum, [dateKey, value]) => {
     return dateKey.startsWith(monthKey) ? sum + Math.max(0, value) : sum;
   }, 0);
+}
+
+function buildRecentDateKeys(days: number) {
+  const now = new Date();
+
+  return Array.from({ length: days }, (_, index) => {
+    const next = new Date(now);
+    next.setDate(now.getDate() - (days - index - 1));
+    const pad = (value: number) => String(value).padStart(2, "0");
+    return `${next.getFullYear()}-${pad(next.getMonth() + 1)}-${pad(next.getDate())}`;
+  });
+}
+
+function formatAxisDateLabel(value: string) {
+  const [, month, day] = value.split("-");
+  return `${day}/${month}`;
+}
+
+function buildSvgLinePoints(values: number[], width: number, height: number, padding: number, maxValue: number) {
+  if (values.length === 0) {
+    return "";
+  }
+
+  const usableWidth = width - padding * 2;
+  const usableHeight = height - padding * 2;
+  const safeMax = maxValue <= 0 ? 1 : maxValue;
+
+  return values
+    .map((value, index) => {
+      const x = padding + (values.length === 1 ? usableWidth / 2 : (index / (values.length - 1)) * usableWidth);
+      const y = height - padding - (Math.max(0, value) / safeMax) * usableHeight;
+      return `${x},${y}`;
+    })
+    .join(" ");
+}
+
+function buildSvgAreaPoints(values: number[], width: number, height: number, padding: number, maxValue: number) {
+  if (values.length === 0) {
+    return "";
+  }
+
+  const linePoints = buildSvgLinePoints(values, width, height, padding, maxValue);
+  const baselineY = height - padding;
+  const firstX = padding;
+  const lastX = padding + (values.length === 1 ? (width - padding * 2) / 2 : width - padding * 2);
+
+  return `${firstX},${baselineY} ${linePoints} ${lastX},${baselineY}`;
 }
 
 const instagramThemeLight = {
@@ -233,52 +315,129 @@ function DashboardProgressBar({ value, max, label }: { value: number; max: numbe
   );
 }
 
-function ContentTypePill({ type }: { type: string }) {
-  return (
-    <span className="inline-flex items-center rounded-full border border-[#833AB4]/12 bg-[#833AB4]/6 px-3 py-1 text-xs font-semibold text-[#6C2CA1] dark:border-[#ff9db2]/18 dark:bg-white/5 dark:text-[#ff9db2]">
-      {type}
-    </span>
-  );
+function resolveComparisonStatus(percent: number) {
+  if (percent >= 100) {
+    return "🟢 Meta atingida";
+  }
+
+  if (percent >= 70) {
+    return "🟡 Em andamento";
+  }
+
+  return "🔴 Abaixo do esperado";
 }
 
-function SoftMemberChip({ name, role }: { name: string; role?: string }) {
-  return (
-    <div className="inline-flex items-center gap-3 rounded-full border border-[#833AB4]/10 bg-white/70 px-3 py-2 dark:border-white/8 dark:bg-white/5">
-      <span className="h-2.5 w-2.5 rounded-full bg-[linear-gradient(135deg,#833AB4,#E1306C)]" />
-      <div className="space-y-0.5">
-        <p className="text-sm font-medium text-foreground">{name}</p>
-        {role ? <p className="text-xs text-muted-foreground">{role}</p> : null}
-      </div>
-    </div>
-  );
+function buildComparisonSummary(params: { label: string; actual: number; goal: number; percent: number }) {
+  const { label, actual, goal, percent } = params;
+  const remaining = Math.max(goal - actual, 0);
+  const labelLower = label.toLowerCase();
+
+  if (goal <= 0) {
+    return [];
+  }
+
+  const items = [`Você já atingiu ${formatPercent(percent, 2)} da meta de ${labelLower}.`];
+
+  if (remaining > 0) {
+    items.push(`Faltam ${formatLongNumber(remaining)} ${labelLower} para atingir a meta.`);
+  } else {
+    items.push(`A meta de ${labelLower} já foi atingida neste mês.`);
+  }
+
+  if (percent < 70) {
+    items.push(`${label} está abaixo da curva esperada.`);
+  } else if (percent < 100) {
+    items.push(`${label} está próximo do objetivo, faltando apenas ${formatPercent(100 - percent, 2)}.`);
+  }
+
+  return items;
+}
+
+class DashboardSectionBoundary extends React.Component<
+  { title: string; children: React.ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error(`Dashboard section failed: ${this.props.title}`, error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <GlassPanel className="bg-white/95">
+          <SectionTitle
+            title={this.props.title}
+            description="Esta seção encontrou um dado inválido e foi isolada para não apagar a página inteira."
+          />
+          <div className="mt-4 rounded-3xl border border-dashed border-border/70 bg-white/70 p-5 text-sm text-muted-foreground dark:bg-white/5">
+            Recarregue a página. Se continuar assim, esta área específica do dashboard ainda precisa de ajuste nos dados.
+          </div>
+        </GlassPanel>
+      );
+    }
+
+    return this.props.children;
+  }
 }
 
 export function DashboardPage() {
   const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
+  const fallbackMember = teamMembers[0] ?? { id: 0, name: "Equipe Great", color: "#833AB4" };
   const [posts] = usePosts();
   const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
   const [stories] = useSupabaseSyncedListState<StoryLog>({ key: "story-logs", table: "story_logs", fallback: storyLogs });
   const [calendarItems] = useSupabaseSyncedListState<CalendarEvent>({ key: "calendar-events", table: "calendar_events", fallback: calendarEvents });
   const [dayViewsByDate] = useSupabaseSharedState<Record<string, number>>({ key: "calendar-day-views", fallback: {} });
+  const [dayReachByDate] = useSupabaseSharedState<Record<string, number>>({ key: "calendar-day-reach", fallback: {} });
   const [monthlyViewsGoal] = useSupabaseSharedState<number>({ key: "calendar-monthly-views-goal", fallback: defaultMonthlyViewsGoal });
+  const [dashboardMetricGoals] = useSupabaseSharedState<Record<Exclude<ComparisonMetricId, "views">, number>>({
+    key: "dashboard-metric-goals",
+    fallback: { reach: 0, engagement: 0, followers: 0 },
+  });
+  const [dashboardDailyFollowers] = useSupabaseSharedState<Record<string, number>>({
+    key: "dashboard-daily-followers",
+    fallback: {},
+  });
   const [teamScope] = useTeamScope();
-  const chartLegend = [
-    { label: "Alcance", color: "#833AB4" },
-    { label: "Engajamento", color: "#E1306C" },
-  ];
-  const visiblePosts = posts.filter((post) => matchesTeamScope(post.authorId, teamScope) && isCurrentMonthDate(post.date));
-  const visibleGoals = goals.filter((goal) => getGoalResponsibleIds(goal).some((id) => matchesTeamScope(id, teamScope)) && isCurrentMonthDate(goal.deadline));
-  const visibleStories = stories.filter((story) => (matchesTeamScope(story.madeById, teamScope) || matchesTeamScope(story.postedById, teamScope)) && isCurrentMonthDate(story.date));
-  const visibleCalendarItems = calendarItems.filter((event) => getCalendarResponsibleIds(event).some((id) => matchesTeamScope(id, teamScope)) && isCurrentMonthDate(event.date));
-  const topPosts = [...visiblePosts].sort((a, b) => b.engagement - a.engagement).slice(0, 5);
-  const worstPosts = [...visiblePosts].sort((a, b) => a.engagement - b.engagement).slice(0, 2);
-  const dashboardGoals = visibleGoals.slice(0, 3);
-  const monthViews = sumMonthViews(dayViewsByDate, currentMonthKey());
+  const safeDayViewsByDate = normalizeNumberRecord(dayViewsByDate);
+  const safeDayReachByDate = normalizeNumberRecord(dayReachByDate);
+  const safeDashboardDailyFollowers = normalizeNumberRecord(dashboardDailyFollowers);
+  const safeDashboardMetricGoals = normalizeMetricGoals(dashboardMetricGoals);
+  const visiblePosts = posts.filter((post) => {
+    const authorId = asNumber((post as { authorId?: unknown }).authorId);
+    const date = asString((post as { date?: unknown }).date);
+    return matchesTeamScope(authorId, teamScope) && Boolean(date) && isCurrentMonthDate(date);
+  });
+  const visibleGoals = goals.filter((goal) => {
+    const deadline = asString((goal as { deadline?: unknown }).deadline);
+    return getGoalResponsibleIds(goal).some((id) => matchesTeamScope(id, teamScope)) && Boolean(deadline) && isCurrentMonthDate(deadline);
+  });
+  const visibleStories = stories.filter((story) => {
+    const madeById = asNumber((story as { madeById?: unknown }).madeById);
+    const postedById = asNumber((story as { postedById?: unknown }).postedById);
+    const date = asString((story as { date?: unknown }).date);
+    return (matchesTeamScope(madeById, teamScope) || matchesTeamScope(postedById, teamScope)) && Boolean(date) && isCurrentMonthDate(date);
+  });
+  const visibleCalendarItems = calendarItems.filter((event) => {
+    const date = asString((event as { date?: unknown }).date);
+    return getCalendarResponsibleIds(event).some((id) => matchesTeamScope(id, teamScope)) && Boolean(date) && isCurrentMonthDate(date);
+  });
+  const topPosts = [...visiblePosts].sort((a, b) => asNumber(b.engagement) - asNumber(a.engagement)).slice(0, 5);
+  const worstPosts = [...visiblePosts].sort((a, b) => asNumber(a.engagement) - asNumber(b.engagement)).slice(0, 2);
+  const monthKey = currentMonthKey();
+  const monthViews = sumMonthViews(safeDayViewsByDate, currentMonthKey());
+  const monthReach = sumMonthViews(safeDayReachByDate, monthKey);
+  const monthFollowers = sumMonthViews(safeDashboardDailyFollowers, monthKey);
   const remainingViews = Math.max(monthlyViewsGoal - monthViews, 0);
-  const totalReach = visiblePosts.reduce((sum, post) => sum + post.reach, 0);
-  const totalEngagement = visiblePosts.reduce((sum, post) => sum + post.engagement, 0);
-  const completedGoals = visibleGoals.filter((goal) => goal.current >= goal.target).length;
+  const totalEngagement = visiblePosts.reduce((sum, post) => sum + asNumber(post.engagement), 0);
+  const completedGoals = visibleGoals.filter((goal) => asNumber((goal as { current?: unknown }).current) >= asNumber((goal as { target?: unknown }).target)).length;
   const completedCalendarItems = visibleCalendarItems.filter((event) => isCompletedCalendarEvent(event)).length;
   const healthScore = Math.max(
     0,
@@ -295,7 +454,6 @@ export function DashboardPage() {
   const dashboardSummary = {
     healthScore,
     completedGoals,
-    totalReach,
     totalEngagement,
     monthViews,
     remainingViews,
@@ -307,13 +465,6 @@ export function DashboardPage() {
       value: formatLongNumber(monthViews),
       change: 0,
       highlight: remainingViews > 0 ? `Falta x ${formatLongNumber(remainingViews)} para bater a meta.` : "Meta mensal de visualizações batida.",
-    },
-    {
-      id: "engagement",
-      label: "Engajamento",
-      value: formatLongNumber(totalEngagement),
-      change: 0,
-      highlight: visiblePosts.length > 0 ? "Soma de interações dos posts filtrados." : "Nenhum post encontrado no recorte.",
     },
     {
       id: "stories",
@@ -330,69 +481,165 @@ export function DashboardPage() {
       highlight: visibleCalendarItems.length > 0 ? "Acompanhando os posts marcados como concluídos no calendário." : "Nenhum post de calendário neste mês.",
     },
   ] as const;
-  const evolutionBuckets = visiblePosts.reduce<Map<string, { date: string; reach: number; engagement: number }>>(
-    (acc, post) => {
-      const existing = acc.get(post.date) ?? { date: post.date, reach: 0, engagement: 0 };
-      acc.set(post.date, {
-        date: post.date,
-        reach: existing.reach + post.reach,
-        engagement: existing.engagement + post.engagement,
-      });
-      return acc;
+  const comparisonMetrics = [
+    {
+      id: "views" as const,
+      label: "Visualizações",
+      goal: Math.max(0, monthlyViewsGoal),
+      actual: monthViews,
     },
-    new Map(),
+    {
+      id: "reach" as const,
+      label: "Alcance",
+      goal: Math.max(0, safeDashboardMetricGoals.reach || 0),
+      actual: monthReach,
+    },
+    {
+      id: "engagement" as const,
+      label: "Engajamento",
+      goal: Math.max(0, safeDashboardMetricGoals.engagement || 0),
+      actual: totalEngagement,
+    },
+    {
+      id: "followers" as const,
+      label: "Seguidores",
+      goal: Math.max(0, safeDashboardMetricGoals.followers || 0),
+      actual: monthFollowers,
+    },
+  ]
+    .filter((metric) => metric.goal > 0)
+    .map((metric) => {
+      const percent = metric.goal > 0 ? (metric.actual / metric.goal) * 100 : 0;
+
+      return {
+        ...metric,
+        percent,
+        status: resolveComparisonStatus(percent),
+        summary: buildComparisonSummary({ ...metric, percent }),
+      };
+    });
+  const recentDateKeys = buildRecentDateKeys(30);
+  const engagementByDate = visiblePosts.reduce<Record<string, number>>((acc, post) => {
+    acc[post.date] = (acc[post.date] ?? 0) + post.engagement;
+    return acc;
+  }, {});
+  const dailyRows = recentDateKeys.map((date) => ({
+    date,
+    views: Math.max(0, safeDayViewsByDate[date] ?? 0),
+    reach: Math.max(0, safeDayReachByDate[date] ?? 0),
+    engagement: Math.max(0, engagementByDate[date] ?? 0),
+    followers: Math.max(0, safeDashboardDailyFollowers[date] ?? 0),
+  }));
+  const hasEvolutionData = dailyRows.some((entry) => entry.views > 0 || entry.reach > 0 || entry.engagement > 0 || entry.followers > 0);
+  let cumulativeViews = 0;
+  let cumulativeReach = 0;
+  const evolutionData = dailyRows.map((entry) => {
+    cumulativeViews += entry.views;
+    cumulativeReach += entry.reach;
+    const entryDate = new Date(`${entry.date}T12:00:00`);
+    const isCurrentMonthEntry =
+      entryDate.getFullYear() === new Date().getFullYear() && entryDate.getMonth() === new Date().getMonth();
+    const projectedMeta = isCurrentMonthEntry
+      ? Math.round((monthlyViewsGoal / new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()) * entryDate.getDate())
+      : 0;
+
+    return {
+      date: entry.date,
+      label: formatAxisDateLabel(entry.date),
+      views: cumulativeViews,
+      reach: cumulativeReach,
+      projectedMeta,
+    };
+  });
+  const currentProjectedMeta = evolutionData[evolutionData.length - 1]?.projectedMeta ?? 0;
+  const chartWidth = 760;
+  const chartHeight = 340;
+  const chartPadding = 30;
+  const chartMaxValue = Math.max(
+    1,
+    ...evolutionData.map((item) => Math.max(item.views, item.reach, item.projectedMeta)),
   );
-  const evolutionData = Array.from(evolutionBuckets.values()).sort((a, b) => a.date.localeCompare(b.date));
+  const viewsPolyline = buildSvgLinePoints(evolutionData.map((item) => item.views), chartWidth, chartHeight, chartPadding, chartMaxValue);
+  const reachPolyline = buildSvgLinePoints(evolutionData.map((item) => item.reach), chartWidth, chartHeight, chartPadding, chartMaxValue);
+  const projectedPolyline = buildSvgLinePoints(evolutionData.map((item) => item.projectedMeta), chartWidth, chartHeight, chartPadding, chartMaxValue);
+  const viewsArea = buildSvgAreaPoints(evolutionData.map((item) => item.views), chartWidth, chartHeight, chartPadding, chartMaxValue);
+  const reachArea = buildSvgAreaPoints(evolutionData.map((item) => item.reach), chartWidth, chartHeight, chartPadding, chartMaxValue);
+  const chartTicks = [1, 0.75, 0.5, 0.25, 0].map((ratio) => ({
+    ratio,
+    y: chartHeight - chartPadding - ratio * (chartHeight - chartPadding * 2),
+    value: Math.round(chartMaxValue * ratio),
+  }));
+  const paceSummary =
+    monthViews > currentProjectedMeta
+      ? "Desempenho acima do esperado"
+      : monthViews < currentProjectedMeta
+        ? "Ritmo atual insuficiente para atingir a meta"
+        : "Meta sendo atingida conforme planejado";
+  const lastEvolutionPoint = evolutionData[evolutionData.length - 1] ?? { views: 0, reach: 0, projectedMeta: 0 };
+  const dashboardDateRange = formatDashboardDateRange();
 
   return (
     <PageTransition>
       <div style={isDark ? instagramThemeDark : instagramThemeLight} className="space-y-6">
-        <PageHeader
-          eyebrow="Overview"
-          title="Saúde completa do Instagram da Great"
-          description="Uma leitura executiva da operação criativa, com performance, metas e alertas de conteúdo em um único lugar."
-        />
-
-        <div className={showOverallGoalCard ? "grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]" : "grid gap-6 xl:grid-cols-1"}>
-          {showOverallGoalCard ? (
-            <GlassPanel
-              className="flex flex-col items-center justify-center overflow-hidden p-6 text-white shadow-[0_28px_60px_rgba(131,58,180,0.18)]"
-              index={1}
-              dataCy="dashboard-summary"
-              style={{
-                background: isDark
-                  ? "linear-gradient(145deg, rgba(131,58,180,0.95) 0%, rgba(225,48,108,0.92) 52%, rgba(245,96,64,0.9) 100%)"
-                  : "linear-gradient(145deg, #833AB4 0%, #E1306C 52%, #F56040 100%)",
-                borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.10)",
-              }}
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-end">
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="inline-flex items-center gap-3 rounded-2xl border border-border/70 bg-white/90 px-4 py-3 text-sm text-foreground shadow-[0_10px_28px_rgba(15,23,42,0.05)] dark:bg-white/5">
+              <span className="text-muted-foreground">📅</span>
+              <span>{dashboardDateRange}</span>
+            </div>
+            <button
+              type="button"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-border/70 bg-white/90 px-4 py-3 text-sm font-semibold text-foreground shadow-[0_10px_28px_rgba(15,23,42,0.05)] transition hover:-translate-y-0.5 dark:bg-white/5"
             >
-              <InstagramHealthScoreRing score={dashboardSummary.healthScore} />
-              <div className="mt-5 grid w-full gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
-                  <p className="text-xs uppercase tracking-[0.16em] text-white/72">Metas concluídas</p>
-                  <p data-cy="dashboard-summary-goals" className="mt-2 text-2xl font-semibold text-white">
-                    {dashboardSummary.completedGoals}/{visibleGoals.length}
-                  </p>
+              <span>⇩</span>
+              Exportar relatório
+            </button>
+          </div>
+        </div>
+
+        <div className={showOverallGoalCard ? "grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]" : "grid gap-6 xl:grid-cols-1"}>
+          {showOverallGoalCard ? (
+            <DashboardSectionBoundary title="Resumo do dashboard">
+              <GlassPanel
+                className="sticky top-4 flex flex-col items-center justify-center overflow-hidden p-6 text-white shadow-[0_28px_60px_rgba(131,58,180,0.18)]"
+                index={1}
+                dataCy="dashboard-summary"
+                style={{
+                  background: isDark
+                    ? "linear-gradient(145deg, rgba(131,58,180,0.95) 0%, rgba(225,48,108,0.92) 52%, rgba(245,96,64,0.9) 100%)"
+                    : "linear-gradient(145deg, #833AB4 0%, #E1306C 52%, #F56040 100%)",
+                  borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.10)",
+                }}
+              >
+                <InstagramHealthScoreRing score={dashboardSummary.healthScore} />
+                <div className="mt-5 grid w-full gap-3">
+                  <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-white/72">Metas concluídas</p>
+                    <p data-cy="dashboard-summary-goals" className="mt-2 text-2xl font-semibold text-white">
+                      {dashboardSummary.completedGoals}/{visibleGoals.length}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-white/72">Engajamento total</p>
+                    <p data-cy="dashboard-summary-engagement" className="mt-2 text-2xl font-semibold text-white">
+                      {formatLongNumber(dashboardSummary.totalEngagement)}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-white/72">Visualizações do mês</p>
+                    <p className="mt-2 text-2xl font-semibold text-white">{formatLongNumber(dashboardSummary.monthViews)}</p>
+                  </div>
+                  <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-white/72">Falta para a meta</p>
+                    <p className="mt-2 text-2xl font-semibold text-white">{formatLongNumber(dashboardSummary.remainingViews)}</p>
+                  </div>
                 </div>
-                <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
-                  <p className="text-xs uppercase tracking-[0.16em] text-white/72">Engajamento total</p>
-                  <p data-cy="dashboard-summary-engagement" className="mt-2 text-2xl font-semibold text-white">
-                    {formatLongNumber(dashboardSummary.totalEngagement)}
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
-                  <p className="text-xs uppercase tracking-[0.16em] text-white/72">Visualizações do mês</p>
-                  <p className="mt-2 text-2xl font-semibold text-white">{formatLongNumber(dashboardSummary.monthViews)}</p>
-                </div>
-                <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
-                  <p className="text-xs uppercase tracking-[0.16em] text-white/72">Falta para a meta</p>
-                  <p className="mt-2 text-2xl font-semibold text-white">x {formatLongNumber(dashboardSummary.remainingViews)}</p>
-                </div>
-              </div>
-            </GlassPanel>
+              </GlassPanel>
+            </DashboardSectionBoundary>
           ) : null}
 
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="space-y-6">
+            <div className="grid gap-4 xl:grid-cols-3">
             {dashboardMetrics.map((metric, index) => {
               const Icon = metricIcons[index];
 
@@ -409,14 +656,139 @@ export function DashboardPage() {
                 />
               );
             })}
+            </div>
+
+            <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+              <DashboardSectionBoundary title="Evolução nos últimos 30 dias">
+                <GlassPanel
+                  index={5}
+                  className="bg-white/95"
+                  dataCy="dashboard-evolution"
+                  style={
+                    isDark
+                      ? {
+                          background: "linear-gradient(180deg, rgba(16,18,24,0.98), rgba(10,12,17,0.96))",
+                          borderColor: "rgba(255,255,255,0.08)",
+                        }
+                      : {
+                          background: "rgba(255,255,255,0.95)",
+                          borderColor: "rgba(229,231,238,0.82)",
+                          boxShadow: "0 16px 44px rgba(15,23,42,0.08)",
+                        }
+                  }
+                >
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <SectionTitle
+                        title="Evolução nos últimos 30 dias"
+                        description="Leitura diária de crescimento, estabilidade ou queda a partir dos dados cadastrados pelo usuário."
+                      />
+                      <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-2">
+                          <span className="h-2.5 w-2.5 rounded-full bg-[#E1306C]" />
+                          Visualizações reais
+                        </span>
+                        <span className="inline-flex items-center gap-2">
+                          <span className="h-2.5 w-2.5 rounded-full bg-[#833AB4]" />
+                          Alcance real
+                        </span>
+                        <span className="inline-flex items-center gap-2">
+                          <span className="h-2.5 w-2.5 rounded-full bg-[#94A3B8]" />
+                          Meta projetada
+                        </span>
+                      </div>
+                    </div>
+                    <div className="inline-flex rounded-2xl border border-border/70 bg-white/85 p-1 text-xs shadow-[0_8px_20px_rgba(15,23,42,0.04)] dark:bg-white/5">
+                      <span className="rounded-xl bg-foreground px-3 py-1.5 font-semibold text-background">Diário</span>
+                      <span className="px-3 py-1.5 text-muted-foreground">Semanal</span>
+                      <span className="px-3 py-1.5 text-muted-foreground">Mensal</span>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_220px]">
+                    <div className="overflow-hidden rounded-[1.8rem] border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(248,250,252,0.98))] p-4 dark:bg-[linear-gradient(180deg,rgba(17,23,35,0.98),rgba(12,18,29,0.98))]">
+                      <div className="h-[350px]">
+                        <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="h-full w-full" role="img" aria-label="Gráfico de evolução do dashboard">
+                          <defs>
+                            <linearGradient id="viewsFill" x1="0" x2="0" y1="0" y2="1">
+                              <stop offset="0%" stopColor="rgba(225,48,108,0.24)" />
+                              <stop offset="100%" stopColor="rgba(225,48,108,0.02)" />
+                            </linearGradient>
+                            <linearGradient id="reachFill" x1="0" x2="0" y1="0" y2="1">
+                              <stop offset="0%" stopColor="rgba(131,58,180,0.18)" />
+                              <stop offset="100%" stopColor="rgba(131,58,180,0.02)" />
+                            </linearGradient>
+                          </defs>
+                          {chartTicks.map((tick) => (
+                            <g key={tick.ratio}>
+                              <line x1={chartPadding} y1={tick.y} x2={chartWidth - chartPadding} y2={tick.y} stroke="rgba(148,163,184,0.16)" strokeDasharray="4 8" />
+                              <text x={8} y={tick.y + 4} fontSize="11" fill="rgba(100,116,139,1)">{formatCompactNumber(tick.value)}</text>
+                            </g>
+                          ))}
+                          <polygon fill="url(#reachFill)" points={reachArea} />
+                          <polygon fill="url(#viewsFill)" points={viewsArea} />
+                          <polyline fill="none" stroke="#94A3B8" strokeWidth="2.5" strokeDasharray="8 8" points={projectedPolyline} />
+                          <polyline fill="none" stroke="#833AB4" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" points={reachPolyline} />
+                          <polyline fill="none" stroke="#E1306C" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" points={viewsPolyline} />
+                          {(() => {
+                            const lastIndex = evolutionData.length - 1;
+                            const lastX = chartPadding + (lastIndex <= 0 ? (chartWidth - chartPadding * 2) / 2 : (lastIndex / lastIndex) * (chartWidth - chartPadding * 2));
+                            const usableHeight = chartHeight - chartPadding * 2;
+                            const lastViewsY = chartHeight - chartPadding - (Math.max(0, lastEvolutionPoint.views) / chartMaxValue) * usableHeight;
+                            const lastReachY = chartHeight - chartPadding - (Math.max(0, lastEvolutionPoint.reach) / chartMaxValue) * usableHeight;
+                            return (
+                              <>
+                                <circle cx={lastX} cy={lastViewsY} r="5" fill="#E1306C" />
+                                <circle cx={lastX} cy={lastReachY} r="5" fill="#833AB4" />
+                              </>
+                            );
+                          })()}
+                          {evolutionData.map((item, index) => {
+                            if (index % 5 !== 0 && index !== evolutionData.length - 1) {
+                              return null;
+                            }
+                            const x = chartPadding + (evolutionData.length === 1 ? (chartWidth - chartPadding * 2) / 2 : (index / (evolutionData.length - 1)) * (chartWidth - chartPadding * 2));
+                            return <text key={item.date} x={x} y={chartHeight - 6} textAnchor="middle" fontSize="11" fill="rgba(100,116,139,1)">{item.label}</text>;
+                          })}
+                        </svg>
+                      </div>
+                    </div>
+                    <div className="grid gap-3">
+                      <div className="rounded-[1.6rem] border border-border/60 bg-white/72 px-4 py-4 dark:bg-white/5">
+                        <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Visualizações atuais</p>
+                        <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{formatLongNumber(lastEvolutionPoint.views)}</p>
+                        <p className="mt-1 text-sm text-[#E1306C]">Faltam {formatLongNumber(remainingViews)} para a meta</p>
+                      </div>
+                      <div className="rounded-[1.6rem] border border-border/60 bg-white/72 px-4 py-4 dark:bg-white/5">
+                        <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Meta do mês</p>
+                        <p className="mt-2 text-2xl font-semibold text-foreground">{formatLongNumber(monthlyViewsGoal)}</p>
+                        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+                          <div className="h-full rounded-full bg-[linear-gradient(90deg,#833AB4_0%,#E1306C_60%,#F56040_100%)]" style={{ width: `${Math.min((monthViews / Math.max(monthlyViewsGoal, 1)) * 100, 100)}%` }} />
+                        </div>
+                      </div>
+                      <div className="rounded-[1.6rem] border border-border/60 bg-white/72 px-4 py-4 dark:bg-white/5">
+                        <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Projeção</p>
+                        <p className="mt-2 text-2xl font-semibold text-foreground">{formatLongNumber(currentProjectedMeta)}</p>
+                        <p className="mt-1 text-sm text-emerald-600 dark:text-emerald-400">{paceSummary}</p>
+                      </div>
+                    </div>
+                  </div>
+                  {!hasEvolutionData ? (
+                    <div className="mt-4 rounded-2xl border border-dashed border-border/70 bg-white/70 px-4 py-4 text-center text-sm text-muted-foreground dark:bg-white/5">
+                      O gráfico já está pronto. Assim que você lançar dados diários, as curvas reais começam a subir aqui.
+                    </div>
+                  ) : null}
+                </GlassPanel>
+              </DashboardSectionBoundary>
+            </div>
           </div>
         </div>
 
-        <div className="grid gap-6 2xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
+        <DashboardSectionBoundary title="Resumo de conteúdo">
           <GlassPanel
             index={2}
             className="bg-white/95"
-            dataCy="dashboard-top-posts"
+            dataCy="dashboard-content-summary"
             style={
               isDark
                 ? {
@@ -430,137 +802,111 @@ export function DashboardPage() {
                   }
             }
           >
-            <SectionTitle
-              title="Top 5 conteúdos"
-              description="Os posts que mais puxaram alcance, saves e conversa nas últimas semanas."
-            />
-            <div className="mt-5 space-y-3">
-              {topPosts.length > 0 ? topPosts.map((post, index) => {
-                const member = teamMembers.find((item) => item.id === post.authorId)!;
-
-                return (
-                  <Link
-                    key={post.id}
-                    to={`/post/${post.id}`}
-                    className="flex flex-col gap-4 rounded-3xl border border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(249,249,251,0.96))] p-4 transition duration-200 hover:-translate-y-0.5 hover:border-[#833AB4]/18 hover:shadow-[0_18px_36px_rgba(131,58,180,0.07)] sm:flex-row sm:items-center sm:justify-between dark:hover:border-[#833AB4]/30 dark:hover:shadow-[0_18px_36px_rgba(0,0,0,0.25)]"
-                    style={
-                      isDark
-                        ? {
-                            background: "linear-gradient(180deg, rgba(16,18,24,0.98), rgba(10,12,17,0.96))",
-                            borderColor: "rgba(255,255,255,0.08)",
-                          }
-                        : {
-                            borderColor: "rgba(229,231,238,0.78)",
-                            boxShadow: "0 14px 34px rgba(15,23,42,0.05)",
-                          }
-                    }
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,rgba(131,58,180,0.12),rgba(225,48,108,0.12),rgba(245,96,64,0.1))] text-sm font-semibold text-[#833AB4] ring-1 ring-[#833AB4]/10">
-                        #{index + 1}
-                      </div>
-                      <div className="flex h-16 w-24 items-center justify-center rounded-2xl border border-[#833AB4]/10 bg-[linear-gradient(135deg,rgba(131,58,180,0.08),rgba(225,48,108,0.08),rgba(245,176,69,0.08))] text-[#833AB4]">
-                        <Sparkles className="h-5 w-5" />
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-sm font-semibold text-foreground sm:text-base">{post.title}</h3>
-                          <ContentTypePill type={post.type} />
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground sm:text-sm">
-                          <span>{member.name}</span>
-                          <span>{post.date}</span>
-                          <span>{formatCompactNumber(post.reach)} de alcance</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Engajamento</p>
-                      <p className="mt-1 text-lg font-semibold text-foreground">{formatLongNumber(post.engagement)}</p>
-                    </div>
-                  </Link>
-                );
-              }) : (
-                <EmptyState
-                  title="Nenhum post cadastrado"
-                  description="Assim que você inserir conteúdos na tabela `posts`, eles aparecem aqui."
-                />
-              )}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <SectionTitle
+                title="Resumo de conteúdo"
+                description="Um panorama rápido do que mais performou e do que precisa de atenção na aba de conteúdo."
+              />
+              <Link
+                to="/content"
+                className="text-sm font-semibold text-[#833AB4] transition hover:text-[#6C2CA1] dark:text-[#ff9db2] dark:hover:text-[#ffc0cd]"
+              >
+                Ver aba conteúdo
+              </Link>
             </div>
-          </GlassPanel>
-
-          <GlassPanel
-            index={3}
-            className="bg-white/95"
-            dataCy="dashboard-low-performance"
-            style={
-              isDark
-                ? {
-                    background: "linear-gradient(180deg, rgba(16,18,24,0.98), rgba(10,12,17,0.96))",
-                    borderColor: "rgba(255,255,255,0.08)",
-                  }
-                : {
-                    background: "rgba(255,255,255,0.95)",
-                    borderColor: "rgba(229,231,238,0.82)",
-                    boxShadow: "0 16px 44px rgba(15,23,42,0.08)",
-                  }
-            }
-          >
-            <SectionTitle
-              title="Conteúdos com baixa performance"
-              description="Peças que pedem ajuste imediato de gancho, CTA ou proposta editorial."
-            />
-            <div className="mt-5 grid gap-4">
-              {worstPosts.length > 0 ? worstPosts.map((post) => {
-                const member = teamMembers.find((item) => item.id === post.authorId)!;
-
-                return (
-                  <div
-                    key={post.id}
-                    className="rounded-3xl border border-[#E1306C]/12 bg-[linear-gradient(135deg,rgba(255,248,250,1),rgba(255,245,240,1))] p-5 dark:border-[#E1306C]/20"
-                    style={
-                      isDark
-                        ? {
-                            background: "linear-gradient(180deg, rgba(29,23,25,0.98), rgba(22,18,19,0.98))",
-                            borderColor: "rgba(225,48,108,0.18)",
-                          }
-                        : {
-                            background: "linear-gradient(135deg, rgba(255,248,250,0.98), rgba(255,245,240,0.98))",
-                            borderColor: "rgba(225,48,108,0.10)",
-                          }
-                    }
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center rounded-full border border-[#E1306C]/12 bg-white/70 px-3 py-1 text-xs font-semibold text-[#B34B67] dark:border-[#ff9db2]/20 dark:bg-white/5 dark:text-[#ff9db2]">
-                        {post.type}
-                      </span>
-                      <span className="inline-flex items-center rounded-full border border-[#F56040]/14 bg-[#F56040]/8 px-3 py-1 text-xs font-semibold text-[#B94A2D] dark:border-[#ffab8c]/18 dark:bg-[#251913] dark:text-[#ffab8c]">
-                        Atenção suave
-                      </span>
-                    </div>
-                    <h3 className="mt-4 text-lg font-semibold text-foreground">{post.title}</h3>
-                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{post.description}</p>
-                    <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                      <span>{member.name}</span>
-                      <span>{formatLongNumber(post.engagement)} de engajamento</span>
-                      <span>{formatCompactNumber(post.reach)} de alcance</span>
-                    </div>
-                    <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[#E1306C]/8">
-                      <div className="h-full w-1/2 rounded-full bg-[linear-gradient(90deg,#E1306C_0%,#F56040_100%)]" />
-                    </div>
+            <div className="mt-5 grid gap-5 xl:grid-cols-2">
+              <div className="rounded-[1.8rem] border border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(249,249,251,0.98))] p-5 shadow-[0_14px_34px_rgba(15,23,42,0.05)] dark:bg-[linear-gradient(180deg,rgba(16,18,24,0.98),rgba(10,12,17,0.96))]">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Top conteúdos</p>
+                    <p className="text-xs text-muted-foreground">Os posts com melhor desempenho no recorte atual.</p>
                   </div>
-                );
-              }) : (
-                <EmptyState
-                  title="Sem conteúdo para comparar"
-                  description="Quando houver posts no Supabase, esta área mostra os que precisam de atenção."
-                />
-              )}
+                  <span className="rounded-full bg-[#833AB4]/8 px-3 py-1 text-xs font-semibold text-[#6C2CA1] dark:bg-white/5 dark:text-[#ff9db2]">
+                    Melhor resultado
+                  </span>
+                </div>
+                <div className="space-y-2.5">
+                  {topPosts.length > 0 ? topPosts.map((post, index) => {
+                    const member = teamMembers.find((item) => item.id === post.authorId) ?? fallbackMember;
+
+                    return (
+                      <Link
+                        key={post.id}
+                        to={`/post/${post.id}`}
+                        className="grid grid-cols-[34px_minmax(0,1fr)_78px_82px] items-center gap-3 rounded-2xl border border-border/60 bg-white/78 px-3 py-3 transition hover:-translate-y-0.5 hover:border-[#833AB4]/16 hover:shadow-[0_12px_24px_rgba(131,58,180,0.07)] dark:border-white/8 dark:bg-white/5"
+                      >
+                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[linear-gradient(135deg,rgba(131,58,180,0.12),rgba(225,48,108,0.12),rgba(245,96,64,0.1))] text-xs font-semibold text-[#833AB4]">
+                          {index + 1}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-foreground">{post.title}</p>
+                          <p className="truncate text-xs text-muted-foreground">{member.name} • {post.date}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Views</p>
+                          <p className="text-sm font-semibold text-foreground">{formatCompactNumber(asNumber(post.reach))}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Eng.</p>
+                          <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">+{formatCompactNumber(asNumber(post.engagement))}</p>
+                        </div>
+                      </Link>
+                    );
+                  }) : (
+                    <EmptyState
+                      title="Nenhum conteúdo cadastrado"
+                      description="Assim que você inserir conteúdos na aba de conteúdo, o resumo aparece aqui."
+                    />
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-[1.8rem] border border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(249,249,251,0.98))] p-5 shadow-[0_14px_34px_rgba(15,23,42,0.05)] dark:bg-[linear-gradient(180deg,rgba(16,18,24,0.98),rgba(10,12,17,0.96))]">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Conteúdos com baixa performance</p>
+                    <p className="text-xs text-muted-foreground">Peças que pedem ajuste de gancho, CTA ou formato.</p>
+                  </div>
+                  <span className="rounded-full bg-[#F56040]/8 px-3 py-1 text-xs font-semibold text-[#B94A2D] dark:bg-[#251913] dark:text-[#ffab8c]">
+                    Atenção
+                  </span>
+                </div>
+                <div className="space-y-2.5">
+                  {worstPosts.length > 0 ? worstPosts.map((post) => {
+                    const member = teamMembers.find((item) => item.id === post.authorId) ?? fallbackMember;
+
+                    return (
+                      <Link
+                        key={post.id}
+                        to={`/post/${post.id}`}
+                        className="grid grid-cols-[minmax(0,1fr)_78px_82px] items-center gap-3 rounded-2xl border border-[#F56040]/10 bg-[linear-gradient(135deg,rgba(255,248,250,0.92),rgba(255,245,240,0.94))] px-3 py-3 transition hover:-translate-y-0.5 hover:shadow-[0_12px_24px_rgba(245,96,64,0.08)] dark:border-[#F56040]/16 dark:bg-[linear-gradient(180deg,rgba(29,23,25,0.98),rgba(22,18,19,0.98))]"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-foreground">{post.title}</p>
+                          <p className="truncate text-xs text-muted-foreground">{member.name} • {post.date}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Views</p>
+                          <p className="text-sm font-semibold text-foreground">{formatCompactNumber(asNumber(post.reach))}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Eng.</p>
+                          <p className="text-sm font-semibold text-rose-600 dark:text-rose-400">{formatCompactNumber(asNumber(post.engagement))}</p>
+                        </div>
+                      </Link>
+                    );
+                  }) : (
+                    <EmptyState
+                      title="Sem conteúdos para comparar"
+                      description="Quando houver volume suficiente, essa área mostra os posts com menor tração."
+                    />
+                  )}
+                </div>
+              </div>
             </div>
           </GlassPanel>
-        </div>
-
-        <div className="grid gap-6 2xl:grid-cols-[0.95fr_1.05fr]">
+        </DashboardSectionBoundary>
+          <DashboardSectionBoundary title="Comparação meta vs resultado">
           <GlassPanel
             index={4}
             className="bg-white/95"
@@ -580,124 +926,48 @@ export function DashboardPage() {
           >
             <SectionTitle
               title="Comparação meta vs resultado"
-              description="As três metas mais críticas do ciclo atual."
+              description="Metas e resultados cadastrados pelo usuário no ciclo atual."
             />
               <div className="mt-5 space-y-5">
-                {dashboardGoals.length > 0 ? dashboardGoals.map((goal) => {
-                  const responsibleIds = getGoalResponsibleIds(goal);
-                  const member = teamMembers.find((item) => item.id === responsibleIds[0]) ?? teamMembers[0];
-                  const progress = (goal.current / goal.target) * 100;
-                const goalCardClassName = isDark
-                  ? "rounded-3xl bg-[#11151d] p-5"
-                  : "rounded-3xl border border-border/70 bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.06)]";
+                {comparisonMetrics.length > 0 ? comparisonMetrics.map((metric) => {
+                  const goalCardClassName = isDark
+                    ? "rounded-3xl bg-[#11151d] p-5"
+                    : "rounded-3xl border border-border/70 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.06)]";
 
-                return (
-                  <div
-                    key={goal.id}
-                    className={goalCardClassName}
-                    style={isDark ? { background: "rgba(16,18,24,0.98)" } : undefined}
-                  >
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="space-y-2">
-                        <h3 className="text-base font-semibold text-foreground">{goal.name}</h3>
-                        <SoftMemberChip name={member.name} role={member.role} />
+                  return (
+                    <div
+                      key={metric.id}
+                      className={goalCardClassName}
+                      style={isDark ? { background: "rgba(16,18,24,0.98)" } : undefined}
+                    >
+                      <div className="flex flex-col gap-3">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between gap-3">
+                            <h3 className="text-base font-semibold text-foreground">{metric.label}</h3>
+                            <span className="text-sm font-semibold text-[#833AB4]">{formatPercent(metric.percent, 0)}</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3 text-sm text-muted-foreground">
+                            <p>Resultado<br /><span className="font-semibold text-foreground">{formatLongNumber(metric.actual)}</span></p>
+                            <p>Meta<br /><span className="font-semibold text-foreground">{formatLongNumber(metric.goal)}</span></p>
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-left sm:text-right">
-                        <p className="text-sm text-muted-foreground">
-                          {goal.current} / {goal.target}
-                        </p>
-                        <p className="text-2xl font-semibold text-foreground">{progress.toFixed(0)}%</p>
+                      <div className="mt-3">
+                        <DashboardProgressBar value={metric.actual} max={metric.goal} label={metric.label} />
                       </div>
                     </div>
-                    <div className="mt-4">
-                      <DashboardProgressBar value={goal.current} max={goal.target} />
-                    </div>
-                  </div>
-                );
-              }) : (
+                  );
+                }) : (
                 <EmptyState
                   title="Nenhuma meta cadastrada"
-                  description="Adicione metas no Supabase para ver a comparação por aqui."
+                  description="Cadastre metas de visualizações, alcance, engajamento ou seguidores para ver a comparação por aqui."
                 />
               )}
             </div>
           </GlassPanel>
-
-          <GlassPanel
-            index={5}
-            className="bg-white/95"
-            dataCy="dashboard-evolution"
-            style={
-              isDark
-                ? {
-                    background: "linear-gradient(180deg, rgba(16,18,24,0.98), rgba(10,12,17,0.96))",
-                    borderColor: "rgba(255,255,255,0.08)",
-                  }
-                : {
-                    background: "rgba(255,255,255,0.95)",
-                    borderColor: "rgba(229,231,238,0.82)",
-                    boxShadow: "0 16px 44px rgba(15,23,42,0.08)",
-                  }
-            }
-          >
-            <SectionTitle
-              title="Evolução nos últimos 30 dias"
-              description="A curva conjunta de alcance e engajamento mostra aceleração sustentável."
-            />
-            <div className="mt-4 flex items-center gap-4 text-xs text-muted-foreground">
-              {chartLegend.map((item) => (
-                <span key={item.label} className="inline-flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                  {item.label}
-                </span>
-              ))}
-            </div>
-            <div className="mt-4 h-[360px]">
-              {evolutionData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={evolutionData} margin={{ top: 10, right: 18, left: -12, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="reachGradient" x1="0" x2="0" y1="0" y2="1">
-                        <stop offset="0%" stopColor="#833AB4" stopOpacity={0.32} />
-                        <stop offset="100%" stopColor="#833AB4" stopOpacity={0.03} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid stroke="rgb(var(--border) / 0.5)" strokeDasharray="3 3" vertical={false} />
-                    <XAxis
-                      dataKey="date"
-                      tickLine={false}
-                      axisLine={false}
-                      tick={{ fill: "rgb(var(--muted-foreground) / 1)", fontSize: 12 }}
-                    />
-                    <YAxis tickLine={false} axisLine={false} tick={{ fill: "rgb(var(--muted-foreground) / 1)", fontSize: 12 }} />
-                    <Tooltip
-                      contentStyle={{
-                        borderRadius: 18,
-                        border: "1px solid rgb(var(--border) / 0.65)",
-                        backgroundColor: "rgb(var(--card) / 0.98)",
-                      }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="reach"
-                      stroke="#833AB4"
-                      fill="url(#reachGradient)"
-                      strokeWidth={3}
-                    />
-                    <Line type="monotone" dataKey="engagement" stroke="#E1306C" strokeWidth={2.5} dot={false} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              ) : (
-                <EmptyState
-                  title="Sem evolução registrada"
-                  description="Os gráficos aparecem quando houver posts cadastrados no Supabase."
-                />
-              )}
-            </div>
-          </GlassPanel>
+          </DashboardSectionBoundary>
         </div>
       </div>
     </PageTransition>
   );
 }
-

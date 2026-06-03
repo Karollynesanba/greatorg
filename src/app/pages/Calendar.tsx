@@ -1010,6 +1010,37 @@ export function CalendarPage() {
   const currentMonthReach = useMemo(() => sumMonthViews(dayReachByDate, currentMonthKey), [currentMonthKey, dayReachByDate]);
   const remainingMonthViews = Math.max(monthlyViewsGoal - currentMonthViews, 0);
   const dayCompletedCount = currentDayEvents.filter((event) => event.completed || event.status === "Publicado" || event.status === "Aprovado").length;
+  const currentDayPendingCount = Math.max(currentDayEvents.length - dayCompletedCount, 0);
+  const weekDateKeys = useMemo(() => weekDates.map((date) => formatDateKey(date)), [weekDates]);
+  const currentWeekEvents = useMemo(
+    () => filteredEvents.filter((event) => weekDateKeys.includes(event.date)),
+    [filteredEvents, weekDateKeys],
+  );
+  const weekCompletedCount = useMemo(
+    () => currentWeekEvents.filter((event) => event.completed || event.status === "Publicado" || event.status === "Aprovado").length,
+    [currentWeekEvents],
+  );
+  const monthStatusCounts = useMemo(
+    () =>
+      currentMonthEvents.reduce(
+        (accumulator, event) => {
+          if (event.status === "Agendado") {
+            accumulator.scheduled += 1;
+          } else if (event.status === "Em produção") {
+            accumulator.production += 1;
+          } else if (event.status === "Aprovado") {
+            accumulator.approved += 1;
+          } else if (event.status === "Publicado") {
+            accumulator.published += 1;
+          }
+
+          return accumulator;
+        },
+        { scheduled: 0, production: 0, approved: 0, published: 0 },
+      ),
+    [currentMonthEvents],
+  );
+  const monthlyGoalProgress = monthlyViewsGoal > 0 ? Math.min((currentMonthViews / monthlyViewsGoal) * 100, 100) : 0;
   useEffect(() => {
     setDayViewsDraft(String(currentDayViews));
     setIsEditingDayViews(false);
@@ -1496,136 +1527,200 @@ export function CalendarPage() {
         }
       />
 
-      <div className={cn("grid gap-4", isSidebarCollapsed ? "xl:grid-cols-[56px_minmax(0,1fr)]" : "xl:grid-cols-[220px_minmax(0,1fr)]")}>
-        <aside className="flex flex-col gap-4">
+      <div className={cn("grid gap-6", isSidebarCollapsed ? "xl:grid-cols-[56px_minmax(0,1fr)]" : "xl:grid-cols-[260px_minmax(0,1fr)]")}>
+        <aside className="flex flex-col gap-5 xl:sticky xl:top-6 xl:self-start">
           {!isSidebarCollapsed ? (
             <>
-              <MiniMonth date={currentDate} />
-              <SideAgenda
-                events={currentMonthEvents}
-                teamMembers={teamMembers}
-                onDelete={(event) => setPendingDelete(event)}
-              />
+              <GlassPanel className="overflow-hidden p-0">
+                <div className="border-b border-border/50 bg-gradient-to-br from-primary/12 via-background to-transparent px-5 py-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Calendário do mês</p>
+                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{formatMonthLabel(currentDate)}</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">Acompanhe agenda, ritmo de publicação e o pulso da operação criativa.</p>
+                </div>
+                <div className="p-4">
+                  <MiniMonth date={currentDate} />
+                </div>
+              </GlassPanel>
+
+              <GlassPanel className="overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,250,252,0.97))] p-6 shadow-[0_18px_42px_rgba(15,23,42,0.06)]">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Resumo rápido</p>
+                    <h3 className="mt-2 text-lg font-semibold tracking-tight text-foreground">Saúde da agenda</h3>
+                  </div>
+                  <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                    {Math.round(monthlyGoalProgress)}%
+                  </span>
+                </div>
+
+                <div className="mt-5 space-y-3">
+                  <div className="rounded-[1.25rem] border border-border/60 bg-muted/20 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Visualizações do mês</p>
+                        <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{formatViewsNumber(currentMonthViews)}</p>
+                      </div>
+                      <div className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                        {formatViewsNumber(remainingMonthViews)} faltam
+                      </div>
+                    </div>
+                    <div className="mt-4 h-2 overflow-hidden rounded-full bg-primary/10">
+                      <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${monthlyGoalProgress}%` }} />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                    <div className="rounded-[1.25rem] border border-border/60 bg-white/90 p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                      <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Agenda da semana</p>
+                      <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{currentWeekEvents.length}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{weekCompletedCount} concluídas no período.</p>
+                    </div>
+                    <div className="rounded-[1.25rem] border border-border/60 bg-white/90 p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                      <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Alcance do mês</p>
+                      <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{formatViewsNumber(currentMonthReach)}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">Acumulado automático do mês.</p>
+                    </div>
+                  </div>
+                </div>
+              </GlassPanel>
+
+              <GlassPanel className="overflow-hidden p-0">
+                <SideAgenda
+                  events={currentMonthEvents}
+                  teamMembers={teamMembers}
+                  onDelete={(event) => setPendingDelete(event)}
+                />
+              </GlassPanel>
             </>
           ) : null}
         </aside>
 
-        <div className="space-y-4">
-          <GlassPanel className={controlBarClass}>
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className={navButtonClass}
-                  onClick={() => setIsSidebarCollapsed((value) => !value)}
-                  aria-label={isSidebarCollapsed ? "Expandir lateral" : "Recolher lateral"}
-                >
-                  <Menu className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleNavigate(-1)}
-                  className={navButtonClass}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleNavigate(1)}
-                  className={navButtonClass}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCurrentDate(getTodayDate())}
-                  className={todayButtonClass}
-                >
-                  Hoje
-                </button>
-              </div>
-
-              <div className="text-left lg:text-center">
-                <p className="text-xl font-semibold tracking-tight text-foreground">{dayHeader}</p>
-                <p className="text-sm text-muted-foreground">{weekLabel}</p>
-              </div>
-
-              <div className="inline-flex rounded-full border border-border/60 bg-muted/50 p-1">
-                {viewModes.map((mode) => (
+        <div className="space-y-5">
+          <GlassPanel className={cn(controlBarClass, "overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.96))] p-6 shadow-[0_18px_40px_rgba(15,23,42,0.06)]")}>
+            <div className="flex flex-col gap-5">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex items-center gap-2">
                   <button
-                    key={mode}
                     type="button"
-                    data-cy={`calendar-view-${mode.toLowerCase()}`}
-                    aria-pressed={view === mode}
-                    onClick={() => setView(mode)}
-                    className={cn(
-                      "rounded-full px-4 py-2 text-sm font-medium transition",
-                      view === mode
-                        ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
+                    className={navButtonClass}
+                    onClick={() => setIsSidebarCollapsed((value) => !value)}
+                    aria-label={isSidebarCollapsed ? "Expandir lateral" : "Recolher lateral"}
                   >
-                    {mode}
+                    <Menu className="h-4 w-4" />
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    onClick={() => handleNavigate(-1)}
+                    className={navButtonClass}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleNavigate(1)}
+                    className={navButtonClass}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentDate(getTodayDate())}
+                    className={todayButtonClass}
+                  >
+                    Hoje
+                  </button>
+                </div>
+
+                <div className="text-left xl:text-center">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Período ativo</p>
+                  <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{dayHeader}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{weekLabel}</p>
+                </div>
+
+                <div className="inline-flex rounded-full border border-border/60 bg-muted/50 p-1">
+                  {viewModes.map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      data-cy={`calendar-view-${mode.toLowerCase()}`}
+                      aria-pressed={view === mode}
+                      onClick={() => setView(mode)}
+                      className={cn(
+                        "rounded-full px-4 py-2 text-sm font-medium transition",
+                        view === mode
+                          ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {mode}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-4">
+                <div className="rounded-[1.45rem] border border-border/60 bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Dia selecionado</p>
+                  <p className="mt-2 text-lg font-semibold tracking-tight text-foreground">{formatDayLabel(currentDate)}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{currentDayEvents.length} atividades na agenda.</p>
+                </div>
+                <div className="rounded-[1.45rem] border border-border/60 bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Concluídas no dia</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{dayCompletedCount}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{currentDayPendingCount} ainda pendentes.</p>
+                </div>
+                <div className="rounded-[1.45rem] border border-border/60 bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Próximo horário</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{currentDayEvents[0]?.time ?? "—"}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{currentDayEvents[0]?.title ?? "Nenhuma publicação agendada."}</p>
+                </div>
+                <div className="rounded-[1.45rem] border border-border/60 bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Postagens do mês</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{currentMonthEvents.length}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{monthStatusCounts.published} já publicadas.</p>
+                </div>
               </div>
             </div>
           </GlassPanel>
 
-          <div className="grid gap-4 xl:grid-cols-2">
-            <GlassPanel className="overflow-hidden p-5">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_380px]">
+            <GlassPanel className="overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,250,252,0.97))] p-6 shadow-[0_18px_42px_rgba(15,23,42,0.06)]">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                    Dia
-                  </p>
-                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
-                    {formatDayLabel(currentDate)}
-                  </h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {currentDayEvents.length} atividades previstas no dia selecionado.
-                  </p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Planejamento do dia</p>
+                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{formatDayLabel(currentDate)}</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">Confira o resumo da rotina planejada para o dia e o status das entregas.</p>
                 </div>
                 <div className="rounded-full border border-border/60 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground shadow-sm">
                   {formatDateKey(currentDate)}
                 </div>
               </div>
 
-              <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-[1.25rem] border border-border/60 bg-muted/25 p-4">
+              <div className="mt-5 grid gap-4 md:grid-cols-3">
+                <div className="rounded-[1.45rem] border border-border/60 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
                   <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Atividades</p>
                   <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{currentDayEvents.length}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Total de cards no dia.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Cards previstos no dia.</p>
                 </div>
-                <div className="rounded-[1.25rem] border border-border/60 bg-muted/25 p-4">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Concluídas</p>
+                <div className="rounded-[1.45rem] border border-border/60 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Conteúdos prontos</p>
                   <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{dayCompletedCount}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Finalizadas ou já publicadas.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Finalizados ou publicados.</p>
                 </div>
-                <div className="rounded-[1.25rem] border border-border/60 bg-muted/25 p-4">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Próximo horário</p>
-                  <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
-                    {currentDayEvents[0]?.time ?? "—"}
-                  </p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {currentDayEvents[0]?.title ?? "Nenhuma atividade agendada."}
-                  </p>
+                <div className="rounded-[1.45rem] border border-border/60 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Próxima história</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{currentDayEvents[0]?.time ?? "—"}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{currentDayEvents[0]?.description ?? "Nenhuma publicação agendada."}</p>
                 </div>
               </div>
             </GlassPanel>
 
-            <GlassPanel className="overflow-hidden p-5">
+            <GlassPanel className="overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,250,252,0.97))] p-6 shadow-[0_18px_42px_rgba(15,23,42,0.06)]">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                    Visualizações do mês
-                  </p>
-                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
-                    {formatMonthLabel(currentDate)}
-                  </h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Total acumulado do mês e quanto ainda falta para bater a meta.
-                  </p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Visualizações do mês</p>
+                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{formatMonthLabel(currentDate)}</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">Confira o desempenho geral dos conteúdos publicados neste mês.</p>
                 </div>
                 <button
                   type="button"
@@ -1637,11 +1732,11 @@ export function CalendarPage() {
                 </button>
               </div>
 
-              <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-[1.25rem] border border-border/60 bg-muted/25 p-4">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Meta</p>
+              <div className="mt-5 grid gap-4 md:grid-cols-3">
+                <div className="rounded-[1.45rem] border border-border/60 bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-primary">Meta</p>
                   {isEditingMonthlyViewsGoal ? (
-                    <div className="mt-2 flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-3 py-2">
+                    <div className="mt-3 flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-3 py-3">
                       <input
                         autoFocus
                         value={monthlyViewsGoalDraft}
@@ -1659,134 +1754,357 @@ export function CalendarPage() {
                           }
                         }}
                         inputMode="numeric"
-                        className="w-full border-0 bg-transparent text-2xl font-semibold tracking-tight text-foreground outline-none"
+                        className="w-full border-0 bg-transparent text-3xl font-semibold tracking-tight text-foreground outline-none"
                         placeholder={String(defaultMonthlyViewsGoal)}
                       />
                     </div>
                   ) : (
-                    <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
-                      {formatViewsNumber(monthlyViewsGoal)}
-                    </p>
+                    <p className="mt-3 text-3xl font-semibold tracking-tight text-foreground">{formatViewsNumber(monthlyViewsGoal)}</p>
                   )}
                 </div>
-                <div className="rounded-[1.25rem] border border-border/60 bg-muted/25 p-4">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Total</p>
-                  <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{formatViewsNumber(currentMonthViews)}</p>
+                <div className="rounded-[1.45rem] border border-border/60 bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-sky-600">Atual</p>
+                  <p className="mt-3 text-3xl font-semibold tracking-tight text-foreground">{formatViewsNumber(currentMonthViews)}</p>
                 </div>
-                <div className="rounded-[1.25rem] border border-border/60 bg-muted/25 p-4">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Falta</p>
-                  <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
-                    {formatViewsNumber(remainingMonthViews)}
-                  </p>
+                <div className="rounded-[1.45rem] border border-border/60 bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-orange-600">Falta</p>
+                  <p className="mt-3 text-3xl font-semibold tracking-tight text-foreground">{formatViewsNumber(remainingMonthViews)}</p>
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-[1.45rem] border border-primary/10 bg-primary/[0.035] p-4">
+                <div className="flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  <span>Ritmo da meta</span>
+                  <span>{Math.round(monthlyGoalProgress)}%</span>
+                </div>
+                <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-primary/10">
+                  <div className="h-full rounded-full bg-gradient-to-r from-primary to-primary/70 transition-all" style={{ width: `${monthlyGoalProgress}%` }} />
                 </div>
               </div>
             </GlassPanel>
+          </div>
 
-            <GlassPanel className="overflow-hidden p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                    Conteúdos do mês
-                  </p>
-                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
-                    {formatMonthLabel(currentDate)}
-                  </h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Quantidade feita por formato neste mês.
-                  </p>
-                </div>
-                <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-white px-4 py-2 text-xs font-semibold text-foreground shadow-sm">
-                  <CirclePlus className="h-4 w-4 text-primary" />
-                  {currentMonthEvents.length} no mês
-                </div>
-              </div>
-
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                {[
-                  { label: "Reels", value: monthTypeCounts.Reels, color: "#d946ef" },
-                  { label: "Stories", value: monthTypeCounts.Stories, color: "#ec4899" },
-                  { label: "Carrossel", value: monthTypeCounts.Carrossel, color: "#f59e0b" },
-                  { label: "Feed", value: monthTypeCounts.Feed, color: "#0ea5e9" },
-                ].map((item) => (
-                  <div
-                    key={item.label}
-                    className="rounded-[1.25rem] border border-border/60 bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(15,23,42,0.07)]"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold"
-                        style={{ backgroundColor: `${item.color}18`, color: item.color }}
-                      >
-                        {item.value}
-                      </span>
-                      <span
-                        className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                        style={{ backgroundColor: `${item.color}12`, color: item.color }}
-                      >
-                        {item.label}
-                      </span>
-                    </div>
-                    <p className="mt-3 text-xs uppercase tracking-[0.2em] text-muted-foreground">Feitos no mês</p>
-                    <p className="mt-1 text-2xl font-semibold tracking-tight text-foreground">{item.value}</p>
-                  </div>
-                ))}
-              </div>
-            </GlassPanel>
-
-            <GlassPanel className="overflow-hidden p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                    Visualizações do dia anterior
-                  </p>
-                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
-                    Visualizações referentes a {referenceDateLabel}
-                  </h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Visualizações referentes ao dia anterior: {referenceDateLabel}
-                  </p>
-                </div>
-                <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-white px-4 py-2 text-xs font-semibold text-foreground shadow-sm">
-                  <Eye className="h-4 w-4 text-primary" />
-                  {formatViewsNumber(currentDayViews)} visualizações
-                </div>
-              </div>
-
-              <div className="mt-5 rounded-[1.75rem] border border-border/60 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+            <div className="space-y-5">
+              <GlassPanel className={cn(gridPanelClass, "overflow-hidden border border-border/60 p-5 shadow-[0_20px_48px_rgba(15,23,42,0.08)]")}>
+                <div className="mb-4 flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Total do dia</p>
-                    <p className="mt-2 text-sm text-muted-foreground">Clique no número para editar o dia anterior.</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Calendário</p>
+                    <h3 className="mt-2 text-xl font-semibold tracking-tight text-foreground">
+                      {view === "Semana" ? "Visualização da semana" : view === "Dia" ? "Visualização do dia" : "Visualização do mês"}
+                    </h3>
+                    <p className="mt-1 text-sm text-muted-foreground">Navegue pela agenda e acompanhe as atividades planejadas.</p>
                   </div>
+                </div>
+                {view === "Semana" ? (
+                  <div className="overflow-x-auto">
+                    <div className={calendarShellClass}>
+                      <div className={calendarHeaderClass}>
+                        <div className="px-3 py-4" />
+                        {weekDates.map((date, index) => {
+                          const isToday = formatDateKey(date) === formatDateKey(getTodayDate());
+
+                          return (
+                            <div key={formatDateKey(date)} className="px-2 py-4 text-center">
+                              <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{weekHeaderLabels[index]}</p>
+                              <p
+                                className={cn(
+                                  "mt-1 inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold",
+                                  isToday ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "text-foreground",
+                                )}
+                              >
+                                {date.getDate()}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="grid grid-cols-[72px_repeat(7,minmax(0,1fr))]">
+                        {calendarHours.map((hour) => (
+                          <div key={hour} className="contents">
+                            <div className="border-r border-border/45 px-3 pt-2 text-[11px] text-muted-foreground">
+                              {hour}
+                            </div>
+                            {weekDates.map((date) => {
+                              const dateKey = formatDateKey(date);
+                              const slotEvents = filteredEvents.filter((event) => event.date === dateKey && event.time === hour);
+
+                              return (
+                                <CalendarSlot
+                                  key={`${dateKey}-${hour}`}
+                                  dataCy={`calendar-slot-${dateKey}-${hour.replace(":", "-")}`}
+                                  date={dateKey}
+                                  time={hour}
+                                  events={slotEvents}
+                                  teamMembers={teamMembers}
+                                  onDropEvent={handleDropEvent}
+                                  onSelectEvent={setSelectedEvent}
+                                  onAddAtSlot={handleOpenQuickCreate}
+                                  onDeleteEvent={(event) => setPendingDelete(event)}
+                                />
+                              );
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {view === "Dia" ? (
+                  <div className="p-4">
+                    <div className="mb-4 flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold text-foreground">{formatDayLabel(currentDate)}</h3>
+                        <p className="text-sm text-muted-foreground">Arraste e solte os posts para reagendar.</p>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      {calendarHours.map((hour) => {
+                        const currentKey = formatDateKey(currentDate);
+                        const currentEvents = filteredEvents.filter((event) => event.date === currentKey && event.time === hour);
+
+                        return (
+                          <div key={hour} className="grid gap-3 lg:grid-cols-[120px_minmax(0,1fr)] lg:items-start">
+                            <div className="pt-3 text-sm font-medium text-muted-foreground">{hour}</div>
+                            <CalendarSlot
+                              dataCy={`calendar-slot-${currentKey}-${hour.replace(":", "-")}`}
+                              date={currentKey}
+                              time={hour}
+                              events={currentEvents}
+                              teamMembers={teamMembers}
+                              onDropEvent={handleDropEvent}
+                              onSelectEvent={setSelectedEvent}
+                              onAddAtSlot={handleOpenQuickCreate}
+                              onDeleteEvent={(event) => setPendingDelete(event)}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+
+                {view === "Mês" ? (
+                  <div className="p-4">
+                    <div className="mb-4 grid grid-cols-7 gap-3 px-1 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                      {daysOfWeek.map((day) => (
+                        <div key={day}>{day}</div>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-7 gap-3">
+                      {monthCells.map((date) => {
+                        const dateKey = formatDateKey(date);
+                        const monthEvents = filteredEvents.filter((event) => event.date === dateKey);
+                        const monthDayViews = dayViewsByDate[dateKey] ?? 0;
+                        const isCurrentMonth = date.getMonth() === currentDate.getMonth();
+
+                        return (
+                          <div
+                            data-cy={`calendar-month-day-${dateKey}`}
+                            key={dateKey}
+                            tabIndex={0}
+                            role="button"
+                            onClick={() => {
+                              setCurrentDate(date);
+                              setView("Dia");
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                setCurrentDate(date);
+                                setView("Dia");
+                              }
+                            }}
+                            className={cn(monthCellClass, !isCurrentMonth && "opacity-45")}
+                          >
+                            <p className="text-sm font-semibold text-foreground">{date.getDate()}</p>
+                            <div className="mt-3 space-y-2">
+                              {monthEvents.map((event) => (
+                                <EventChip
+                                  key={event.id}
+                                  event={event}
+                                  teamMembers={teamMembers}
+                                  compact
+                                  onClick={() => setSelectedEvent(event)}
+                                  onDelete={() => setPendingDelete(event)}
+                                />
+                              ))}
+                            </div>
+                            <div
+                              className={cn(
+                                "mt-3 inline-flex w-fit max-w-full items-center gap-1.5 rounded-full border border-border/50 bg-white/80 px-2.5 py-1 text-[11px] font-semibold shadow-sm",
+                                monthDayViews > 0 ? "text-foreground" : "text-muted-foreground/75",
+                              )}
+                            >
+                              <Eye className="h-3.5 w-3.5 shrink-0 text-primary" />
+                              <span className="truncate">{formatViewsNumber(monthDayViews)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </GlassPanel>
+            </div>
+
+            <div className="space-y-5 xl:sticky xl:top-6 xl:self-start">
+              <GlassPanel className="overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,250,252,0.97))] p-6 shadow-[0_18px_42px_rgba(15,23,42,0.06)]">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Conteúdos do mês</p>
+                    <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{formatMonthLabel(currentDate)}</h3>
+                    <p className="mt-2 text-sm text-muted-foreground">Acompanhe os formatos e o status dos conteúdos planejados neste mês.</p>
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-white px-4 py-2 text-xs font-semibold text-foreground shadow-sm">
+                    <CirclePlus className="h-4 w-4 text-primary" />
+                    {currentMonthEvents.length} no mês
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                  {[
+                    { label: "Reels", value: monthTypeCounts.Reels, color: "#d946ef" },
+                    { label: "Stories", value: monthTypeCounts.Stories, color: "#ec4899" },
+                    { label: "Carrossel", value: monthTypeCounts.Carrossel, color: "#f59e0b" },
+                    { label: "Feed", value: monthTypeCounts.Feed, color: "#0ea5e9" },
+                  ].map((item) => (
+                    <div
+                      key={item.label}
+                      className="rounded-[1.25rem] border border-border/60 bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold"
+                          style={{ backgroundColor: `${item.color}18`, color: item.color }}
+                        >
+                          {item.value}
+                        </span>
+                        <span
+                          className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                          style={{ backgroundColor: `${item.color}12`, color: item.color }}
+                        >
+                          {item.label}
+                        </span>
+                      </div>
+                      <p className="mt-3 text-xs uppercase tracking-[0.2em] text-muted-foreground">Feitos no mês</p>
+                      <p className="mt-1 text-2xl font-semibold tracking-tight text-foreground">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {[
+                    { label: "Agendados", value: monthStatusCounts.scheduled, tone: "text-primary", bg: "bg-primary/10" },
+                    { label: "Em produção", value: monthStatusCounts.production, tone: "text-sky-600", bg: "bg-sky-500/10" },
+                    { label: "Aprovados", value: monthStatusCounts.approved, tone: "text-amber-600", bg: "bg-amber-500/10" },
+                    { label: "Publicados", value: monthStatusCounts.published, tone: "text-emerald-600", bg: "bg-emerald-500/10" },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-[1.15rem] border border-border/60 bg-muted/15 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className={cn("inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold", item.bg, item.tone)}>
+                          {item.label}
+                        </span>
+                        <span className="text-lg font-semibold tracking-tight text-foreground">{item.value}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </GlassPanel>
+
+              <GlassPanel className="overflow-hidden p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Visualizações do dia</p>
+                    <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Referente a {referenceDateLabel}</h3>
+                    <p className="mt-2 text-sm text-muted-foreground">Veja o desempenho do dia anterior e ajuste a operação com mais rapidez.</p>
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-white px-4 py-2 text-xs font-semibold text-foreground shadow-sm">
+                    <Eye className="h-4 w-4 text-primary" />
+                    {formatViewsNumber(currentDayViews)}
+                  </div>
+                </div>
+
+                <div className="mt-5 rounded-[1.6rem] border border-border/60 bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Total do dia</p>
+                  {isEditingDayViews ? (
+                    <div className="mt-4 flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
+                      <input
+                        autoFocus
+                        value={dayViewsDraft}
+                        onChange={(event) => setDayViewsDraft(event.target.value)}
+                        onBlur={handleCommitDayViews}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            handleCommitDayViews();
+                          }
+
+                          if (event.key === "Escape") {
+                            event.preventDefault();
+                            handleCancelDayViewsEdit();
+                          }
+                        }}
+                        inputMode="numeric"
+                        className="w-full border-0 bg-transparent text-4xl font-semibold tracking-tight text-foreground outline-none placeholder:text-muted-foreground"
+                        placeholder="0"
+                      />
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleStartEditingDayViews}
+                      className="mt-4 inline-flex items-end gap-3 text-left transition hover:-translate-y-0.5"
+                    >
+                      <span className="text-5xl font-semibold tracking-tight text-foreground">{formatViewsNumber(currentDayViews)}</span>
+                      <span className="pb-2 text-sm font-medium text-muted-foreground">visualizações</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={handleStartEditingDayViews}
-                    className="inline-flex items-center gap-2 self-start rounded-full border border-border/60 bg-muted/20 px-3 py-2 text-sm font-medium text-foreground transition hover:border-primary/25 hover:bg-primary/5"
+                    className="mt-4 inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/20 px-3 py-2 text-sm font-medium text-foreground transition hover:border-primary/25 hover:bg-primary/5"
                   >
                     <Pencil className="h-4 w-4 text-primary" />
                     Editar valor
                   </button>
                 </div>
+              </GlassPanel>
 
-                <div className="mt-5 flex items-end justify-between gap-4">
-                  <div className="min-w-0">
-                    {isEditingDayViews ? (
-                      <div className="flex max-w-[260px] items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
-                        <span className="text-sm font-semibold text-primary">👁</span>
+              <GlassPanel className="overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,250,252,0.97))] p-6 shadow-[0_18px_42px_rgba(15,23,42,0.06)]">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Alcance do dia</p>
+                    <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Referente a {referenceDateLabel}</h3>
+                    <p className="mt-2 text-sm text-muted-foreground">Lance o alcance do dia anterior e acompanhe o acumulado do mês.</p>
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-white px-4 py-2 text-xs font-semibold text-foreground shadow-sm">
+                    <Eye className="h-4 w-4 text-primary" />
+                    {formatViewsNumber(currentDayReach)}
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-4">
+                  <div className="rounded-[1.6rem] border border-border/60 bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Alcance do dia</p>
+                    {isEditingDayReach ? (
+                      <div className="mt-4 flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
                         <input
                           autoFocus
-                          value={dayViewsDraft}
-                          onChange={(event) => setDayViewsDraft(event.target.value)}
-                          onBlur={handleCommitDayViews}
+                          value={dayReachDraft}
+                          onChange={(event) => setDayReachDraft(event.target.value)}
+                          onBlur={handleCommitDayReach}
                           onKeyDown={(event) => {
                             if (event.key === "Enter") {
                               event.preventDefault();
-                              handleCommitDayViews();
+                              handleCommitDayReach();
                             }
 
                             if (event.key === "Escape") {
                               event.preventDefault();
-                              handleCancelDayViewsEdit();
+                              handleCancelDayReachEdit();
                             }
                           }}
                           inputMode="numeric"
@@ -1797,286 +2115,36 @@ export function CalendarPage() {
                     ) : (
                       <button
                         type="button"
-                        onClick={handleStartEditingDayViews}
-                        className="group inline-flex items-end gap-3 text-left transition hover:-translate-y-0.5"
+                        onClick={handleStartEditingDayReach}
+                        className="mt-4 inline-flex items-end gap-3 text-left transition hover:-translate-y-0.5"
                       >
-                        <span className="text-5xl font-semibold tracking-tight text-foreground">
-                          {formatViewsNumber(currentDayViews)}
-                        </span>
-                        <span className="pb-2 text-sm font-medium text-muted-foreground transition group-hover:text-foreground">
-                          visualizações
-                        </span>
+                        <span className="text-5xl font-semibold tracking-tight text-foreground">{formatViewsNumber(currentDayReach)}</span>
+                        <span className="pb-2 text-sm font-medium text-muted-foreground">alcance</span>
                       </button>
                     )}
-                  </div>
-
-                  <div className="hidden rounded-full border border-border/60 bg-muted/20 px-4 py-2 text-sm font-semibold text-muted-foreground sm:inline-flex">
-                    Atualização em tempo real
-                  </div>
-                </div>
-              </div>
-            </GlassPanel>
-
-            <GlassPanel className="overflow-hidden p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                    Alcance do dia anterior
-                  </p>
-                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
-                    Alcance referente a {referenceDateLabel}
-                  </h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Alcance referente ao dia anterior e acumulado do mês.
-                  </p>
-                </div>
-                <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-white px-4 py-2 text-xs font-semibold text-foreground shadow-sm">
-                  <Eye className="h-4 w-4 text-primary" />
-                  {formatViewsNumber(currentDayReach)} de alcance
-                </div>
-              </div>
-
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[1.75rem] border border-border/60 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Alcance do dia</p>
-                      <p className="mt-2 text-sm text-muted-foreground">Clique no número para editar o dia anterior.</p>
-                    </div>
                     <button
                       type="button"
                       onClick={handleStartEditingDayReach}
-                      className="inline-flex items-center gap-2 self-start rounded-full border border-border/60 bg-muted/20 px-3 py-2 text-sm font-medium text-foreground transition hover:border-primary/25 hover:bg-primary/5"
+                      className="mt-4 inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/20 px-3 py-2 text-sm font-medium text-foreground transition hover:border-primary/25 hover:bg-primary/5"
                     >
                       <Pencil className="h-4 w-4 text-primary" />
                       Editar valor
                     </button>
                   </div>
 
-                  <div className="mt-5 flex items-end justify-between gap-4">
-                    <div className="min-w-0">
-                      {isEditingDayReach ? (
-                        <div className="flex max-w-[260px] items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
-                          <span className="text-sm font-semibold text-primary">◎</span>
-                          <input
-                            autoFocus
-                            value={dayReachDraft}
-                            onChange={(event) => setDayReachDraft(event.target.value)}
-                            onBlur={handleCommitDayReach}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                handleCommitDayReach();
-                              }
-
-                              if (event.key === "Escape") {
-                                event.preventDefault();
-                                handleCancelDayReachEdit();
-                              }
-                            }}
-                            inputMode="numeric"
-                            className="w-full border-0 bg-transparent text-4xl font-semibold tracking-tight text-foreground outline-none placeholder:text-muted-foreground"
-                            placeholder="0"
-                          />
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={handleStartEditingDayReach}
-                          className="group inline-flex items-end gap-3 text-left transition hover:-translate-y-0.5"
-                        >
-                          <span className="text-5xl font-semibold tracking-tight text-foreground">
-                            {formatViewsNumber(currentDayReach)}
-                          </span>
-                          <span className="pb-2 text-sm font-medium text-muted-foreground transition group-hover:text-foreground">
-                            alcance
-                          </span>
-                        </button>
-                      )}
-                    </div>
+                  <div className="rounded-[1.6rem] border border-border/60 bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Alcance do mês</p>
+                    <p className="mt-3 text-4xl font-semibold tracking-tight text-foreground">{formatViewsNumber(currentMonthReach)}</p>
+                    <p className="mt-2 text-sm text-muted-foreground">Soma automática de todos os alcances lançados neste mês.</p>
                   </div>
                 </div>
-
-                <div className="rounded-[1.75rem] border border-border/60 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Alcance do mês</p>
-                  <p className="mt-3 text-4xl font-semibold tracking-tight text-foreground">{formatViewsNumber(currentMonthReach)}</p>
-                  <p className="mt-2 text-sm text-muted-foreground">Soma automática de todos os alcances lançados neste mês.</p>
-                </div>
-              </div>
-            </GlassPanel>
-          </div>
-
-          <GlassPanel className={gridPanelClass}>
-            <div className="mb-4 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                  Calendário
-                </p>
-                <h3 className="mt-2 text-xl font-semibold tracking-tight text-foreground">
-                  {view === "Semana" ? "Visualização da semana" : view === "Dia" ? "Visualização do dia" : "Visualização do mês"}
-                </h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Navegue pela agenda e acompanhe as atividades planejadas.
-                </p>
-              </div>
+              </GlassPanel>
             </div>
-            {view === "Semana" ? (
-              <div className="overflow-x-auto">
-                <div className={calendarShellClass}>
-                  <div className={calendarHeaderClass}>
-                    <div className="px-3 py-4" />
-                    {weekDates.map((date, index) => {
-                      const isToday = formatDateKey(date) === formatDateKey(getTodayDate());
-
-                      return (
-                        <div key={formatDateKey(date)} className="px-2 py-4 text-center">
-                          <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{weekHeaderLabels[index]}</p>
-                          <p
-                            className={cn(
-                              "mt-1 inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold",
-                              isToday ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "text-foreground",
-                            )}
-                          >
-                            {date.getDate()}
-                          </p>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="grid grid-cols-[72px_repeat(7,minmax(0,1fr))]">
-                    {calendarHours.map((hour) => (
-                      <div key={hour} className="contents">
-                        <div className="border-r border-border/45 px-3 pt-2 text-[11px] text-muted-foreground">
-                          {hour}
-                        </div>
-                        {weekDates.map((date) => {
-                          const dateKey = formatDateKey(date);
-                          const slotEvents = filteredEvents.filter((event) => event.date === dateKey && event.time === hour);
-
-                          return (
-                            <CalendarSlot
-                              key={`${dateKey}-${hour}`}
-                              dataCy={`calendar-slot-${dateKey}-${hour.replace(":", "-")}`}
-                              date={dateKey}
-                              time={hour}
-                              events={slotEvents}
-                              teamMembers={teamMembers}
-                              onDropEvent={handleDropEvent}
-                              onSelectEvent={setSelectedEvent}
-                              onAddAtSlot={handleOpenQuickCreate}
-                              onDeleteEvent={(event) => setPendingDelete(event)}
-                            />
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
-            {view === "Dia" ? (
-              <div className="p-4">
-                <div className="mb-4 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-foreground">{formatDayLabel(currentDate)}</h3>
-                    <p className="text-sm text-muted-foreground">Arraste e solte os posts para reagendar.</p>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  {calendarHours.map((hour) => {
-                    const currentKey = formatDateKey(currentDate);
-                    const currentEvents = filteredEvents.filter((event) => event.date === currentKey && event.time === hour);
-
-                    return (
-                      <div key={hour} className="grid gap-3 lg:grid-cols-[120px_minmax(0,1fr)] lg:items-start">
-                        <div className="pt-3 text-sm font-medium text-muted-foreground">{hour}</div>
-                        <CalendarSlot
-                          dataCy={`calendar-slot-${currentKey}-${hour.replace(":", "-")}`}
-                          date={currentKey}
-                          time={hour}
-                          events={currentEvents}
-                          teamMembers={teamMembers}
-                          onDropEvent={handleDropEvent}
-                          onSelectEvent={setSelectedEvent}
-                          onAddAtSlot={handleOpenQuickCreate}
-                          onDeleteEvent={(event) => setPendingDelete(event)}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
-
-            {view === "Mês" ? (
-              <div className="p-4">
-                <div className="mb-4 grid grid-cols-7 gap-3 px-1 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                  {daysOfWeek.map((day) => (
-                    <div key={day}>{day}</div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-7 gap-3">
-                  {monthCells.map((date) => {
-                    const dateKey = formatDateKey(date);
-                    const monthEvents = filteredEvents.filter((event) => event.date === dateKey);
-                    const monthDayViews = dayViewsByDate[dateKey] ?? 0;
-                    const isCurrentMonth = date.getMonth() === currentDate.getMonth();
-
-                    return (
-                      <div
-                        data-cy={`calendar-month-day-${dateKey}`}
-                        key={dateKey}
-                        tabIndex={0}
-                        role="button"
-                        onClick={() => {
-                          setCurrentDate(date);
-                          setView("Dia");
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            setCurrentDate(date);
-                            setView("Dia");
-                          }
-                        }}
-                        className={cn(
-                          monthCellClass,
-                          !isCurrentMonth && "opacity-45",
-                        )}
-                        >
-                        <p className="text-sm font-semibold text-foreground">{date.getDate()}</p>
-                        <div className="mt-3 space-y-2">
-                          {monthEvents.map((event) => (
-                            <EventChip
-                              key={event.id}
-                              event={event}
-                              teamMembers={teamMembers}
-                              compact
-                              onClick={() => setSelectedEvent(event)}
-                              onDelete={() => setPendingDelete(event)}
-                            />
-                          ))}
-                        </div>
-                        <div
-                          className={cn(
-                            "mt-3 inline-flex w-fit max-w-full items-center gap-1.5 rounded-full border border-border/50 bg-white/80 px-2.5 py-1 text-[11px] font-semibold shadow-sm",
-                            monthDayViews > 0 ? "text-foreground" : "text-muted-foreground/75",
-                          )}
-                        >
-                          <Eye className="h-3.5 w-3.5 shrink-0 text-primary" />
-                          <span className="truncate">{formatViewsNumber(monthDayViews)}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
-          </GlassPanel>
+          </div>
         </div>
-      </div>      {selectedEvent ? (
+      </div>
+
+      {selectedEvent ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4"
           onWheelCapture={(event) => event.stopPropagation()}

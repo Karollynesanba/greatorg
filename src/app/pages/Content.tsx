@@ -327,11 +327,11 @@ function MetricTile({
 }: MetricCard) {
   return (
     <div
-      className="rounded-[1.5rem] border border-slate-200/80 bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.05)]"
+      className="rounded-[1.6rem] border border-slate-200/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(250,250,252,0.98))] p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]"
       data-cy={dataCy}
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-50 text-violet-600">
+        <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,rgba(124,58,237,0.08),rgba(219,39,119,0.08),rgba(245,158,11,0.08))] text-violet-600 ring-1 ring-violet-100">
           <Icon className="h-5 w-5" />
         </div>
         <div className="flex items-center gap-2">
@@ -356,8 +356,8 @@ function MetricTile({
           ) : null}
         </div>
       </div>
-      <p className="mt-4 text-sm text-slate-500">{label}</p>
-      <p className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">{value}</p>
+      <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+      <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">{value}</p>
       <p className="mt-2 text-sm leading-6 text-slate-500">{detail}</p>
     </div>
   );
@@ -926,7 +926,7 @@ export function ContentPage() {
     <PageTransition>
       <PageHeader
         title="Conteúdo"
-        description="Monitore, gerencie e otimize seu conteúdo e os resultados alcançados em um único lugar."
+        description="Uma leitura mais clara do que está performando, do que precisa de atenção e do ritmo criativo da equipe."
         actions={
           <ActionButton onClick={openCreateEditor} dataCy="content-create-open">
             <Plus className="h-4 w-4" />
@@ -936,7 +936,7 @@ export function ContentPage() {
       />
 
       <div className="space-y-6" data-cy="content-page-shell">
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-3 rounded-[1.6rem] border border-slate-200/70 bg-white/80 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
           {[
             { id: "all" as const, label: "Todos", color: "#7c3aed" },
             { id: 1 as const, label: "Brenda", color: "#7c3aed" },
@@ -954,7 +954,7 @@ export function ContentPage() {
                   "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition duration-200",
                   active
                     ? "border-transparent bg-violet-600 text-white shadow-[0_14px_30px_rgba(124,58,237,0.25)]"
-                    : "border-slate-200 bg-white text-slate-700 hover:border-violet-200 hover:text-violet-700",
+                    : "border-slate-200/80 bg-white text-slate-700 hover:border-violet-200 hover:text-violet-700",
                 )}
               >
                 <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
@@ -966,20 +966,20 @@ export function ContentPage() {
 
         <div className="grid gap-6 2xl:grid-cols-[1.08fr_0.92fr]">
           <GlassPanel
-            className="overflow-hidden border-slate-200/80 bg-white p-0 shadow-[0_18px_44px_rgba(15,23,42,0.06)]"
+            className="overflow-hidden border-slate-200/80 bg-white p-0 shadow-[0_18px_44px_rgba(15,23,42,0.05)]"
             index={0}
             dataCy="content-main-progress"
             style={{ borderRadius: "2.5rem" }}
           >
-            <div className="grid min-h-[520px] gap-0 lg:grid-cols-[0.94fr_1.06fr]">
-              <div className="flex flex-col justify-between bg-gradient-to-br from-violet-600 via-fuchsia-600 to-orange-500 p-6 text-white sm:p-8">
+            <div className="grid min-h-[480px] gap-0 lg:grid-cols-[0.78fr_1.22fr]">
+              <div className="flex flex-col justify-between bg-[linear-gradient(155deg,#7c3aed_0%,#c026d3_48%,#f97316_100%)] p-6 text-white sm:p-7">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-2">
-                    <div className="inline-flex items-center gap-2 rounded-full bg-white/12 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/85">
+                    <div className="inline-flex items-center gap-2 rounded-full bg-white/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/85">
                       <Sparkles className="h-3.5 w-3.5" />
                       Pontuação de desempenho
                     </div>
-                    <h2 className="max-w-sm text-3xl font-semibold tracking-tight">{mainProgress.label}</h2>
+                    <h2 className="max-w-[220px] text-[2rem] font-semibold leading-tight tracking-tight">{mainProgress.label}</h2>
                     <p className="max-w-md text-sm leading-6 text-white/80">{mainProgress.subtitle}</p>
                   </div>
                   <button
@@ -992,9 +992,9 @@ export function ContentPage() {
                   </button>
                 </div>
 
-                <div className="flex flex-1 items-center justify-center py-8">
-                  <div className="relative flex h-[250px] w-[250px] items-center justify-center">
-                    <svg viewBox="0 0 180 180" className="-rotate-90 h-[250px] w-[250px]">
+                <div className="flex flex-1 items-center justify-center py-5">
+                  <div className="relative flex h-[200px] w-[200px] items-center justify-center">
+                    <svg viewBox="0 0 180 180" className="-rotate-90 h-[200px] w-[200px]">
                       <circle cx="90" cy="90" r="74" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="12" />
                       <circle
                         cx="90"
@@ -1010,34 +1010,34 @@ export function ContentPage() {
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/75">Excelente</p>
-                      <p className="mt-1 text-6xl font-semibold tracking-tight">{mainProgress.score}</p>
+                      <p className="mt-1 text-5xl font-semibold tracking-tight">{mainProgress.score}</p>
                       <p className="text-sm text-white/80">de 100 pontos</p>
                     </div>
                   </div>
                 </div>
 
                 <div className="grid gap-3">
-                  <div className="rounded-[1.5rem] bg-white/14 p-4 backdrop-blur">
+                  <div className="rounded-[1.4rem] bg-white/12 p-4 backdrop-blur">
                     <p className="text-[11px] uppercase tracking-[0.18em] text-white/75">Metas concluídas</p>
                     <p className="mt-2 text-3xl font-semibold text-white">
                       {`${overallGoalProgress.completed}/${overallGoalProgress.total}`}
                     </p>
                   </div>
-                  <div className="rounded-[1.5rem] bg-white/14 p-4 backdrop-blur">
+                  <div className="rounded-[1.4rem] bg-white/12 p-4 backdrop-blur">
                     <p className="text-[11px] uppercase tracking-[0.18em] text-white/75">Atividades concluídas</p>
                     <p className="mt-2 text-3xl font-semibold text-white">{formatLongNumber(completedCalendarUnits)}</p>
                   </div>
                 </div>
               </div>
 
-              <div className="grid gap-5 p-5 sm:p-6">
-                <div className="grid gap-5 md:grid-cols-2">
+              <div className="grid gap-4 p-5 sm:p-6">
+                <div className="grid gap-4 md:grid-cols-2">
                   {metricCards.map((metric) => (
                     <MetricTile key={metric.id} {...metric} />
                   ))}
                 </div>
 
-                <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_14px_34px_rgba(15,23,42,0.05)]">
+                <div className="rounded-[1.8rem] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,249,251,0.98))] p-5 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Retrospectiva visual</p>
@@ -1061,8 +1061,8 @@ export function ContentPage() {
                     </div>
                   </div>
 
-                  <div className="mt-5 overflow-hidden rounded-[1.75rem] border border-slate-200 bg-slate-950">
-                    <div className="relative aspect-[16/11]">
+                  <div className="mt-5 overflow-hidden rounded-[1.9rem] border border-slate-200/80 bg-slate-950">
+                    <div className="relative aspect-[16/10]">
                       {previewPost?.thumbnail ? (
                         <img src={previewPost.thumbnail} alt={previewPost.title} className="h-full w-full object-cover" />
                       ) : (
@@ -1112,7 +1112,7 @@ export function ContentPage() {
           </GlassPanel>
 
           <div className="space-y-6">
-            <GlassPanel className="border-slate-200/80 bg-white shadow-[0_16px_44px_rgba(15,23,42,0.06)]" index={1}>
+            <GlassPanel className="border-slate-200/80 bg-white shadow-[0_14px_34px_rgba(15,23,42,0.05)]" index={1}>
               <SectionTitle
                 title="Conteúdos com baixa performance"
                 description="Revisite ou otimize esses conteúdos para melhorar os resultados."
@@ -1120,7 +1120,7 @@ export function ContentPage() {
               <div className="mt-5 space-y-3">
                 {lowPosts.length > 0 ? (
                   lowPosts.map((post) => (
-                    <div key={post.id} className="rounded-[1.5rem] border border-rose-200/70 bg-rose-50/45 p-4">
+                    <div key={post.id} className="rounded-[1.6rem] border border-rose-200/60 bg-[linear-gradient(180deg,rgba(255,248,250,0.95),rgba(255,245,240,0.92))] p-4">
                       <div className="flex flex-wrap items-center gap-2">
                         <TypeBadge value={post.type} />
                         <span className="rounded-full border border-orange-200/80 bg-white px-3 py-1 text-xs font-semibold text-orange-600">
@@ -1165,7 +1165,7 @@ export function ContentPage() {
             </GlassPanel>
 
             <GlassPanel
-              className="overflow-hidden border-slate-200/80 bg-white p-0 shadow-[0_16px_44px_rgba(15,23,42,0.06)]"
+              className="overflow-hidden border-slate-200/80 bg-white p-0 shadow-[0_14px_34px_rgba(15,23,42,0.05)]"
               index={2}
               style={{ borderRadius: "2.5rem" }}
             >
@@ -1198,8 +1198,8 @@ export function ContentPage() {
           </div>
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-          <GlassPanel className="border-slate-200/80 bg-white shadow-[0_16px_44px_rgba(15,23,42,0.06)]" index={3}>
+        <div className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
+          <GlassPanel className="border-slate-200/80 bg-white shadow-[0_14px_34px_rgba(15,23,42,0.05)]" index={3}>
             <SectionTitle title="Top 5 conteúdos" description="Os conteúdos mais populares, com base em visualizações." />
             <div className="mt-5 space-y-3">
               {topPosts.length > 0 ? (
@@ -1210,7 +1210,7 @@ export function ContentPage() {
                       key={post.id}
                       onMouseEnter={() => setHoveredPostId(post.id)}
                       onMouseLeave={() => setHoveredPostId(null)}
-                      className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-4 transition duration-200 hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-[0_18px_36px_rgba(131,58,180,0.08)] sm:flex-row sm:items-center sm:justify-between"
+                      className="flex flex-col gap-4 rounded-[1.7rem] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,249,251,0.98))] p-4 transition duration-200 hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-[0_14px_26px_rgba(131,58,180,0.06)] sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div className="flex items-center gap-4">
                         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-sm font-semibold text-violet-600 ring-1 ring-violet-200/70">
@@ -1266,11 +1266,11 @@ export function ContentPage() {
             </div>
           </GlassPanel>
 
-          <GlassPanel className="border-slate-200/80 bg-white shadow-[0_16px_44px_rgba(15,23,42,0.06)]" index={4}>
+          <GlassPanel className="border-slate-200/80 bg-white shadow-[0_14px_34px_rgba(15,23,42,0.05)]" index={4}>
             <SectionTitle title="Equipe" description="Leitura por responsável para Brenda, Hannah e Thiago." />
             <div className="mt-5 space-y-4">
               {memberCards.map((entry) => (
-                <div key={entry.member.id} className="rounded-[1.75rem] border border-slate-200 bg-slate-50 p-5">
+                <div key={entry.member.id} className="rounded-[1.8rem] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(250,250,252,0.98),rgba(245,246,249,0.98))] p-5">
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div className="flex items-center gap-3">
                       <Avatar name={entry.member.name} color={entry.member.color} size="md" />
@@ -1351,7 +1351,7 @@ export function ContentPage() {
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-          <GlassPanel className="border-slate-200/80 bg-white shadow-[0_16px_44px_rgba(15,23,42,0.06)]" index={5}>
+          <GlassPanel className="border-slate-200/80 bg-white shadow-[0_14px_34px_rgba(15,23,42,0.05)]" index={5}>
             <SectionTitle title="Resumo do período" description="Leitura rápida do que foi feito." />
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
@@ -1383,7 +1383,7 @@ export function ContentPage() {
             </div>
           </GlassPanel>
 
-          <GlassPanel className="border-slate-200/80 bg-white shadow-[0_16px_44px_rgba(15,23,42,0.06)]" index={6}>
+          <GlassPanel className="border-slate-200/80 bg-white shadow-[0_14px_34px_rgba(15,23,42,0.05)]" index={6}>
             <SectionTitle title="Metas e conteúdo" description="Tudo o que foi publicado e acompanhado no período." />
             <div className="mt-5 space-y-4">
               {visibleGoals.slice(0, 3).map((goal) => (
