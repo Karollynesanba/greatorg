@@ -1676,7 +1676,7 @@ export function CalendarPage() {
                 <div className="rounded-[1.25rem] border border-border/60 bg-muted/25 p-4">
                   <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Falta</p>
                   <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
-                    x {formatViewsNumber(remainingMonthViews)}
+                    {formatViewsNumber(remainingMonthViews)}
                   </p>
                 </div>
               </div>
