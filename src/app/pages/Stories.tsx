@@ -39,10 +39,8 @@ type StoryFormState = {
 };
 
 const defaultMonthlyGoalTotal = 168;
-const monthlyGoals = {
-  video: 105,
-  photo: 63,
-};
+const defaultMonthlyGoalVideo = 105;
+const defaultMonthlyGoalPhoto = 63;
 
 function pad(number: number) {
   return String(number).padStart(2, "0");
@@ -164,8 +162,14 @@ export function StoriesPage() {
   });
   const [teamScope] = useTeamScope();
   const [monthlyGoalTotal, setMonthlyGoalTotal] = useSupabasePreference<number>("stories-monthly-goal-total", defaultMonthlyGoalTotal);
+  const [monthlyGoalVideo, setMonthlyGoalVideo] = useSupabasePreference<number>("stories-monthly-goal-video", defaultMonthlyGoalVideo);
+  const [monthlyGoalPhoto, setMonthlyGoalPhoto] = useSupabasePreference<number>("stories-monthly-goal-photo", defaultMonthlyGoalPhoto);
   const [isEditingMonthlyGoalTotal, setIsEditingMonthlyGoalTotal] = useState(false);
+  const [isEditingMonthlyGoalVideo, setIsEditingMonthlyGoalVideo] = useState(false);
+  const [isEditingMonthlyGoalPhoto, setIsEditingMonthlyGoalPhoto] = useState(false);
   const [monthlyGoalTotalDraft, setMonthlyGoalTotalDraft] = useState(String(defaultMonthlyGoalTotal));
+  const [monthlyGoalVideoDraft, setMonthlyGoalVideoDraft] = useState(String(defaultMonthlyGoalVideo));
+  const [monthlyGoalPhotoDraft, setMonthlyGoalPhotoDraft] = useState(String(defaultMonthlyGoalPhoto));
   const currentMonthAnchor = useMemo(() => new Date(), []);
   const [periodMode, setPeriodMode] = useState<StoryPeriodMode>("current");
   const [monthCursor, setMonthCursor] = useState(() => startOfMonth(currentMonthAnchor));
@@ -185,10 +189,10 @@ export function StoriesPage() {
   const effectiveMonthlyGoals = useMemo(
     () => ({
       total: monthlyGoalTotal,
-      video: monthlyGoals.video,
-      photo: monthlyGoals.photo,
+      video: monthlyGoalVideo,
+      photo: monthlyGoalPhoto,
     }),
-    [monthlyGoalTotal],
+    [monthlyGoalPhoto, monthlyGoalTotal, monthlyGoalVideo],
   );
 
   const visibleItems = useMemo(
@@ -249,6 +253,46 @@ export function StoriesPage() {
   const handleCancelMonthlyGoalTotalEdit = () => {
     setMonthlyGoalTotalDraft(String(monthlyGoalTotal));
     setIsEditingMonthlyGoalTotal(false);
+  };
+
+  const handleStartEditingMonthlyGoalVideo = () => {
+    setMonthlyGoalVideoDraft(String(monthlyGoalVideo));
+    setIsEditingMonthlyGoalVideo(true);
+  };
+
+  const handleCommitMonthlyGoalVideo = () => {
+    const parsedValue = Number(String(monthlyGoalVideoDraft).replace(/[^\d]/g, ""));
+    const nextValue = Number.isFinite(parsedValue) ? Math.max(1, Math.round(parsedValue)) : defaultMonthlyGoalVideo;
+
+    setMonthlyGoalVideo(nextValue);
+    setMonthlyGoalVideoDraft(String(nextValue));
+    setIsEditingMonthlyGoalVideo(false);
+    toast.success("Meta de vídeo atualizada.");
+  };
+
+  const handleCancelMonthlyGoalVideoEdit = () => {
+    setMonthlyGoalVideoDraft(String(monthlyGoalVideo));
+    setIsEditingMonthlyGoalVideo(false);
+  };
+
+  const handleStartEditingMonthlyGoalPhoto = () => {
+    setMonthlyGoalPhotoDraft(String(monthlyGoalPhoto));
+    setIsEditingMonthlyGoalPhoto(true);
+  };
+
+  const handleCommitMonthlyGoalPhoto = () => {
+    const parsedValue = Number(String(monthlyGoalPhotoDraft).replace(/[^\d]/g, ""));
+    const nextValue = Number.isFinite(parsedValue) ? Math.max(1, Math.round(parsedValue)) : defaultMonthlyGoalPhoto;
+
+    setMonthlyGoalPhoto(nextValue);
+    setMonthlyGoalPhotoDraft(String(nextValue));
+    setIsEditingMonthlyGoalPhoto(false);
+    toast.success("Meta de foto atualizada.");
+  };
+
+  const handleCancelMonthlyGoalPhotoEdit = () => {
+    setMonthlyGoalPhotoDraft(String(monthlyGoalPhoto));
+    setIsEditingMonthlyGoalPhoto(false);
   };
 
   const sortedItems = useMemo(() => {
@@ -380,7 +424,7 @@ export function StoriesPage() {
       <PageHeader
         eyebrow="Conteúdo"
         title="Stories"
-        description="Meta mensal: 168 stories, sendo 105 em vídeo. Registre o que foi feito por dia."
+        description={`Meta mensal: ${effectiveMonthlyGoals.total} stories, sendo ${effectiveMonthlyGoals.video} em vídeo. Registre o que foi feito por dia.`}
         actions={
           <ActionButton onClick={openCreateModal} dataCy="stories-create-open">
             <Plus className="h-4 w-4" />
@@ -570,17 +614,90 @@ export function StoriesPage() {
               <ProgressBar value={stats.total} max={effectiveMonthlyGoals.total} />
             </GlassPanel>
             <GlassPanel className="overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,250,252,0.96))] p-5 shadow-[0_16px_36px_rgba(15,23,42,0.05)]">
-              <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Vídeo</p>
-              <p className="mt-3 text-[clamp(1.65rem,2.4vw,2.15rem)] font-semibold tracking-tight text-foreground">
-                {stats.video} / {effectiveMonthlyGoals.video}
-              </p>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Vídeo</p>
+                  <p className="mt-3 text-[clamp(1.65rem,2.4vw,2.15rem)] font-semibold tracking-tight text-foreground">
+                    {stats.video} / {effectiveMonthlyGoals.video}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleStartEditingMonthlyGoalVideo}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-white/90 text-muted-foreground transition hover:border-primary/25 hover:bg-primary/5 hover:text-primary"
+                  aria-label="Editar meta de vídeo"
+                >
+                  <PencilLine className="h-4 w-4" />
+                </button>
+              </div>
+              {isEditingMonthlyGoalVideo ? (
+                <div className="mt-4 flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
+                  <span className="text-sm font-semibold text-primary">Meta</span>
+                  <input
+                    autoFocus
+                    value={monthlyGoalVideoDraft}
+                    onChange={(event) => setMonthlyGoalVideoDraft(event.target.value)}
+                    onBlur={handleCommitMonthlyGoalVideo}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        handleCommitMonthlyGoalVideo();
+                      }
+
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        handleCancelMonthlyGoalVideoEdit();
+                      }
+                    }}
+                    inputMode="numeric"
+                    className="w-full border-0 bg-transparent text-2xl font-semibold tracking-tight text-foreground outline-none placeholder:text-muted-foreground"
+                    placeholder={String(defaultMonthlyGoalVideo)}
+                  />
+                </div>
+              ) : null}
               <ProgressBar value={stats.video} max={effectiveMonthlyGoals.video} />
             </GlassPanel>
             <GlassPanel className="overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,250,252,0.96))] p-5 shadow-[0_16px_36px_rgba(15,23,42,0.05)]">
-              <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Foto</p>
-              <p className="mt-3 text-[clamp(1.65rem,2.4vw,2.15rem)] font-semibold tracking-tight text-foreground">
-                {stats.photo} / {effectiveMonthlyGoals.photo}
-              </p>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Foto</p>
+                  <p className="mt-3 text-[clamp(1.65rem,2.4vw,2.15rem)] font-semibold tracking-tight text-foreground">
+                    {stats.photo} / {effectiveMonthlyGoals.photo}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleStartEditingMonthlyGoalPhoto}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-white/90 text-muted-foreground transition hover:border-primary/25 hover:bg-primary/5 hover:text-primary"
+                  aria-label="Editar meta de foto"
+                >
+                  <PencilLine className="h-4 w-4" />
+                </button>
+              </div>
+              {isEditingMonthlyGoalPhoto ? (
+                <div className="mt-4 flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
+                  <span className="text-sm font-semibold text-primary">Meta</span>
+                  <input
+                    value={monthlyGoalPhotoDraft}
+                    onChange={(event) => setMonthlyGoalPhotoDraft(event.target.value)}
+                    onBlur={handleCommitMonthlyGoalPhoto}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        handleCommitMonthlyGoalPhoto();
+                      }
+
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        handleCancelMonthlyGoalPhotoEdit();
+                      }
+                    }}
+                    inputMode="numeric"
+                    className="w-full border-0 bg-transparent text-2xl font-semibold tracking-tight text-foreground outline-none placeholder:text-muted-foreground"
+                    placeholder={String(defaultMonthlyGoalPhoto)}
+                  />
+                </div>
+              ) : null}
               <ProgressBar value={stats.photo} max={effectiveMonthlyGoals.photo} />
             </GlassPanel>
           </div>
