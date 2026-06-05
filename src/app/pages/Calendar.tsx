@@ -18,15 +18,19 @@ import {
   calendarEvents,
   calendarHours,
   daysOfWeek,
+  historyTimeline,
   weekLabel,
   type CalendarEvent,
   type CalendarTaskItem,
+  type HistoryEvent,
 } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
 import { useCurrentTeamMember } from "../data/profiles";
 import { formatBrazilDateLabel, getBrazilYesterdayDateKey } from "../data/brazilDate";
 import { useSupabaseSharedState, useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
+import { buildCalendarCompletionHistoryEvent, getCalendarCompletionHistoryId } from "../data/calendarWorkflow";
+import { removeHistoryEvent, upsertHistoryEvent } from "../data/historyEvents";
 import {
   ActionButton,
   ConfirmDialog,
@@ -935,6 +939,11 @@ export function CalendarPage() {
     table: "calendar_events",
     fallback: calendarEvents,
   });
+  const [, setHistoryEvents] = useSupabaseSyncedListState<HistoryEvent>({
+    key: "history",
+    table: "history_events",
+    fallback: historyTimeline,
+  });
   const [dayViewsByDate, setDayViewsByDate] = useSupabaseSharedState<Record<string, number>>({
     key: "calendar-day-views",
     fallback: {},
@@ -959,6 +968,29 @@ export function CalendarPage() {
   const [dayReachDraft, setDayReachDraft] = useState("0");
   const [isEditingMonthlyViewsGoal, setIsEditingMonthlyViewsGoal] = useState(false);
   const [monthlyViewsGoalDraft, setMonthlyViewsGoalDraft] = useState(String(defaultMonthlyViewsGoal));
+
+  const syncCompletedEventHistory = (event: CalendarEvent, actorId?: number | null) => {
+    const historyId = getCalendarCompletionHistoryId(event.id);
+    const resolvedActorId = actorId ?? event.completedById ?? event.addedById ?? event.responsibleId;
+    const actor =
+      typeof resolvedActorId === "number"
+        ? teamMembers.find((member) => member.id === resolvedActorId)
+        : null;
+
+    setHistoryEvents((previous) => {
+      if (!event.completed) {
+        return removeHistoryEvent(previous, historyId);
+      }
+
+      return upsertHistoryEvent(
+        previous,
+        buildCalendarCompletionHistoryEvent(
+          event,
+          actor ? { id: actor.id, name: actor.name } : null,
+        ),
+      );
+    });
+  };
 
   const weekDates = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(startOfWeek(currentDate), index)), [currentDate]);
   const monthCells = useMemo(() => buildMonthCells(currentDate), [currentDate]);
@@ -1238,6 +1270,7 @@ export function CalendarPage() {
     }, currentMemberId ?? currentMember?.id ?? null);
 
     setEvents((previous) => previous.map((event) => (event.id === selectedEvent.id ? updatedEvent : event)));
+    syncCompletedEventHistory(updatedEvent, currentMemberId ?? currentMember?.id ?? null);
     setSelectedEvent(updatedEvent);
     setEventForm({
       title: updatedEvent.title,
@@ -1273,6 +1306,7 @@ export function CalendarPage() {
     }, currentMemberId ?? currentMember?.id ?? null);
 
     setEvents((previous) => previous.map((event) => (event.id === selectedEvent.id ? completedEvent : event)));
+    syncCompletedEventHistory(completedEvent, currentMemberId ?? currentMember?.id ?? null);
     setSelectedEvent(completedEvent);
     setEventForm((current) =>
       current ? { ...current, status: completedEvent.status, tasks: completedEvent.tasks ?? current.tasks } : current,
@@ -1320,6 +1354,7 @@ export function CalendarPage() {
     }
 
     setEvents((previous) => previous.filter((event) => event.id !== eventId));
+    setHistoryEvents((previous) => removeHistoryEvent(previous, getCalendarCompletionHistoryId(eventId)));
     setSelectedEvent((current) => (current?.id === eventId ? null : current));
     setPendingDelete(null);
     toast.success("Evento apagado com sucesso.", {
@@ -1374,6 +1409,7 @@ export function CalendarPage() {
     }, currentMemberId ?? currentMember?.id ?? null);
 
     setEvents((previous) => [...previous, newEvent]);
+    syncCompletedEventHistory(newEvent, currentMemberId ?? currentMember?.id ?? null);
     setSelectedEvent(newEvent);
     setEventForm({
       title: newEvent.title,
