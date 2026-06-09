@@ -9,6 +9,13 @@ type RowEnvelope<T> = {
   id: number;
   sort_order: number;
   data: T;
+  created_at?: string;
+  updated_at?: string;
+  deleted_at?: string | null;
+  archived_at?: string | null;
+  created_by?: string | null;
+  updated_by?: string | null;
+  archived_by?: string | null;
 };
 
 function normalizeId(value: unknown) {
@@ -24,43 +31,18 @@ function toRowEnvelope<T extends { id: number }>(item: T, sortOrder: number): Ro
   };
 }
 
-function mergeById<T extends { id: number }>(primary: T[], fallback: T[]) {
-  const seen = new Set<number>();
-  const merged: T[] = [];
-
-  for (const item of primary) {
-    if (seen.has(item.id)) {
-      continue;
-    }
-
-    seen.add(item.id);
-    merged.push(item);
-  }
-
-  for (const item of fallback) {
-    if (seen.has(item.id)) {
-      continue;
-    }
-
-    seen.add(item.id);
-    merged.push(item);
-  }
-
-  return merged;
-}
-
 function snapshotOf<T>(value: T) {
   return JSON.stringify(value);
 }
 
 async function fetchRemoteRows<T extends { id: number }>(table: string, fallback: T[]) {
   if (!supabase) {
-    return fallback;
+    return { items: fallback, hasRows: fallback.length > 0 };
   }
 
   try {
     const client = supabase;
-    const { data, error } = await client.from(table).select("id, sort_order, data").order("sort_order", {
+    const { data, error } = await client.from(table).select("id, sort_order, data, deleted_at, archived_at").order("sort_order", {
       ascending: true,
     });
 
@@ -68,12 +50,22 @@ async function fetchRemoteRows<T extends { id: number }>(table: string, fallback
       throw error;
     }
 
-    return (data ?? [])
+    const rows = data ?? [];
+    const items = rows
       .map((row) => row.data as T)
+      .filter((_, index) => {
+        const row = rows[index] as { deleted_at?: string | null; archived_at?: string | null } | undefined;
+        return !row?.deleted_at && !row?.archived_at;
+      })
       .filter((item): item is T => Boolean(item) && normalizeId((item as { id?: unknown }).id) !== null);
+
+    return {
+      items,
+      hasRows: rows.length > 0,
+    };
   } catch (error) {
     console.error(`Failed to load ${table} from Supabase`, error);
-    return fallback;
+    return { items: fallback, hasRows: fallback.length > 0 };
   }
 }
 
@@ -81,13 +73,21 @@ async function persistRemoteRows<T extends { id: number }>(
   table: string,
   previousValue: T[],
   nextValue: T[],
+  currentUserId: string | null,
 ) {
   if (!supabase || nextValue.length === 0 && previousValue.length === 0) {
     return;
   }
 
   const client = supabase;
-  const rows = nextValue.map((item, index) => toRowEnvelope(item, index));
+  const timestamp = new Date().toISOString();
+  const rows = nextValue.map((item, index) => ({
+    ...toRowEnvelope(item, index),
+    deleted_at: null,
+    archived_at: null,
+    updated_at: timestamp,
+    updated_by: currentUserId,
+  }));
   const nextIds = new Set(nextValue.map((item) => item.id));
   const removedIds = previousValue.map((item) => item.id).filter((id) => !nextIds.has(id));
 
@@ -99,7 +99,14 @@ async function persistRemoteRows<T extends { id: number }>(
   }
 
   if (removedIds.length > 0) {
-    const { error } = await client.from(table).delete().in("id", removedIds);
+    const { error } = await client
+      .from(table)
+      .update({
+        deleted_at: timestamp,
+        updated_at: timestamp,
+        updated_by: currentUserId,
+      })
+      .in("id", removedIds);
     if (error) {
       throw error;
     }
@@ -122,6 +129,7 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
   const lastSavedSnapshotRef = useRef<string | null>(null);
   const lastPersistedValueRef = useRef<T[]>(options.fallback);
   const isRemoteSourceAvailable = isSupabaseConfigured() && Boolean(supabase) && Boolean(session);
+  const currentUserId = session?.user.id ?? null;
 
   const readLocalValue = useCallback(() => {
     const loadedRows = readLocalJson<RowEnvelope<T>[]>(storageKey, options.fallback.map((item, index) => toRowEnvelope(item, index)));
@@ -129,7 +137,7 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
       .map((row) => row.data)
       .filter((item): item is T => Boolean(item) && normalizeId((item as { id?: unknown }).id) !== null);
 
-    return loadedItems.length > 0 ? mergeById(loadedItems, options.fallback) : options.fallback;
+    return loadedRows.length > 0 ? loadedItems : options.fallback;
   }, [options.fallback, storageKey]);
 
   const loadValue = useCallback(async () => {
@@ -141,8 +149,8 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
       return readLocalValue();
     }
 
-    const nextValue = await fetchRemoteRows<T>(options.table, options.fallback);
-    return nextValue.length > 0 ? mergeById(nextValue, options.fallback) : options.fallback;
+    const remote = await fetchRemoteRows<T>(options.table, options.fallback);
+    return remote.hasRows ? remote.items : options.fallback;
   }, [authReady, isRemoteSourceAvailable, options.fallback, options.table, readLocalValue]);
 
   const commitValue = useCallback((nextValue: T[]) => {
@@ -247,7 +255,7 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
 
     const previousValue = lastPersistedValueRef.current;
 
-    void persistRemoteRows(options.table, previousValue, value)
+    void persistRemoteRows(options.table, previousValue, value, currentUserId)
       .then(() => {
         lastSavedSnapshotRef.current = snapshot;
         lastPersistedValueRef.current = value;
@@ -256,7 +264,7 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
         // Keep the optimistic local state so the UI stays responsive.
         console.error(`Failed to sync ${options.table} to Supabase`, error);
       });
-  }, [options.table, session, storageKey, value]);
+  }, [currentUserId, options.table, session, storageKey, value]);
 
   return [value, setValue, hydrated, reload] as const;
 }

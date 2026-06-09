@@ -18,6 +18,7 @@ import {
   type MetaInsightsPayload,
   type MetaPeriod,
 } from "../data/metaInsights";
+import { useSupabaseSharedState } from "../data/supabaseSync";
 import {
   ActionButton,
   EmptyState,
@@ -108,10 +109,22 @@ function LoadingState() {
 export function MetaInsightsPage() {
   const { isDark } = useThemeMode();
   const [metaConfig] = useMetaConfig();
+  const [cachedPayload, setCachedPayload, cachedReady] = useSupabaseSharedState<MetaInsightsPayload>({
+    key: "meta-insights-latest",
+    fallback: emptyMetaInsightsPayload,
+  });
   const [period, setPeriod] = useState<MetaPeriod>("Mês");
   const [status, setStatus] = useState<LoadStatus>("loading");
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<MetaInsightsPayload>(emptyMetaInsightsPayload);
+
+  useEffect(() => {
+    if (!cachedReady) {
+      return;
+    }
+
+    setData(cachedPayload);
+  }, [cachedPayload, cachedReady]);
 
   const loadMetaInsights = useCallback(async () => {
     const days = metaPeriodDays[period];
@@ -140,14 +153,29 @@ export function MetaInsightsPage() {
       }
 
       setData(payload);
+      setCachedPayload(payload);
       setStatus("ready");
     } catch (error_) {
       const message = error_ instanceof Error ? error_.message : "Falha ao conectar com a Meta.";
+      const hasCachedSnapshot =
+        cachedPayload.connected ||
+        cachedPayload.trend.length > 0 ||
+        cachedPayload.media.length > 0 ||
+        cachedPayload.updatedAt.length > 0;
+
+      if (hasCachedSnapshot) {
+        setData(cachedPayload);
+        setStatus("ready");
+        setError(null);
+        toast.warning(message);
+        return;
+      }
+
       setStatus("error");
       setError(message);
       toast.error(message);
     }
-  }, [metaConfig.instagramUserId, metaConfig.pageId, period]);
+  }, [cachedPayload, metaConfig.instagramUserId, metaConfig.pageId, period, setCachedPayload]);
 
   useEffect(() => {
     void loadMetaInsights();
