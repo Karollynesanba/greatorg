@@ -79,7 +79,7 @@ alter table public.app_preferences alter column user_id set not null;
 do $$
 begin
   alter table public.team_profiles
-    add constraint team_profiles_user_id_fkey foreign key (user_id) references auth.users (id) on delete cascade;
+    add constraint team_profiles_user_id_fkey foreign key (user_id) references auth.users (id) on delete cascade not valid;
 exception
   when duplicate_object then null;
 end $$;
@@ -87,7 +87,7 @@ end $$;
 do $$
 begin
   alter table public.app_preferences
-    add constraint app_preferences_user_id_fkey foreign key (user_id) references auth.users (id) on delete cascade;
+    add constraint app_preferences_user_id_fkey foreign key (user_id) references auth.users (id) on delete cascade not valid;
 exception
   when duplicate_object then null;
 end $$;
@@ -246,13 +246,10 @@ begin
   ] loop
     if not exists (
       select 1
-      from pg_publication p
-      join pg_publication_tables pt on pt.pubid = p.oid
-      join pg_class c on c.oid = pt.relid
-      join pg_namespace n on n.oid = c.relnamespace
-      where p.pubname = 'supabase_realtime'
-        and n.nspname = 'public'
-        and c.relname = table_name
+      from pg_publication_tables pt
+      where pt.pubname = 'supabase_realtime'
+        and pt.schemaname = 'public'
+        and pt.tablename = table_name
     ) then
       execute format('alter publication supabase_realtime add table public.%I', table_name);
     end if;
