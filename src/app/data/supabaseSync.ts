@@ -24,6 +24,31 @@ function toRowEnvelope<T extends { id: number }>(item: T, sortOrder: number): Ro
   };
 }
 
+function mergeById<T extends { id: number }>(primary: T[], fallback: T[]) {
+  const seen = new Set<number>();
+  const merged: T[] = [];
+
+  for (const item of primary) {
+    if (seen.has(item.id)) {
+      continue;
+    }
+
+    seen.add(item.id);
+    merged.push(item);
+  }
+
+  for (const item of fallback) {
+    if (seen.has(item.id)) {
+      continue;
+    }
+
+    seen.add(item.id);
+    merged.push(item);
+  }
+
+  return merged;
+}
+
 function snapshotOf<T>(value: T) {
   return JSON.stringify(value);
 }
@@ -104,7 +129,7 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
       .map((row) => row.data)
       .filter((item): item is T => Boolean(item) && normalizeId((item as { id?: unknown }).id) !== null);
 
-    return loadedItems.length > 0 ? loadedItems : options.fallback;
+    return loadedItems.length > 0 ? mergeById(loadedItems, options.fallback) : options.fallback;
   }, [options.fallback, storageKey]);
 
   const loadValue = useCallback(async () => {
@@ -117,7 +142,7 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
     }
 
     const nextValue = await fetchRemoteRows<T>(options.table, options.fallback);
-    return nextValue.length > 0 ? nextValue : options.fallback;
+    return nextValue.length > 0 ? mergeById(nextValue, options.fallback) : options.fallback;
   }, [authReady, isRemoteSourceAvailable, options.fallback, options.table, readLocalValue]);
 
   const commitValue = useCallback((nextValue: T[]) => {

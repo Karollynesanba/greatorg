@@ -1,4 +1,13 @@
-﻿export type ContentType = "Reels" | "Stories" | "Carrossel" | "Feed";
+import {
+  seedCalendarEvents,
+  seedGoals,
+  seedHistoryTimeline,
+  seedIdeas,
+  seedPosts,
+  seedTeamMembers,
+} from "./siteSeed";
+
+export type ContentType = "Reels" | "Stories" | "Carrossel" | "Feed";
 export type PostStatus = "Agendado" | "Em produção" | "Aprovado" | "Publicado";
 export type IdeaStatus = "Ideia" | "Em produção" | "Pronto";
 export type TimelineType = "post" | "goal" | "schedule";
@@ -199,59 +208,25 @@ export type HistoryEvent = {
   metrics?: string;
 };
 
-export const teamMembers: TeamMember[] = [
-  {
-    id: 1,
-    name: "Brenda",
-    role: "Diretora Criativa",
-    avatar: "B",
-    specialty: "Gravação, edição e reels",
-    color: "#833AB4",
-    stats: {
-      postsCreated: 0,
-      avgEngagement: 0,
-      goalsCompleted: 0,
-      performance: 0,
-      punctuality: 0,
-    },
-    radar: [],
-    monthlyPosts: [],
-  },
-  {
-    id: 2,
-    name: "Hannah",
-    role: "Designer de Social",
-    avatar: "H",
-    specialty: "Artes estáticas e stories",
-    color: "#E1306C",
-    stats: {
-      postsCreated: 0,
-      avgEngagement: 0,
-      goalsCompleted: 0,
-      performance: 0,
-      punctuality: 0,
-    },
-    radar: [],
-    monthlyPosts: [],
-  },
-  {
-    id: 3,
-    name: "Thiago",
-    role: "Designer Editorial",
-    avatar: "T",
-    specialty: "Carrosséis e capas",
-    color: "#3B82F6",
-    stats: {
-      postsCreated: 0,
-      avgEngagement: 0,
-      goalsCompleted: 0,
-      performance: 0,
-      punctuality: 0,
-    },
-    radar: [],
-    monthlyPosts: [],
-  },
-];
+export const teamMembers: TeamMember[] = seedTeamMembers.map((member) =>
+  member.name === "Brenda"
+    ? {
+        ...member,
+        stats: {
+          ...member.stats,
+          postsCreated: 43,
+        },
+      }
+    : member.name === "Hannah" || member.name === "Thiago"
+      ? {
+          ...member,
+          stats: {
+            ...member.stats,
+            goalsCompleted: 9,
+          },
+        }
+      : member,
+);
 
 export const dashboardMetrics: DashboardMetric[] = [
   { id: "reach", label: "Alcance", value: "0", change: 0, highlight: "Sem dados cadastrados." },
@@ -260,15 +235,53 @@ export const dashboardMetrics: DashboardMetric[] = [
   { id: "growth", label: "Crescimento", value: "0", change: 0, highlight: "Sem dados cadastrados." },
 ];
 
-export const posts: Post[] = [];
+export const posts: Post[] = seedPosts;
 export const topPosts = posts.slice(0, 5);
 export const worstPosts = posts.slice(5, 7);
 
-export const goals: Goal[] = [];
-export const calendarEvents: CalendarEvent[] = [];
-export const storyLogs: StoryLog[] = [];
-export const ideas: Idea[] = [];
-export const historyTimeline: HistoryEvent[] = [];
+export const goals: Goal[] = seedGoals;
+export const calendarEvents: CalendarEvent[] = seedCalendarEvents;
+
+const juneStoryMediaByHistoryId: Record<number, StoryLog["mediaType"]> = {
+  100006: "video",
+  100007: "photo",
+  100008: "photo",
+  100009: "video",
+  100010: "photo",
+  100011: "video",
+  100012: "photo",
+  100013: "photo",
+  100014: "photo",
+  100015: "video",
+  100016: "video",
+  100017: "photo",
+};
+
+function extractStoryQuantity(metrics?: string) {
+  const match = metrics?.match(/(\d+)/);
+  return match ? Number(match[1]) : 0;
+}
+
+function extractStoryTime(description: string) {
+  const match = description.match(/em (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})\./);
+  return match?.[2] ?? "09:00";
+}
+
+export const storyLogs: StoryLog[] = seedHistoryTimeline
+  .filter((entry) => entry.id >= 100006 && entry.id <= 100017)
+  .map((entry) => ({
+    id: entry.id - 100000,
+    date: entry.date,
+    time: extractStoryTime(entry.description),
+    quantity: extractStoryQuantity(entry.metrics),
+    mediaType: juneStoryMediaByHistoryId[entry.id] ?? "photo",
+    madeById: entry.authorId,
+    postedById: juneStoryMediaByHistoryId[entry.id] === "video" ? 2 : 3,
+    notes: entry.description,
+  }));
+
+export const ideas: Idea[] = seedIdeas;
+export const historyTimeline: HistoryEvent[] = seedHistoryTimeline.filter((entry) => entry.authorId === 1);
 
 export const insights = {
   bestTime: {

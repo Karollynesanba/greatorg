@@ -49,7 +49,16 @@ import { useThemeMode } from "../theme";
 const viewModes = ["Dia", "Semana", "Mês"] as const;
 const dragType = "calendar-event";
 const getTodayDate = () => new Date();
-const defaultMonthlyViewsGoal = 1000000;
+const defaultMonthlyViewsGoal = 800000;
+const defaultDayViewsByDate: Record<string, number> = {
+  "2026-05-28": 7,
+  "2026-06-01": 20402,
+  "2026-06-02": 15174,
+  "2026-06-04": 24458,
+};
+const defaultDayReachByDate: Record<string, number> = {
+  "2026-06-04": 24362,
+};
 const weekHeaderLabels = daysOfWeek.map((day) => `${day.toUpperCase()}.`);
 
 function formatDateKey(date: Date) {
@@ -946,11 +955,11 @@ export function CalendarPage() {
   });
   const [dayViewsByDate, setDayViewsByDate] = useSupabaseSharedState<Record<string, number>>({
     key: "calendar-day-views",
-    fallback: {},
+    fallback: defaultDayViewsByDate,
   });
   const [dayReachByDate, setDayReachByDate] = useSupabaseSharedState<Record<string, number>>({
     key: "calendar-day-reach",
-    fallback: {},
+    fallback: defaultDayReachByDate,
   });
   const [monthlyViewsGoal, setMonthlyViewsGoal] = useSupabaseSharedState<number>({
     key: "calendar-monthly-views-goal",

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Film, PencilLine, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { historyTimeline, storyLogs, type HistoryEvent, type StoryLog } from "../data/mockData";
@@ -147,9 +147,18 @@ function emptyForm(teamMembers: Array<{ id: number }>): StoryFormState {
   };
 }
 
+function getLatestMonthKey(items: Array<{ date: string }>) {
+  return [...items]
+    .map((item) => item.date.slice(0, 7))
+    .filter(Boolean)
+    .sort()
+    .at(-1) ?? null;
+}
+
 export function StoriesPage() {
   const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
+  const autoSelectedMonthRef = useRef(false);
   const [items, setItems] = useSupabaseSyncedListState<StoryLog>({
     key: "story-logs",
     table: "story_logs",
@@ -221,6 +230,38 @@ export function StoriesPage() {
     },
     [customRange.end, customRange.start, currentMonthAnchor, items, monthCursor, periodMode, teamScope],
   );
+
+  useEffect(() => {
+    if (autoSelectedMonthRef.current || periodMode !== "current") {
+      return;
+    }
+
+    const currentMonthKey = formatMonthKey(currentMonthAnchor);
+    const scopedItems = items.filter((item) => {
+      const matchesMadeBy = matchesTeamScope(item.madeById, teamScope);
+      const matchesPostedBy = matchesTeamScope(item.postedById, teamScope);
+      return (matchesMadeBy || matchesPostedBy) && !isCypressRecord(item);
+    });
+
+    const hasCurrentMonthItems = scopedItems.some((item) => item.date.startsWith(currentMonthKey));
+    if (hasCurrentMonthItems) {
+      return;
+    }
+
+    const latestMonthKey = getLatestMonthKey(scopedItems);
+    if (!latestMonthKey) {
+      return;
+    }
+
+    const [year, month] = latestMonthKey.split("-").map(Number);
+    if (!year || !month) {
+      return;
+    }
+
+    setMonthCursor(new Date(year, month - 1, 1));
+    setPeriodMode("month");
+    autoSelectedMonthRef.current = true;
+  }, [currentMonthAnchor, items, periodMode, teamScope]);
 
   const stats = useMemo(() => {
     const total = visibleItems.reduce((sum, item) => sum + item.quantity, 0);

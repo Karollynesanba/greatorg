@@ -2,7 +2,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { BarChart3, Eye, Rocket, Sparkles, type LucideIcon } from "lucide-react";
-import { calendarEvents, getGoalResponsibleIds, storyLogs, type CalendarEvent, type Goal, type StoryLog } from "../data/mockData";
+import { calendarEvents, getGoalResponsibleIds, storyLogs, type CalendarEvent, type Goal } from "../data/mockData";
 import { usePosts } from "../data/posts";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSharedState, useSupabaseSyncedListState } from "../data/supabaseSync";
@@ -19,7 +19,16 @@ import {
 import { useThemeMode } from "../theme";
 
 const metricIcons = [Eye, BarChart3, Sparkles, Rocket];
-const defaultMonthlyViewsGoal = 1000000;
+const defaultMonthlyViewsGoal = 800000;
+const defaultDayViewsByDate: Record<string, number> = {
+  "2026-05-28": 7,
+  "2026-06-01": 20402,
+  "2026-06-02": 15174,
+  "2026-06-04": 24458,
+};
+const defaultDayReachByDate: Record<string, number> = {
+  "2026-06-04": 24362,
+};
 type ComparisonMetricId = "views" | "reach" | "engagement" | "followers";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -392,10 +401,9 @@ export function DashboardPage() {
   const fallbackMember = teamMembers[0] ?? { id: 0, name: "Equipe Great", color: "#833AB4" };
   const [posts] = usePosts();
   const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
-  const [stories] = useSupabaseSyncedListState<StoryLog>({ key: "story-logs", table: "story_logs", fallback: storyLogs });
   const [calendarItems] = useSupabaseSyncedListState<CalendarEvent>({ key: "calendar-events", table: "calendar_events", fallback: calendarEvents });
-  const [dayViewsByDate] = useSupabaseSharedState<Record<string, number>>({ key: "calendar-day-views", fallback: {} });
-  const [dayReachByDate] = useSupabaseSharedState<Record<string, number>>({ key: "calendar-day-reach", fallback: {} });
+  const [dayViewsByDate] = useSupabaseSharedState<Record<string, number>>({ key: "calendar-day-views", fallback: defaultDayViewsByDate });
+  const [dayReachByDate] = useSupabaseSharedState<Record<string, number>>({ key: "calendar-day-reach", fallback: defaultDayReachByDate });
   const [monthlyViewsGoal] = useSupabaseSharedState<number>({ key: "calendar-monthly-views-goal", fallback: defaultMonthlyViewsGoal });
   const [dashboardMetricGoals] = useSupabaseSharedState<Record<Exclude<ComparisonMetricId, "views">, number>>({
     key: "dashboard-metric-goals",
@@ -415,15 +423,15 @@ export function DashboardPage() {
     const date = asString((post as { date?: unknown }).date);
     return matchesTeamScope(authorId, teamScope) && Boolean(date) && isCurrentMonthDate(date);
   });
-  const visibleGoals = goals.filter((goal) => {
-    const deadline = asString((goal as { deadline?: unknown }).deadline);
-    return getGoalResponsibleIds(goal).some((id) => matchesTeamScope(id, teamScope)) && Boolean(deadline) && isCurrentMonthDate(deadline);
-  });
-  const visibleStories = stories.filter((story) => {
+  const visibleStoryLogs = storyLogs.filter((story) => {
     const madeById = asNumber((story as { madeById?: unknown }).madeById);
     const postedById = asNumber((story as { postedById?: unknown }).postedById);
     const date = asString((story as { date?: unknown }).date);
     return (matchesTeamScope(madeById, teamScope) || matchesTeamScope(postedById, teamScope)) && Boolean(date) && isCurrentMonthDate(date);
+  });
+  const visibleGoals = goals.filter((goal) => {
+    const deadline = asString((goal as { deadline?: unknown }).deadline);
+    return getGoalResponsibleIds(goal).some((id) => matchesTeamScope(id, teamScope)) && Boolean(deadline) && isCurrentMonthDate(deadline);
   });
   const visibleCalendarItems = calendarItems.filter((event) => {
     const date = asString((event as { date?: unknown }).date);
@@ -435,7 +443,9 @@ export function DashboardPage() {
   const monthViews = sumMonthViews(safeDayViewsByDate, currentMonthKey());
   const monthReach = sumMonthViews(safeDayReachByDate, monthKey);
   const monthFollowers = sumMonthViews(safeDashboardDailyFollowers, monthKey);
+  const monthStories = visibleStoryLogs.reduce((sum, story) => sum + asNumber((story as { quantity?: unknown }).quantity), 0);
   const remainingViews = Math.max(monthlyViewsGoal - monthViews, 0);
+  const remainingStories = Math.max(168 - monthStories, 0);
   const totalEngagement = visiblePosts.reduce((sum, post) => sum + asNumber(post.engagement), 0);
   const completedGoals = visibleGoals.filter((goal) => asNumber((goal as { current?: unknown }).current) >= asNumber((goal as { target?: unknown }).target)).length;
   const completedCalendarItems = visibleCalendarItems.filter((event) => isCompletedCalendarEvent(event)).length;
@@ -469,9 +479,9 @@ export function DashboardPage() {
     {
       id: "stories",
       label: "Stories do mês",
-      value: String(visibleStories.reduce((sum, story) => sum + story.quantity, 0)),
+      value: formatLongNumber(monthStories),
       change: 0,
-      highlight: visibleStories.length > 0 ? "Dados puxados direto da aba de stories." : "Nenhum story registrado neste mês.",
+      highlight: monthStories > 0 ? `Faltam ${formatLongNumber(remainingStories)} stories para bater a meta.` : "Nenhum story registrado neste mês.",
     },
     {
       id: "calendar",
