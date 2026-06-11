@@ -2,7 +2,7 @@
 import { ChevronDown, Image as ImageIcon, Link2, Lightbulb, PencilLine, Plus, Upload, Video, X } from "lucide-react";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "motion/react";
-import { ideas, type Idea, type IdeaStatus } from "../data/mockData";
+import { type Idea, type IdeaStatus } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
@@ -147,7 +147,7 @@ function MemberDropdown({
 export function IdeasPage() {
   const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
-  const [items, setItems] = useSupabaseSyncedListState({ key: "ideas", table: "ideas", fallback: ideas });
+  const [items, setItems] = useSupabaseSyncedListState<Idea>({ key: "ideas", table: "ideas", fallback: [] });
   const [teamScope] = useTeamScope();
   const [isSparkOpen, setIsSparkOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
