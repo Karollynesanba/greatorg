@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useSupabaseSyncedListState } from "./supabaseSync";
-import { posts as fallbackPosts, type Post } from "./mockData";
+import type { Post } from "./mockData";
 
 export type { Post } from "./mockData";
 
@@ -10,7 +10,7 @@ export function usePosts() {
   return useSupabaseSyncedListState<Post>({
     key: "posts",
     table: postsTable,
-    fallback: fallbackPosts,
+    fallback: [],
   });
 }
 

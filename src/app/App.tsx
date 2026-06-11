@@ -18,7 +18,7 @@ import { PostDetailPage } from "./pages/PostDetail";
 import { ReportsPage } from "./pages/Reports";
 import { SettingsPage } from "./pages/Settings";
 import { StoriesPage } from "./pages/Stories";
-import { isAuthenticated, signOut } from "./auth";
+import { signOut, useAuthSession } from "./auth";
 import { getBrazilMonthKey } from "./data/brazilDate";
 import { createStorageKey } from "./data/sharedState";
 import { supabase } from "./data/supabase";
@@ -26,15 +26,32 @@ import { useSupabaseSharedState } from "./data/supabaseSync";
 import { ThemeModeProvider, useThemeMode } from "./theme";
 
 export default function App() {
-  const [authenticated, setAuthenticated] = useState(() => isAuthenticated());
+  const { session, ready } = useAuthSession();
+  const [authenticated, setAuthenticated] = useState(false);
 
   useEffect(() => {
     console.info("[Init] App started", {
-      authenticatedAtBoot: isAuthenticated(),
+      authenticatedAtBoot: Boolean(session),
       supabaseConfigured: Boolean(supabase),
     });
-    setAuthenticated(isAuthenticated());
-  }, []);
+    setAuthenticated(Boolean(session));
+  }, [session]);
+
+  if (!ready) {
+    return (
+      <ThemeModeProvider>
+        <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(180deg,rgb(252,253,255)_0%,rgb(247,248,250)_100%)] px-6 text-slate-900">
+          <div className="max-w-md rounded-[28px] border border-slate-200 bg-white p-8 text-center shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-rose-500">Inicializando</p>
+            <h1 className="mt-3 text-2xl font-semibold">Validando acesso ao Supabase</h1>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              A plataforma está confirmando sua sessão real antes de liberar o CRUD compartilhado.
+            </p>
+          </div>
+        </div>
+      </ThemeModeProvider>
+    );
+  }
 
   return (
     <ThemeModeProvider>

@@ -138,7 +138,6 @@ export function useCalendarDayMetrics() {
     const { data, error } = await supabaseClient
       .from("calendar_day_metrics")
       .select("id, user_id, metric_date, views, reach, created_at, updated_at")
-      .eq("user_id", session.user.id)
       .order("metric_date", { ascending: true });
 
     if (error) {
@@ -169,7 +168,7 @@ export function useCalendarDayMetrics() {
     }
 
     const unsubscribe = subscribeSharedChannel(
-      `great-organico:calendar_day_metrics:${session.user.id}`,
+      "great-organico:calendar_day_metrics",
       (channel, dispatch) => {
         channel.on(
           "postgres_changes",
@@ -177,7 +176,6 @@ export function useCalendarDayMetrics() {
             event: "*",
             schema: "public",
             table: "calendar_day_metrics",
-            filter: `user_id=eq.${session.user.id}`,
           },
           () => {
             dispatch();
@@ -235,7 +233,6 @@ export function useCalendarDayMetrics() {
         const { error } = await supabaseClient
           .from("calendar_day_metrics")
           .delete()
-          .eq("user_id", session.user.id)
           .in("id", removedIds);
 
         if (error) {

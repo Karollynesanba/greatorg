@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuthSession } from "../auth";
 import { isSupabaseConfigured, supabase } from "./supabase";
-import { readLocalJson, subscribeLocalKey, writeLocalJson } from "./localStore";
 import { subscribeSharedChannel } from "./supabaseRealtime";
 
 function snapshotOf<T>(value: T) {
@@ -13,25 +12,16 @@ export function useSupabasePreference<T>(key: string, fallback: T) {
   const [value, setValue] = useState<T>(fallback);
   const [ready, setReady] = useState(false);
   const lastSavedSnapshotRef = useRef<string | null>(null);
-  const storageKey = useMemo(() => `great-organico:pref:${session?.user.id ?? "guest"}:${key}`, [key, session?.user.id]);
-
   useEffect(() => {
     if (!authReady) {
       return;
     }
 
     if (!isSupabaseConfigured() || !supabase || !session) {
-      const loadedValue = readLocalJson<T>(storageKey, fallback);
-      setValue(loadedValue);
-      lastSavedSnapshotRef.current = snapshotOf(loadedValue);
+      setValue(fallback);
+      lastSavedSnapshotRef.current = snapshotOf(fallback);
       setReady(true);
-
-      return subscribeLocalKey(storageKey, () => {
-        const nextValue = readLocalJson<T>(storageKey, fallback);
-        setValue(nextValue);
-        lastSavedSnapshotRef.current = snapshotOf(nextValue);
-        setReady(true);
-      });
+      return;
     }
 
     const client = supabase;
@@ -147,7 +137,7 @@ export function useSupabasePreference<T>(key: string, fallback: T) {
       cancelled = true;
       unsubscribe();
     };
-  }, [authReady, fallback, key, session?.user.id, storageKey]);
+  }, [authReady, fallback, key, session?.user.id]);
 
   useEffect(() => {
     if (!ready) {
@@ -160,8 +150,6 @@ export function useSupabasePreference<T>(key: string, fallback: T) {
     }
 
     if (!isSupabaseConfigured() || !supabase || !session) {
-      writeLocalJson(storageKey, value);
-      lastSavedSnapshotRef.current = nextSnapshot;
       return;
     }
 
@@ -188,7 +176,7 @@ export function useSupabasePreference<T>(key: string, fallback: T) {
     })().catch((error: unknown) => {
       console.error(`Failed to sync preference ${key}`, error);
     });
-  }, [key, ready, session, storageKey, value]);
+  }, [key, ready, session, value]);
 
   return [value, setValue, ready] as const;
 }

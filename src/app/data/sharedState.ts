@@ -1,33 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 
 const sharedStateEvent = "great-organico-shared-state";
+const sharedStateStore = new Map<string, unknown>();
 
 type Updater<T> = T | ((current: T) => T);
 
-function canUseStorage() {
-  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
-}
-
 function readStoredValue<T>(key: string, fallback: T) {
-  if (!canUseStorage()) {
-    return fallback;
-  }
-
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
+  return sharedStateStore.has(key) ? (sharedStateStore.get(key) as T) : fallback;
 }
 
 function writeStoredValue<T>(key: string, value: T) {
-  if (!canUseStorage()) {
-    return;
+  sharedStateStore.set(key, value);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(sharedStateEvent, { detail: key }));
   }
-
-  window.localStorage.setItem(key, JSON.stringify(value));
-  window.dispatchEvent(new CustomEvent(sharedStateEvent, { detail: key }));
 }
 
 export function useSharedState<T>(key: string, fallback: T) {
@@ -35,26 +21,20 @@ export function useSharedState<T>(key: string, fallback: T) {
 
   useEffect(() => {
     const syncFromStorage = (event: StorageEvent | CustomEvent<string>) => {
-      if ("storageArea" in event) {
-        if (event.storageArea !== window.localStorage) {
-          return;
-        }
-
-        if (event.key !== key) {
-          return;
-        }
-      } else if (event.detail !== key) {
+      if (!("storageArea" in event) && event.detail !== key) {
         return;
       }
 
       setValue(readStoredValue(key, fallback));
     };
 
-    window.addEventListener("storage", syncFromStorage);
-    window.addEventListener(sharedStateEvent, syncFromStorage as EventListener);
+    if (typeof window !== "undefined") {
+      window.addEventListener(sharedStateEvent, syncFromStorage as EventListener);
+    }
     return () => {
-      window.removeEventListener("storage", syncFromStorage);
-      window.removeEventListener(sharedStateEvent, syncFromStorage as EventListener);
+      if (typeof window !== "undefined") {
+        window.removeEventListener(sharedStateEvent, syncFromStorage as EventListener);
+      }
     };
   }, [fallback, key]);
 

@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { BarChart3, Eye, Rocket, Sparkles, type LucideIcon } from "lucide-react";
-import { calendarEvents, getGoalResponsibleIds, storyLogs, type CalendarEvent, type Goal } from "../data/mockData";
+import { getGoalResponsibleIds, type CalendarEvent, type Goal, type StoryLog } from "../data/mockData";
 import { usePosts } from "../data/posts";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
@@ -392,7 +392,8 @@ export function DashboardPage() {
   const fallbackMember = teamMembers[0] ?? { id: 0, name: "Equipe Great", color: "#833AB4" };
   const [posts] = usePosts();
   const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
-  const [calendarItems] = useSupabaseSyncedListState<CalendarEvent>({ key: "calendar-events", table: "calendar_events", fallback: calendarEvents });
+  const [calendarItems] = useSupabaseSyncedListState<CalendarEvent>({ key: "calendar-events", table: "calendar_events", fallback: [] });
+  const [storyItems] = useSupabaseSyncedListState<StoryLog>({ key: "story-logs", table: "story_logs", fallback: [] });
   const [dayViewsByDate, , dayReachByDate] = useCalendarDayMetrics();
   const [monthlyViewsGoal] = useSupabasePreference<number>("calendar-monthly-views-goal", defaultMonthlyViewsGoal);
   const [dashboardMetricGoals] = useSupabasePreference<Record<Exclude<ComparisonMetricId, "views">, number>>("dashboard-metric-goals", {
@@ -411,7 +412,7 @@ export function DashboardPage() {
     const date = asString((post as { date?: unknown }).date);
     return matchesTeamScope(authorId, teamScope) && Boolean(date) && isCurrentMonthDate(date);
   });
-  const visibleStoryLogs = storyLogs.filter((story) => {
+  const visibleStoryLogs = storyItems.filter((story) => {
     const madeById = asNumber((story as { madeById?: unknown }).madeById);
     const postedById = asNumber((story as { postedById?: unknown }).postedById);
     const date = asString((story as { date?: unknown }).date);

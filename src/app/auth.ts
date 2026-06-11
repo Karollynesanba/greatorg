@@ -1,3 +1,4 @@
+import type { Session } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { readLocalJson, subscribeLocalKey, writeLocalJson, writeLocalText } from "./data/localStore";
 import { isSupabaseConfigured, supabase } from "./data/supabase";
@@ -9,7 +10,6 @@ export type AuthState = {
 
 type DemoAccount = {
   email: string;
-  id: string;
   name: string;
   password: string;
 };
@@ -18,8 +18,8 @@ type LocalSession = {
   access_token: string;
   expires_at: number;
   expires_in: number;
-  provider_refresh_token: null;
-  provider_token: null;
+  provider_refresh_token: string | null;
+  provider_token: string | null;
   refresh_token: string;
   token_type: "bearer";
   user: {
@@ -51,19 +51,16 @@ export const authMemberIdKey = "great-organico-authenticated-member-id";
 const demoAccounts: DemoAccount[] = [
   {
     email: "brendarayssa2706@gmail.com",
-    id: "4b8a4d0f-6f9e-4c3d-9a1d-2e1f4d58d101",
     name: "Brenda",
     password: "Great2026!",
   },
   {
     email: "hannahleticia13@gmail.com",
-    id: "2c1b7d5f-88a4-4b7b-8cb5-7d8a6f5c2b02",
     name: "Hannah",
     password: "Great2026!",
   },
   {
     email: "thiagomarquesdev23@hotmail.com",
-    id: "7d8a2c11-0f4e-4e7b-b0a9-3f9d77a1c303",
     name: "Thiago",
     password: "Great2026!",
   },
@@ -93,16 +90,16 @@ function getStoredPassword(email: string) {
   return readPasswordMap()[normalizeEmail(email)] ?? null;
 }
 
-function createSession(account: DemoAccount): LocalSession {
+function createLocalSession(account: DemoAccount): LocalSession {
   const timestamp = new Date().toISOString();
 
   return {
-    access_token: `local-session:${account.id}`,
+    access_token: `local-session:${normalizeEmail(account.email)}`,
     expires_at: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 365 * 10,
     expires_in: 60 * 60 * 24 * 365 * 10,
     provider_refresh_token: null,
     provider_token: null,
-    refresh_token: `local-refresh:${account.id}`,
+    refresh_token: `local-refresh:${normalizeEmail(account.email)}`,
     token_type: "bearer",
     user: {
       app_metadata: {
@@ -113,7 +110,7 @@ function createSession(account: DemoAccount): LocalSession {
       created_at: timestamp,
       email: account.email,
       email_confirmed_at: timestamp,
-      id: account.id,
+      id: normalizeEmail(account.email),
       identities: [],
       last_sign_in_at: timestamp,
       phone: "",
@@ -126,6 +123,48 @@ function createSession(account: DemoAccount): LocalSession {
   };
 }
 
+function toStoredSession(session: Session, fallbackName?: string): LocalSession {
+  return {
+    access_token: session.access_token,
+    expires_at: session.expires_at ?? Math.floor(Date.now() / 1000) + 3600,
+    expires_in: session.expires_in ?? 3600,
+    provider_refresh_token: session.provider_refresh_token ?? null,
+    provider_token: session.provider_token ?? null,
+    refresh_token: session.refresh_token,
+    token_type: session.token_type as "bearer",
+    user: {
+      app_metadata: {
+        provider: (session.user.app_metadata.provider as "local") ?? "local",
+        providers: Array.isArray(session.user.app_metadata.providers)
+          ? (session.user.app_metadata.providers as string[])
+          : [String(session.user.app_metadata.provider ?? "email")],
+      },
+      aud: "authenticated",
+      created_at: session.user.created_at,
+      email: session.user.email ?? "",
+      email_confirmed_at: session.user.email_confirmed_at ?? session.user.created_at,
+      id: session.user.id,
+      identities: [],
+      last_sign_in_at: session.user.last_sign_in_at ?? session.user.created_at,
+      phone: "",
+      role: "authenticated",
+      updated_at: new Date().toISOString(),
+      user_metadata: {
+        name:
+          (typeof session.user.user_metadata?.name === "string" && session.user.user_metadata.name) ||
+          (typeof session.user.user_metadata?.full_name === "string" && session.user.user_metadata.full_name) ||
+          fallbackName ||
+          "",
+      },
+    },
+  };
+}
+
+function isStoredSession(value: unknown): value is LocalSession {
+  const candidate = value as Partial<LocalSession> | null;
+  return Boolean(candidate?.user?.id && candidate?.user?.email && candidate?.access_token);
+}
+
 function saveSession(session: LocalSession | null) {
   if (session) {
     writeLocalJson(SESSION_KEY, session);
@@ -136,13 +175,13 @@ function saveSession(session: LocalSession | null) {
 
 async function syncSupabaseSession(account: DemoAccount, password: string) {
   if (!isSupabaseConfigured() || !supabase) {
-    return;
+    return null;
   }
 
   const client = supabase;
   const currentSession = await client.auth.getSession();
-  if (currentSession.data.session?.user.id === account.id) {
-    return;
+  if (normalizeEmail(currentSession.data.session?.user.email ?? "") === normalizeEmail(account.email)) {
+    return currentSession.data.session;
   }
 
   const signInResult = await client.auth.signInWithPassword({
@@ -151,20 +190,32 @@ async function syncSupabaseSession(account: DemoAccount, password: string) {
   });
 
   if (!signInResult.error) {
-    return;
+    return signInResult.data.session;
   }
 
   if (!isDemoAccountEmail(account.email)) {
     throw new Error(signInResult.error.message);
   }
 
-  const bootstrapResult = await client.rpc("bootstrap_demo_account", {
-    demo_email: account.email,
-    demo_password: password,
+  const signUpResult = await client.auth.signUp({
+    email: account.email,
+    password,
+    options: {
+      data: {
+        name: account.name,
+      },
+    },
   });
 
-  if (bootstrapResult.error) {
-    throw new Error(bootstrapResult.error.message);
+  if (
+    signUpResult.error &&
+    !/already registered|already exists|user already registered/i.test(signUpResult.error.message)
+  ) {
+    throw new Error(signUpResult.error.message);
+  }
+
+  if (signUpResult.data.session) {
+    return signUpResult.data.session;
   }
 
   const retryResult = await client.auth.signInWithPassword({
@@ -175,6 +226,8 @@ async function syncSupabaseSession(account: DemoAccount, password: string) {
   if (retryResult.error) {
     throw new Error(retryResult.error.message);
   }
+
+  return retryResult.data.session;
 }
 
 async function clearSupabaseSession() {
@@ -190,6 +243,10 @@ async function clearSupabaseSession() {
 
 function readLocalSession() {
   const session = readLocalJson<LocalSession | null>(SESSION_KEY, null);
+  if (isStoredSession(session)) {
+    return session;
+  }
+
   if (!session) {
     const legacyAuth = typeof window !== "undefined" ? window.localStorage.getItem(authStorageKey) : null;
     if (legacyAuth !== "true") {
@@ -201,20 +258,11 @@ function readLocalSession() {
     const legacyAccount =
       Number.isFinite(parsedLegacyMemberId) && parsedLegacyMemberId && parsedLegacyMemberId > 0
         ? demoAccounts[parsedLegacyMemberId - 1] ?? demoAccounts[0]
-        : demoAccounts.find((account) => String(getDemoAccountUserId(account.email)) === legacyMemberId) ?? demoAccounts[0];
-    return createSession(legacyAccount);
+        : demoAccounts.find((account) => normalizeEmail(account.email) === normalizeEmail(legacyMemberId ?? "")) ?? demoAccounts[0];
+    return createLocalSession(legacyAccount);
   }
 
-  const account = getDemoAccount(session.user.email);
-  if (!account) {
-    return null;
-  }
-
-  return createSession(account);
-}
-
-function getDemoAccountId(email: string) {
-  return getDemoAccount(email)?.id ?? null;
+  return null;
 }
 
 export function isDemoSession(session: LocalSession | null | undefined) {
@@ -232,43 +280,100 @@ export function useAuthSession() {
   });
 
   useEffect(() => {
-    const session = readLocalSession();
-    console.info("[Init] User session loaded", {
-      authenticated: Boolean(session),
-      userId: session?.user.id ?? null,
-      email: session?.user.email ?? null,
-    });
-    setState({ session, ready: true });
+    if (!isSupabaseConfigured() || !supabase) {
+      const session = readLocalSession();
+      console.info("[Init] User session updated", {
+        authenticated: Boolean(session),
+        userId: session?.user.id ?? null,
+        email: session?.user.email ?? null,
+      });
+      setState({ session, ready: true });
 
-    if (session) {
-      const password = getStoredPassword(session.user.email) ?? "Great2026!";
-      const account = getDemoAccount(session.user.email);
-      if (account) {
-        void syncSupabaseSession(account, password).catch((error) => {
-          console.error("Failed to sync Supabase auth session", error);
+      return subscribeLocalKey(SESSION_KEY, () => {
+        const nextSession = readLocalSession();
+        console.info("[Init] User session updated", {
+          authenticated: Boolean(nextSession),
+          userId: nextSession?.user.id ?? null,
+          email: nextSession?.user.email ?? null,
         });
-      }
+        setState({ session: nextSession, ready: true });
+      });
     }
 
-    return subscribeLocalKey(SESSION_KEY, () => {
-      const nextSession = readLocalSession();
+    let cancelled = false;
+    const client = supabase;
+
+    const applySupabaseSession = (session: Session | null) => {
+      const nextSession = session ? toStoredSession(session) : null;
+      saveSession(nextSession);
       console.info("[Init] User session updated", {
         authenticated: Boolean(nextSession),
         userId: nextSession?.user.id ?? null,
         email: nextSession?.user.email ?? null,
+        source: "supabase",
       });
       setState({ session: nextSession, ready: true });
+    };
 
-      if (nextSession) {
-        const password = getStoredPassword(nextSession.user.email) ?? "Great2026!";
-        const account = getDemoAccount(nextSession.user.email);
-        if (account) {
-          void syncSupabaseSession(account, password).catch((error) => {
-            console.error("Failed to sync Supabase auth session", error);
-          });
+    const initialize = async () => {
+      const { data, error } = await client.auth.getSession();
+      if (cancelled) {
+        return;
+      }
+
+      if (error) {
+        console.error("Failed to read Supabase auth session", error);
+      }
+
+      if (data.session) {
+        applySupabaseSession(data.session);
+        return;
+      }
+
+      const localSession = readLocalSession();
+      const account = getDemoAccount(localSession?.user.email ?? "");
+      const password = localSession ? getStoredPassword(localSession.user.email) ?? "Great2026!" : null;
+
+      if (account && password) {
+        try {
+          const syncedSession = await syncSupabaseSession(account, password);
+          if (cancelled) {
+            return;
+          }
+
+          if (syncedSession) {
+            applySupabaseSession(syncedSession);
+            return;
+          }
+        } catch (syncError) {
+          console.error("Failed to sync Supabase auth session", syncError);
         }
       }
+
+      saveSession(null);
+      console.info("[Init] User session loaded", {
+        authenticated: false,
+        userId: null,
+        email: null,
+        source: "supabase",
+      });
+      setState({ session: null, ready: true });
+    };
+
+    void initialize();
+
+    const { data: authListener } = client.auth.onAuthStateChange((_event, session) => {
+      if (cancelled) {
+        return;
+      }
+
+      applySupabaseSession(session);
     });
+
+    return () => {
+      cancelled = true;
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   return state;
@@ -295,7 +400,7 @@ export function getAuthenticatedMemberId() {
     return Number.isFinite(parsedLegacyMemberId) ? parsedLegacyMemberId : null;
   }
 
-  const profileIndex = demoAccounts.findIndex((account) => account.id === session.user.id);
+  const profileIndex = demoAccounts.findIndex((account) => normalizeEmail(account.email) === normalizeEmail(session.user.email));
   return profileIndex >= 0 ? profileIndex + 1 : null;
 }
 
@@ -311,9 +416,9 @@ export async function signInWithPassword(email: string, password: string) {
     throw new Error("Credenciais invalidas.");
   }
 
-  await syncSupabaseSession(account, password);
+  const syncedSession = await syncSupabaseSession(account, password);
 
-  const session = createSession(account);
+  const session = syncedSession ? toStoredSession(syncedSession, account.name) : createLocalSession(account);
   saveSession(session);
   return session;
 }
@@ -334,7 +439,7 @@ export async function signInOrBootstrapDemoAccount(email: string, password: stri
 }
 
 export async function updateDemoAccountPassword(userId: string, nextPassword: string) {
-  const account = demoAccounts.find((item) => item.id === userId);
+  const account = demoAccounts.find((item) => normalizeEmail(item.email) === normalizeEmail(userId));
   if (!account) {
     return;
   }
@@ -344,10 +449,19 @@ export async function updateDemoAccountPassword(userId: string, nextPassword: st
   writePasswordMap(currentPasswords);
 
   const currentSession = readLocalSession();
-  if (currentSession?.user.id === userId) {
-    const refreshedSession = createSession(account);
-    refreshedSession.user.last_sign_in_at = new Date().toISOString();
-    refreshedSession.user.updated_at = new Date().toISOString();
+  if (currentSession?.user.email && normalizeEmail(currentSession.user.email) === normalizeEmail(account.email)) {
+    const refreshedSession = {
+      ...currentSession,
+      user: {
+        ...currentSession.user,
+        last_sign_in_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        user_metadata: {
+          ...currentSession.user.user_metadata,
+          name: account.name,
+        },
+      },
+    };
     saveSession(refreshedSession);
   }
 }
@@ -360,5 +474,5 @@ export async function signOut() {
 }
 
 export function getDemoAccountUserId(email: string) {
-  return getDemoAccountId(email);
+  return normalizeEmail(email);
 }

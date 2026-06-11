@@ -123,12 +123,11 @@ function normalizeStories(rows: StoryListRow<StoryLog>[] | null | undefined) {
     .sort((a, b) => `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`));
 }
 
-export async function fetchStoryPosts(userId: string) {
+export async function fetchStoryPosts(_userId: string) {
   const client = getClient();
   const { data, error } = await client
     .from("story_logs")
     .select("id, user_id, sort_order, data, deleted_at, archived_at")
-    .eq("user_id", userId)
     .order("sort_order", { ascending: false });
 
   if (error) {
@@ -138,12 +137,11 @@ export async function fetchStoryPosts(userId: string) {
   return normalizeStories((data ?? []) as StoryListRow<StoryLog>[]);
 }
 
-export async function fetchMonthlyCalendar(userId: string, month: string) {
+export async function fetchMonthlyCalendar(_userId: string, month: string) {
   const client = getClient();
   const { data, error } = await client
     .from("calendar_events")
     .select("data, deleted_at, archived_at")
-    .eq("user_id", userId);
 
   if (error) {
     throw new Error(error.message);
@@ -402,7 +400,6 @@ export async function deleteStoryPost(id: number, userId: string) {
       deleted_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
-    .eq("user_id", userId)
     .eq("id", id);
 
   if (error) {

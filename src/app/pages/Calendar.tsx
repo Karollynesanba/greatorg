@@ -15,10 +15,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  calendarEvents,
   calendarHours,
   daysOfWeek,
-  historyTimeline,
   weekLabel,
   type CalendarEvent,
   type CalendarTaskItem,
@@ -928,15 +926,15 @@ export function CalendarPage() {
   const [teamMembers] = useTeamProfiles();
   const { member: currentMember, memberId: currentMemberId, updateMember } = useCurrentTeamMember();
   const [teamScope] = useTeamScope();
-  const [events, setEvents] = useSupabaseSyncedListState({
+  const [events, setEvents] = useSupabaseSyncedListState<CalendarEvent>({
     key: "calendar-events",
     table: "calendar_events",
-    fallback: calendarEvents,
+    fallback: [],
   });
   const [, setHistoryEvents] = useSupabaseSyncedListState<HistoryEvent>({
     key: "history",
     table: "history_events",
-    fallback: historyTimeline,
+    fallback: [],
   });
   const [dayViewsByDate, setDayViewsByDate, dayReachByDate, setDayReachByDate] = useCalendarDayMetrics();
   const [monthlyViewsGoal, setMonthlyViewsGoal] = useSupabaseSharedState<number>({

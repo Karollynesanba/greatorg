@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Film, PencilLine, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthSession } from "../auth";
-import { historyTimeline, storyLogs, type HistoryEvent, type StoryLog } from "../data/mockData";
+import type { HistoryEvent, StoryLog } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
 import { createStoryPost, deleteStoryPost, fetchStoriesDashboard, updateGoalMetric, updateStoriesMonthlyData, updateStoryPost } from "../data/storiesRepository";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
@@ -168,12 +168,12 @@ export function StoriesPage() {
   const [items, , , reloadItems] = useSupabaseSyncedListState<StoryLog>({
     key: "story-logs",
     table: "story_logs",
-    fallback: storyLogs,
+    fallback: [],
   });
   const [, , , reloadHistoryEvents] = useSupabaseSyncedListState<HistoryEvent>({
     key: "history",
     table: "history_events",
-    fallback: historyTimeline,
+    fallback: [],
   });
   const [teamScope] = useTeamScope();
   const [monthlyCurrentVideo, setMonthlyCurrentVideo] = useState(0);
