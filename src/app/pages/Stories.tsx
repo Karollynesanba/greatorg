@@ -178,10 +178,13 @@ export function StoriesPage() {
   const [teamScope] = useTeamScope();
   const [monthlyCurrentVideo, setMonthlyCurrentVideo] = useState(0);
   const [monthlyCurrentPhoto, setMonthlyCurrentPhoto] = useState(0);
+  const [, setMonthlyGoalTotal] = useState(defaultMonthlyGoalTotal);
   const [monthlyGoalVideo, setMonthlyGoalVideo] = useState(defaultMonthlyGoalVideo);
   const [monthlyGoalPhoto, setMonthlyGoalPhoto] = useState(defaultMonthlyGoalPhoto);
+  const [isEditingMonthlyGoalTotal, setIsEditingMonthlyGoalTotal] = useState(false);
   const [isEditingMonthlyGoalVideo, setIsEditingMonthlyGoalVideo] = useState(false);
   const [isEditingMonthlyGoalPhoto, setIsEditingMonthlyGoalPhoto] = useState(false);
+  const [monthlyGoalTotalDraft, setMonthlyGoalTotalDraft] = useState(String(defaultMonthlyGoalTotal));
   const [monthlyCurrentVideoDraft, setMonthlyCurrentVideoDraft] = useState("0");
   const [monthlyGoalVideoDraft, setMonthlyGoalVideoDraft] = useState(String(defaultMonthlyGoalVideo));
   const [monthlyCurrentPhotoDraft, setMonthlyCurrentPhotoDraft] = useState("0");
@@ -203,14 +206,15 @@ export function StoriesPage() {
   );
   const customRangeLabel = `${formatDate(formatDateKey(customRange.start))} até ${formatDate(formatDateKey(customRange.end))}`;
   const summaryTitle = periodMode === "custom" ? "Meta do período" : "Meta do mês";
-  const monthlyGoalTotal = monthlyGoalVideo + monthlyGoalPhoto;
+  const computedMonthlyGoalTotal = monthlyGoalVideo + monthlyGoalPhoto;
+  const monthlyGoalTotal = computedMonthlyGoalTotal;
   const effectiveMonthlyGoals = useMemo(
     () => ({
-      total: monthlyGoalTotal,
+      total: computedMonthlyGoalTotal,
       video: monthlyGoalVideo,
       photo: monthlyGoalPhoto,
     }),
-    [monthlyGoalPhoto, monthlyGoalTotal, monthlyGoalVideo],
+    [computedMonthlyGoalTotal, monthlyGoalPhoto, monthlyGoalVideo],
   );
 
   const visibleItems = useMemo(
@@ -545,6 +549,17 @@ export function StoriesPage() {
     setIsEditingMonthlyGoalPhoto(false);
   };
 
+  void isEditingMonthlyGoalTotal;
+  void handleStartEditingMonthlyGoalTotal;
+  void handleCommitMonthlyGoalTotal;
+  void handleCancelMonthlyGoalTotalEdit;
+  void handleStartEditingMonthlyGoalVideo;
+  void handleCommitMonthlyGoalVideo;
+  void handleCancelMonthlyGoalVideoEdit;
+  void handleStartEditingMonthlyGoalPhoto;
+  void handleCommitMonthlyGoalPhoto;
+  void handleCancelMonthlyGoalPhotoEdit;
+
   const sortedItems = useMemo(() => {
     return [...visibleItems].sort((a, b) => `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`));
   }, [visibleItems]);
@@ -853,40 +868,8 @@ export function StoriesPage() {
                     {stats.total} / {effectiveMonthlyGoals.total}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleStartEditingMonthlyGoalTotal}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-white/90 text-muted-foreground transition hover:border-primary/25 hover:bg-primary/5 hover:text-primary"
-                  aria-label="Editar meta total"
-                >
-                  <PencilLine className="h-4 w-4" />
-                </button>
               </div>
-              {isEditingMonthlyGoalTotal ? (
-                <div className="mt-4 flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
-                  <span className="text-sm font-semibold text-primary">Meta</span>
-                  <input
-                    autoFocus
-                    value={monthlyGoalTotalDraft}
-                    onChange={(event) => setMonthlyGoalTotalDraft(event.target.value)}
-                    onBlur={handleCommitMonthlyGoalTotal}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        handleCommitMonthlyGoalTotal();
-                      }
-
-                      if (event.key === "Escape") {
-                        event.preventDefault();
-                        handleCancelMonthlyGoalTotalEdit();
-                      }
-                    }}
-                    inputMode="numeric"
-                    className="w-full border-0 bg-transparent text-2xl font-semibold tracking-tight text-foreground outline-none placeholder:text-muted-foreground"
-                    placeholder={String(defaultMonthlyGoalTotal)}
-                  />
-                </div>
-              ) : null}
+              <p className="mt-4 text-sm text-muted-foreground">Calculado automaticamente por vídeo + foto.</p>
               <ProgressBar value={stats.total} max={effectiveMonthlyGoals.total} />
             </GlassPanel>
             <GlassPanel className="overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,250,252,0.96))] p-5 shadow-[0_16px_36px_rgba(15,23,42,0.05)]">
@@ -899,7 +882,7 @@ export function StoriesPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={handleStartEditingMonthlyGoalVideo}
+                  onClick={handleStartEditingVideoCard}
                   className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-white/90 text-muted-foreground transition hover:border-primary/25 hover:bg-primary/5 hover:text-primary"
                   aria-label="Editar meta de vídeo"
                 >
@@ -907,28 +890,52 @@ export function StoriesPage() {
                 </button>
               </div>
               {isEditingMonthlyGoalVideo ? (
-                <div className="mt-4 flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
-                  <span className="text-sm font-semibold text-primary">Meta</span>
-                  <input
-                    autoFocus
-                    value={monthlyGoalVideoDraft}
-                    onChange={(event) => setMonthlyGoalVideoDraft(event.target.value)}
-                    onBlur={handleCommitMonthlyGoalVideo}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        handleCommitMonthlyGoalVideo();
-                      }
+                <div className="mt-4 grid gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
+                  <label className="grid gap-1">
+                    <span className="text-sm font-semibold text-primary">Atual</span>
+                    <input
+                      autoFocus
+                      value={monthlyCurrentVideoDraft}
+                      onChange={(event) => setMonthlyCurrentVideoDraft(event.target.value)}
+                      onBlur={handleCommitVideoCard}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          handleCommitVideoCard();
+                        }
 
-                      if (event.key === "Escape") {
-                        event.preventDefault();
-                        handleCancelMonthlyGoalVideoEdit();
-                      }
-                    }}
-                    inputMode="numeric"
-                    className="w-full border-0 bg-transparent text-2xl font-semibold tracking-tight text-foreground outline-none placeholder:text-muted-foreground"
-                    placeholder={String(defaultMonthlyGoalVideo)}
-                  />
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          handleCancelVideoCardEdit();
+                        }
+                      }}
+                      inputMode="numeric"
+                      className="w-full rounded-2xl border border-primary/15 bg-white/90 px-3 py-2 text-lg font-semibold tracking-tight text-foreground outline-none placeholder:text-muted-foreground"
+                      placeholder="0"
+                    />
+                  </label>
+                  <label className="grid gap-1">
+                    <span className="text-sm font-semibold text-primary">Meta</span>
+                    <input
+                      value={monthlyGoalVideoDraft}
+                      onChange={(event) => setMonthlyGoalVideoDraft(event.target.value)}
+                      onBlur={handleCommitVideoCard}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          handleCommitVideoCard();
+                        }
+
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          handleCancelVideoCardEdit();
+                        }
+                      }}
+                      inputMode="numeric"
+                      className="w-full rounded-2xl border border-primary/15 bg-white/90 px-3 py-2 text-lg font-semibold tracking-tight text-foreground outline-none placeholder:text-muted-foreground"
+                      placeholder={String(defaultMonthlyGoalVideo)}
+                    />
+                  </label>
                 </div>
               ) : null}
               <ProgressBar value={stats.video} max={effectiveMonthlyGoals.video} />
@@ -943,7 +950,7 @@ export function StoriesPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={handleStartEditingMonthlyGoalPhoto}
+                  onClick={handleStartEditingPhotoCard}
                   className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-white/90 text-muted-foreground transition hover:border-primary/25 hover:bg-primary/5 hover:text-primary"
                   aria-label="Editar meta de foto"
                 >
@@ -951,27 +958,52 @@ export function StoriesPage() {
                 </button>
               </div>
               {isEditingMonthlyGoalPhoto ? (
-                <div className="mt-4 flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
-                  <span className="text-sm font-semibold text-primary">Meta</span>
-                  <input
-                    value={monthlyGoalPhotoDraft}
-                    onChange={(event) => setMonthlyGoalPhotoDraft(event.target.value)}
-                    onBlur={handleCommitMonthlyGoalPhoto}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        handleCommitMonthlyGoalPhoto();
-                      }
+                <div className="mt-4 grid gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
+                  <label className="grid gap-1">
+                    <span className="text-sm font-semibold text-primary">Atual</span>
+                    <input
+                      autoFocus
+                      value={monthlyCurrentPhotoDraft}
+                      onChange={(event) => setMonthlyCurrentPhotoDraft(event.target.value)}
+                      onBlur={handleCommitPhotoCard}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          handleCommitPhotoCard();
+                        }
 
-                      if (event.key === "Escape") {
-                        event.preventDefault();
-                        handleCancelMonthlyGoalPhotoEdit();
-                      }
-                    }}
-                    inputMode="numeric"
-                    className="w-full border-0 bg-transparent text-2xl font-semibold tracking-tight text-foreground outline-none placeholder:text-muted-foreground"
-                    placeholder={String(defaultMonthlyGoalPhoto)}
-                  />
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          handleCancelPhotoCardEdit();
+                        }
+                      }}
+                      inputMode="numeric"
+                      className="w-full rounded-2xl border border-primary/15 bg-white/90 px-3 py-2 text-lg font-semibold tracking-tight text-foreground outline-none placeholder:text-muted-foreground"
+                      placeholder="0"
+                    />
+                  </label>
+                  <label className="grid gap-1">
+                    <span className="text-sm font-semibold text-primary">Meta</span>
+                    <input
+                      value={monthlyGoalPhotoDraft}
+                      onChange={(event) => setMonthlyGoalPhotoDraft(event.target.value)}
+                      onBlur={handleCommitPhotoCard}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          handleCommitPhotoCard();
+                        }
+
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          handleCancelPhotoCardEdit();
+                        }
+                      }}
+                      inputMode="numeric"
+                      className="w-full rounded-2xl border border-primary/15 bg-white/90 px-3 py-2 text-lg font-semibold tracking-tight text-foreground outline-none placeholder:text-muted-foreground"
+                      placeholder={String(defaultMonthlyGoalPhoto)}
+                    />
+                  </label>
                 </div>
               ) : null}
               <ProgressBar value={stats.photo} max={effectiveMonthlyGoals.photo} />
