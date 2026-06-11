@@ -9,6 +9,25 @@ const hasSupabaseConfig =
   !supabaseUrl!.includes("YOUR-PROJECT-REF") &&
   !supabaseAnonKey!.includes("your-anon-public-key");
 
+function getSupabaseHost(value: string | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return new URL(value).host;
+  } catch {
+    return "invalid-url";
+  }
+}
+
+console.info("[Init] Supabase configuration evaluated", {
+  configured: hasSupabaseConfig,
+  urlPresent: Boolean(supabaseUrl),
+  anonKeyPresent: Boolean(supabaseAnonKey),
+  projectHost: getSupabaseHost(supabaseUrl),
+});
+
 export const supabase = hasSupabaseConfig
   ? (() => {
       const url = supabaseUrl as string;

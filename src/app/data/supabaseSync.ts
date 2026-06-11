@@ -162,12 +162,18 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
 
   const commitValue = useCallback((nextValue: T[]) => {
     setValue(nextValue);
+    console.info("[Init] List data loaded", {
+      table: options.table,
+      count: nextValue.length,
+      source: isRemoteSourceAvailable ? "supabase" : "local",
+      userId: currentUserId,
+    });
     lastSavedSnapshotRef.current = snapshotOf(nextValue);
     lastPersistedValueRef.current = nextValue;
     hydratedRef.current = true;
     setHydrated(true);
     return nextValue;
-  }, []);
+  }, [currentUserId, isRemoteSourceAvailable, options.table]);
 
   const reload = useCallback(async () => {
     if (!authReady) {

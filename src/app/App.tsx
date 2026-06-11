@@ -29,6 +29,10 @@ export default function App() {
   const [authenticated, setAuthenticated] = useState(() => isAuthenticated());
 
   useEffect(() => {
+    console.info("[Init] App started", {
+      authenticatedAtBoot: isAuthenticated(),
+      supabaseConfigured: Boolean(supabase),
+    });
     setAuthenticated(isAuthenticated());
   }, []);
 
@@ -67,6 +71,10 @@ export default function App() {
 
 function AppShell({ onLogout }: { onLogout: () => void }) {
   const { isDark } = useThemeMode();
+
+  useEffect(() => {
+    console.info("[Init] App shell rendered");
+  }, []);
 
   return (
     <div

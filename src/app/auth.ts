@@ -233,6 +233,11 @@ export function useAuthSession() {
 
   useEffect(() => {
     const session = readLocalSession();
+    console.info("[Init] User session loaded", {
+      authenticated: Boolean(session),
+      userId: session?.user.id ?? null,
+      email: session?.user.email ?? null,
+    });
     setState({ session, ready: true });
 
     if (session) {
@@ -247,6 +252,11 @@ export function useAuthSession() {
 
     return subscribeLocalKey(SESSION_KEY, () => {
       const nextSession = readLocalSession();
+      console.info("[Init] User session updated", {
+        authenticated: Boolean(nextSession),
+        userId: nextSession?.user.id ?? null,
+        email: nextSession?.user.email ?? null,
+      });
       setState({ session: nextSession, ready: true });
 
       if (nextSession) {

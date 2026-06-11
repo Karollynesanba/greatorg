@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import React from "react";
+import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { BarChart3, Eye, Rocket, Sparkles, type LucideIcon } from "lucide-react";
 import { calendarEvents, getGoalResponsibleIds, storyLogs, type CalendarEvent, type Goal } from "../data/mockData";
@@ -383,6 +383,10 @@ class DashboardSectionBoundary extends React.Component<
 }
 
 export function DashboardPage() {
+  useEffect(() => {
+    console.info("[Init] Dashboard rendered");
+  }, []);
+
   const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
   const fallbackMember = teamMembers[0] ?? { id: 0, name: "Equipe Great", color: "#833AB4" };

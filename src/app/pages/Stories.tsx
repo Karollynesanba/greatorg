@@ -244,19 +244,6 @@ export function StoriesPage() {
     [customRange.end, customRange.start, currentMonthAnchor, items, monthCursor, periodMode, teamScope],
   );
 
-  const stats = useMemo(() => {
-    const total = visibleItems.reduce((sum, item) => sum + item.quantity, 0);
-    const video = visibleItems.filter((item) => item.mediaType === "video").reduce((sum, item) => sum + item.quantity, 0);
-    const photo = visibleItems.filter((item) => item.mediaType === "photo").reduce((sum, item) => sum + item.quantity, 0);
-
-    return {
-      total,
-      video,
-      photo,
-      remainingTotal: Math.max(effectiveMonthlyGoals.total - total, 0),
-    };
-  }, [effectiveMonthlyGoals.total, visibleItems]);
-
   useEffect(() => {
     if (autoSelectedMonthRef.current || periodMode !== "current") {
       return;

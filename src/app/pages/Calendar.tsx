@@ -27,7 +27,7 @@ import {
 import { useTeamProfiles } from "../data/profiles";
 import { useCurrentTeamMember } from "../data/profiles";
 import { formatBrazilDateLabel, getBrazilYesterdayDateKey } from "../data/brazilDate";
-import { useSupabaseSyncedListState } from "../data/supabaseSync";
+import { useSupabaseSharedState, useSupabaseSyncedListState } from "../data/supabaseSync";
 import { defaultMonthlyViewsGoal, sumMonthViews, useCalendarDayMetrics } from "../data/calendarMetrics";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import { buildCalendarCompletionHistoryEvent, getCalendarCompletionHistoryId } from "../data/calendarWorkflow";
