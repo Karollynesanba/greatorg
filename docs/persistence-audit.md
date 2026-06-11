@@ -30,6 +30,8 @@ Os principais riscos encontrados:
 - Dashboard deixou de ler `storyLogs` apenas do mock e passou a usar a mesma fonte operacional em [src/app/pages/Dashboard.tsx](/C:/great-organico/greatorg/src/app/pages/Dashboard.tsx).
 - Migration de endurecimento para Stories criada em [supabase/stories_persistence_fix.sql](/C:/great-organico/greatorg/supabase/stories_persistence_fix.sql).
 - Migration de isolamento por usuario para `shared_state` criada em [supabase/shared_state_user_scope.sql](/C:/great-organico/greatorg/supabase/shared_state_user_scope.sql).
+- Base relacional por `user_id`, `reference_month`, `metric_date` e sincronizacao legada criada em [supabase/relational_persistence_foundation.sql](/C:/great-organico/greatorg/supabase/relational_persistence_foundation.sql).
+- O ciclo mensal destrutivo foi substituido por snapshot nao-destrutivo em [supabase/monthly_cycle.sql](/C:/great-organico/greatorg/supabase/monthly_cycle.sql).
 
 ## Auditoria por modulo
 
@@ -222,8 +224,9 @@ Padrao de persistencia:
 
 1. Aplicar [supabase/shared_state_user_scope.sql](/C:/great-organico/greatorg/supabase/shared_state_user_scope.sql).
 2. Aplicar [supabase/stories_persistence_fix.sql](/C:/great-organico/greatorg/supabase/stories_persistence_fix.sql).
-3. Revisar e aposentar scripts inseguros como [supabase/operation_data.sql](/C:/great-organico/greatorg/supabase/operation_data.sql).
-4. Migrar metricas do Calendario e Dashboard de `shared_state` para tabelas relacionais.
-5. Modelar Relatorios como entidades persistidas, removendo dependencia de `shared_state` como fonte principal.
-6. Modelar Meta Insights com snapshots e metricas diarias por usuario/conta.
-7. Substituir fallbacks de mock por cargas vazias controladas e seeds de banco.
+3. Aplicar [supabase/relational_persistence_foundation.sql](/C:/great-organico/greatorg/supabase/relational_persistence_foundation.sql).
+4. Aplicar [supabase/monthly_cycle.sql](/C:/great-organico/greatorg/supabase/monthly_cycle.sql).
+5. Manter scripts inseguros como [supabase/operation_data.sql](/C:/great-organico/greatorg/supabase/operation_data.sql) e [supabase/shared_state.sql](/C:/great-organico/greatorg/supabase/shared_state.sql) apenas como marcadores deprecados.
+6. Migrar o frontend para consumir diretamente as tabelas relacionais novas, reduzindo a dependencia de JSON legado.
+7. Modelar Meta Insights com snapshots e metricas diarias por usuario/conta.
+8. Substituir fallbacks de mock por cargas vazias controladas e seeds de banco.

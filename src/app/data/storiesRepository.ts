@@ -31,6 +31,18 @@ type StoryMetricRow = {
   updated_at?: string;
 };
 
+type StoriesMonthlyDataRow = {
+  user_id: string;
+  reference_month: string;
+  video_current: number;
+  video_goal: number;
+  photo_current: number;
+  photo_goal: number;
+  total_current: number;
+  total_goal: number;
+  updated_at?: string;
+};
+
 export type StoryGoalMetricMap = Record<
   StoryGoalCategory,
   {
@@ -47,6 +59,15 @@ export type StoriesDashboardSnapshot = {
   calendar: CalendarEvent[];
 };
 
+export type StoriesMonthlySummary = {
+  videoCurrent: number;
+  videoGoal: number;
+  photoCurrent: number;
+  photoGoal: number;
+  totalCurrent: number;
+  totalGoal: number;
+};
+
 type StoryPostPayload = Omit<StoryLog, "id"> & {
   id?: number;
   userId: string;
@@ -57,6 +78,10 @@ const defaultGoalValues: Record<StoryGoalCategory, number> = {
   video: 105,
   photo: 63,
 };
+
+function monthKeyToDate(month: string) {
+  return `${month}-01`;
+}
 
 function getClient() {
   if (!supabase) {
@@ -132,12 +157,13 @@ export async function fetchMonthlyCalendar(userId: string, month: string) {
 
 export async function fetchStoriesDashboard(userId: string, month: string): Promise<StoriesDashboardSnapshot> {
   const client = getClient();
-  const [{ data: goalRows, error: goalError }, { data: metricRows, error: metricError }, stories, calendar] = await Promise.all([
+  const [{ data: monthlyDataRow, error: monthlyDataError }, { data: metricRows, error: metricError }, stories, calendar] = await Promise.all([
     client
-      .from("story_goal_metrics")
-      .select("user_id, month_key, category, current_value, goal_value, updated_at")
+      .from("stories_monthly_data")
+      .select("user_id, reference_month, video_current, video_goal, photo_current, photo_goal, total_current, total_goal, updated_at")
       .eq("user_id", userId)
-      .eq("month_key", month),
+      .eq("reference_month", monthKeyToDate(month))
+      .maybeSingle(),
     client
       .from("story_metrics")
       .select("user_id, month_key, metric, value, updated_at")
@@ -147,32 +173,58 @@ export async function fetchStoriesDashboard(userId: string, month: string): Prom
     fetchMonthlyCalendar(userId, month),
   ]);
 
-  if (goalError) {
-    throw new Error(goalError.message);
-  }
-
   if (metricError) {
     throw new Error(metricError.message);
   }
 
-  const goals = (goalRows as StoryGoalMetricRow[] | null)?.reduce<StoryGoalMetricMap>(
-    (accumulator, row) => {
-      accumulator[row.category] = {
-        currentValue: Number(row.current_value) || 0,
-        goalValue: Number(row.goal_value) || defaultGoalValues[row.category],
-      };
-      return accumulator;
-    },
-    {
+  let goals: StoryGoalMetricMap;
+
+  if (!monthlyDataError && monthlyDataRow) {
+    const row = monthlyDataRow as StoriesMonthlyDataRow;
+    goals = {
+      total: {
+        currentValue: Number(row.total_current) || 0,
+        goalValue: Number(row.total_goal) || defaultGoalValues.total,
+      },
+      video: {
+        currentValue: Number(row.video_current) || 0,
+        goalValue: Number(row.video_goal) || defaultGoalValues.video,
+      },
+      photo: {
+        currentValue: Number(row.photo_current) || 0,
+        goalValue: Number(row.photo_goal) || defaultGoalValues.photo,
+      },
+    };
+  } else {
+    const { data: goalRows, error: goalError } = await client
+      .from("story_goal_metrics")
+      .select("user_id, month_key, category, current_value, goal_value, updated_at")
+      .eq("user_id", userId)
+      .eq("month_key", month);
+
+    if (goalError) {
+      throw new Error(goalError.message);
+    }
+
+    goals = (goalRows as StoryGoalMetricRow[] | null)?.reduce<StoryGoalMetricMap>(
+      (accumulator, row) => {
+        accumulator[row.category] = {
+          currentValue: Number(row.current_value) || 0,
+          goalValue: Number(row.goal_value) || defaultGoalValues[row.category],
+        };
+        return accumulator;
+      },
+      {
+        total: { currentValue: 0, goalValue: defaultGoalValues.total },
+        video: { currentValue: 0, goalValue: defaultGoalValues.video },
+        photo: { currentValue: 0, goalValue: defaultGoalValues.photo },
+      },
+    ) ?? {
       total: { currentValue: 0, goalValue: defaultGoalValues.total },
       video: { currentValue: 0, goalValue: defaultGoalValues.video },
       photo: { currentValue: 0, goalValue: defaultGoalValues.photo },
-    },
-  ) ?? {
-    total: { currentValue: 0, goalValue: defaultGoalValues.total },
-    video: { currentValue: 0, goalValue: defaultGoalValues.video },
-    photo: { currentValue: 0, goalValue: defaultGoalValues.photo },
-  };
+    };
+  }
 
   const metrics = (metricRows as StoryMetricRow[] | null)?.reduce<Record<StoryMetricKey, number>>(
     (accumulator, row) => {
@@ -189,6 +241,35 @@ export async function fetchStoriesDashboard(userId: string, month: string): Prom
     stories: stories.filter((story) => story.date.startsWith(month)),
     calendar,
   };
+}
+
+export async function updateStoriesMonthlyData(userId: string, month: string, summary: StoriesMonthlySummary) {
+  const client = getClient();
+  const payload = {
+    user_id: userId,
+    reference_month: monthKeyToDate(month),
+    video_current: summary.videoCurrent,
+    video_goal: summary.videoGoal,
+    photo_current: summary.photoCurrent,
+    photo_goal: summary.photoGoal,
+    total_current: summary.totalCurrent,
+    total_goal: summary.totalGoal,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await client.from("stories_monthly_data").upsert(payload, {
+    onConflict: "user_id,reference_month",
+  });
+
+  if (!error) {
+    return;
+  }
+
+  await Promise.all([
+    updateGoalMetric(userId, "video", summary.videoCurrent, summary.videoGoal, month),
+    updateGoalMetric(userId, "photo", summary.photoCurrent, summary.photoGoal, month),
+    updateGoalMetric(userId, "total", summary.totalCurrent, summary.totalGoal, month),
+  ]);
 }
 
 export async function updateStoryMetric(userId: string, metric: StoryMetricKey, value: number, month = new Date().toISOString().slice(0, 7)) {
