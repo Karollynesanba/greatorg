@@ -1,0 +1,332 @@
+import type { CalendarEvent, StoryLog } from "./mockData";
+import { buildStoryHistoryEvent, getStoryHistoryId } from "./historyEvents";
+import { supabase } from "./supabase";
+
+type StoryGoalCategory = "total" | "video" | "photo";
+type StoryMetricKey = "views" | "reach";
+
+type StoryListRow<T> = {
+  id: number;
+  user_id: string;
+  sort_order: number;
+  data: T;
+  deleted_at?: string | null;
+  archived_at?: string | null;
+};
+
+type StoryGoalMetricRow = {
+  user_id: string;
+  month_key: string;
+  category: StoryGoalCategory;
+  current_value: number;
+  goal_value: number;
+  updated_at?: string;
+};
+
+type StoryMetricRow = {
+  user_id: string;
+  month_key: string;
+  metric: StoryMetricKey;
+  value: number;
+  updated_at?: string;
+};
+
+export type StoryGoalMetricMap = Record<
+  StoryGoalCategory,
+  {
+    currentValue: number;
+    goalValue: number;
+  }
+>;
+
+export type StoriesDashboardSnapshot = {
+  month: string;
+  goals: StoryGoalMetricMap;
+  metrics: Record<StoryMetricKey, number>;
+  stories: StoryLog[];
+  calendar: CalendarEvent[];
+};
+
+type StoryPostPayload = Omit<StoryLog, "id"> & {
+  id?: number;
+  userId: string;
+};
+
+const defaultGoalValues: Record<StoryGoalCategory, number> = {
+  total: 168,
+  video: 105,
+  photo: 63,
+};
+
+function getClient() {
+  if (!supabase) {
+    throw new Error("Supabase não está configurado.");
+  }
+
+  return supabase;
+}
+
+function nextNumericId() {
+  return Date.now() * 1000 + Math.floor(Math.random() * 1000);
+}
+
+function toStoryRow(data: StoryPostPayload, sortOrder: number): StoryListRow<StoryLog> {
+  const id = data.id ?? nextNumericId();
+
+  return {
+    id,
+    user_id: data.userId,
+    sort_order: sortOrder,
+    data: {
+      id,
+      date: data.date,
+      time: data.time,
+      quantity: data.quantity,
+      mediaType: data.mediaType,
+      status: data.status,
+      madeById: data.madeById,
+      postedById: data.postedById,
+      notes: data.notes,
+    },
+  };
+}
+
+function normalizeStories(rows: StoryListRow<StoryLog>[] | null | undefined) {
+  return (rows ?? [])
+    .filter((row) => !row.deleted_at && !row.archived_at)
+    .map((row) => row.data)
+    .sort((a, b) => `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`));
+}
+
+export async function fetchStoryPosts(userId: string) {
+  const client = getClient();
+  const { data, error } = await client
+    .from("story_logs")
+    .select("id, user_id, sort_order, data, deleted_at, archived_at")
+    .eq("user_id", userId)
+    .order("sort_order", { ascending: false });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return normalizeStories((data ?? []) as StoryListRow<StoryLog>[]);
+}
+
+export async function fetchMonthlyCalendar(userId: string, month: string) {
+  const client = getClient();
+  const { data, error } = await client
+    .from("calendar_events")
+    .select("data, deleted_at, archived_at")
+    .eq("user_id", userId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return ((data ?? []) as Array<{ data: CalendarEvent; deleted_at?: string | null; archived_at?: string | null }>)
+    .filter((row) => !row.deleted_at && !row.archived_at)
+    .map((row) => row.data)
+    .filter((row) => row.date.startsWith(month));
+}
+
+export async function fetchStoriesDashboard(userId: string, month: string): Promise<StoriesDashboardSnapshot> {
+  const client = getClient();
+  const [{ data: goalRows, error: goalError }, { data: metricRows, error: metricError }, stories, calendar] = await Promise.all([
+    client
+      .from("story_goal_metrics")
+      .select("user_id, month_key, category, current_value, goal_value, updated_at")
+      .eq("user_id", userId)
+      .eq("month_key", month),
+    client
+      .from("story_metrics")
+      .select("user_id, month_key, metric, value, updated_at")
+      .eq("user_id", userId)
+      .eq("month_key", month),
+    fetchStoryPosts(userId),
+    fetchMonthlyCalendar(userId, month),
+  ]);
+
+  if (goalError) {
+    throw new Error(goalError.message);
+  }
+
+  if (metricError) {
+    throw new Error(metricError.message);
+  }
+
+  const goals = (goalRows as StoryGoalMetricRow[] | null)?.reduce<StoryGoalMetricMap>(
+    (accumulator, row) => {
+      accumulator[row.category] = {
+        currentValue: Number(row.current_value) || 0,
+        goalValue: Number(row.goal_value) || defaultGoalValues[row.category],
+      };
+      return accumulator;
+    },
+    {
+      total: { currentValue: 0, goalValue: defaultGoalValues.total },
+      video: { currentValue: 0, goalValue: defaultGoalValues.video },
+      photo: { currentValue: 0, goalValue: defaultGoalValues.photo },
+    },
+  ) ?? {
+    total: { currentValue: 0, goalValue: defaultGoalValues.total },
+    video: { currentValue: 0, goalValue: defaultGoalValues.video },
+    photo: { currentValue: 0, goalValue: defaultGoalValues.photo },
+  };
+
+  const metrics = (metricRows as StoryMetricRow[] | null)?.reduce<Record<StoryMetricKey, number>>(
+    (accumulator, row) => {
+      accumulator[row.metric] = Number(row.value) || 0;
+      return accumulator;
+    },
+    { views: 0, reach: 0 },
+  ) ?? { views: 0, reach: 0 };
+
+  return {
+    month,
+    goals,
+    metrics,
+    stories: stories.filter((story) => story.date.startsWith(month)),
+    calendar,
+  };
+}
+
+export async function updateStoryMetric(userId: string, metric: StoryMetricKey, value: number, month = new Date().toISOString().slice(0, 7)) {
+  const client = getClient();
+  const { error } = await client.from("story_metrics").upsert(
+    {
+      user_id: userId,
+      month_key: month,
+      metric,
+      value,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id,month_key,metric" },
+  );
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function updateGoalMetric(
+  userId: string,
+  category: StoryGoalCategory,
+  currentValue: number,
+  goalValue: number,
+  month = new Date().toISOString().slice(0, 7),
+) {
+  const client = getClient();
+  const { error } = await client.from("story_goal_metrics").upsert(
+    {
+      user_id: userId,
+      month_key: month,
+      category,
+      current_value: currentValue,
+      goal_value: goalValue,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id,month_key,category" },
+  );
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+async function upsertStoryHistory(userId: string, story: StoryLog, actorName: string, action: "created" | "updated") {
+  const client = getClient();
+  const historyEvent = buildStoryHistoryEvent(story, actorName, action);
+  const { error } = await client.from("history_events").upsert(
+    {
+      id: historyEvent.id,
+      user_id: userId,
+      sort_order: Date.now(),
+      data: historyEvent,
+      deleted_at: null,
+      archived_at: null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "id" },
+  );
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+async function deleteStoryHistory(userId: string, storyId: number) {
+  const client = getClient();
+  const { error } = await client
+    .from("history_events")
+    .update({
+      deleted_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", userId)
+    .eq("id", getStoryHistoryId(storyId));
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function createStoryPost(data: StoryPostPayload & { actorName: string }) {
+  const client = getClient();
+  const row = toStoryRow(data, Date.now());
+  const { error } = await client.from("story_logs").upsert(
+    {
+      ...row,
+      deleted_at: null,
+      archived_at: null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "id" },
+  );
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  await upsertStoryHistory(data.userId, row.data, data.actorName, "created");
+  return row.data;
+}
+
+export async function updateStoryPost(id: number, data: StoryPostPayload & { actorName: string }) {
+  const client = getClient();
+  const row = toStoryRow({ ...data, id }, Date.now());
+  const { error } = await client.from("story_logs").upsert(
+    {
+      ...row,
+      deleted_at: null,
+      archived_at: null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "id" },
+  );
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  await upsertStoryHistory(data.userId, row.data, data.actorName, "updated");
+  return row.data;
+}
+
+export async function deleteStoryPost(id: number, userId: string) {
+  const client = getClient();
+  const { error } = await client
+    .from("story_logs")
+    .update({
+      deleted_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", userId)
+    .eq("id", id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  await deleteStoryHistory(userId, id);
+}

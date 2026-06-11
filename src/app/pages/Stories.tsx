@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Film, PencilLine, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
+import { useAuthSession } from "../auth";
 import { historyTimeline, storyLogs, type HistoryEvent, type StoryLog } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
+import { createStoryPost, deleteStoryPost, fetchStoriesDashboard, updateGoalMetric, updateStoryPost } from "../data/storiesRepository";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
-import { buildStoryHistoryEvent, getStoryHistoryId, removeHistoryEvent, upsertHistoryEvent } from "../data/historyEvents";
 import { isCypressRecord, isDateInRange } from "../data/periodMetrics";
 import {
   ActionButton,
@@ -20,7 +21,6 @@ import {
   RoundedTimePicker,
   cn,
 } from "../components/ui";
-import { useSupabasePreference } from "../data/userPreferences";
 import { useThemeMode } from "../theme";
 
 type StoryMediaType = "video" | "photo";
@@ -157,22 +157,23 @@ function getLatestMonthKey(items: Array<{ date: string }>) {
 
 export function StoriesPage() {
   const { isDark } = useThemeMode();
+  const { session } = useAuthSession();
   const [teamMembers] = useTeamProfiles();
   const autoSelectedMonthRef = useRef(false);
-  const [items, setItems] = useSupabaseSyncedListState<StoryLog>({
+  const [items, , , reloadItems] = useSupabaseSyncedListState<StoryLog>({
     key: "story-logs",
     table: "story_logs",
     fallback: storyLogs,
   });
-  const [, setHistoryEvents] = useSupabaseSyncedListState<HistoryEvent>({
+  const [, , , reloadHistoryEvents] = useSupabaseSyncedListState<HistoryEvent>({
     key: "history",
     table: "history_events",
     fallback: historyTimeline,
   });
   const [teamScope] = useTeamScope();
-  const [monthlyGoalTotal, setMonthlyGoalTotal] = useSupabasePreference<number>("stories-monthly-goal-total", defaultMonthlyGoalTotal);
-  const [monthlyGoalVideo, setMonthlyGoalVideo] = useSupabasePreference<number>("stories-monthly-goal-video", defaultMonthlyGoalVideo);
-  const [monthlyGoalPhoto, setMonthlyGoalPhoto] = useSupabasePreference<number>("stories-monthly-goal-photo", defaultMonthlyGoalPhoto);
+  const [monthlyGoalTotal, setMonthlyGoalTotal] = useState(defaultMonthlyGoalTotal);
+  const [monthlyGoalVideo, setMonthlyGoalVideo] = useState(defaultMonthlyGoalVideo);
+  const [monthlyGoalPhoto, setMonthlyGoalPhoto] = useState(defaultMonthlyGoalPhoto);
   const [isEditingMonthlyGoalTotal, setIsEditingMonthlyGoalTotal] = useState(false);
   const [isEditingMonthlyGoalVideo, setIsEditingMonthlyGoalVideo] = useState(false);
   const [isEditingMonthlyGoalPhoto, setIsEditingMonthlyGoalPhoto] = useState(false);
@@ -188,6 +189,7 @@ export function StoriesPage() {
   const [editingStoryId, setEditingStoryId] = useState<number | null>(null);
   const [form, setForm] = useState<StoryFormState>(() => emptyForm(teamMembers));
   const currentMonthKey = formatMonthKey(currentMonthAnchor);
+  const goalMonthKey = formatMonthKey(periodMode === "month" ? monthCursor : currentMonthAnchor);
   const activeMonthLabel = formatMonthYear(formatDateKey(periodMode === "current" ? currentMonthAnchor : monthCursor));
   const customRange = useMemo(
     () => normalizePeriodRange(customStartDate, customEndDate, currentMonthAnchor),
@@ -289,19 +291,62 @@ export function StoriesPage() {
     };
   }, [effectiveMonthlyGoals.total, visibleItems]);
 
+  useEffect(() => {
+    if (!session?.user.id) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadDashboard = async () => {
+      try {
+        const dashboard = await fetchStoriesDashboard(session.user.id, goalMonthKey);
+        if (cancelled) {
+          return;
+        }
+
+        setMonthlyGoalTotal(dashboard.goals.total.goalValue || defaultMonthlyGoalTotal);
+        setMonthlyGoalVideo(dashboard.goals.video.goalValue || defaultMonthlyGoalVideo);
+        setMonthlyGoalPhoto(dashboard.goals.photo.goalValue || defaultMonthlyGoalPhoto);
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Failed to load Stories dashboard", error);
+        }
+      }
+    };
+
+    void loadDashboard();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [goalMonthKey, session?.user.id]);
+
   const handleStartEditingMonthlyGoalTotal = () => {
     setMonthlyGoalTotalDraft(String(monthlyGoalTotal));
     setIsEditingMonthlyGoalTotal(true);
   };
 
-  const handleCommitMonthlyGoalTotal = () => {
+  const handleCommitMonthlyGoalTotal = async () => {
+    if (!session?.user.id) {
+      toast.error("Sessão inválida para salvar a meta.");
+      return;
+    }
+
     const parsedValue = Number(String(monthlyGoalTotalDraft).replace(/[^\d]/g, ""));
     const nextValue = Number.isFinite(parsedValue) ? Math.max(1, Math.round(parsedValue)) : defaultMonthlyGoalTotal;
 
-    setMonthlyGoalTotal(nextValue);
-    setMonthlyGoalTotalDraft(String(nextValue));
-    setIsEditingMonthlyGoalTotal(false);
-    toast.success("Meta total atualizada.");
+    try {
+      await updateGoalMetric(session.user.id, "total", stats.total, nextValue, goalMonthKey);
+      const dashboard = await fetchStoriesDashboard(session.user.id, goalMonthKey);
+      setMonthlyGoalTotal(dashboard.goals.total.goalValue || nextValue);
+      setMonthlyGoalTotalDraft(String(dashboard.goals.total.goalValue || nextValue));
+      setIsEditingMonthlyGoalTotal(false);
+      toast.success("Meta total atualizada.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Falha ao salvar a meta total.";
+      toast.error(message);
+    }
   };
 
   const handleCancelMonthlyGoalTotalEdit = () => {
@@ -314,14 +359,26 @@ export function StoriesPage() {
     setIsEditingMonthlyGoalVideo(true);
   };
 
-  const handleCommitMonthlyGoalVideo = () => {
+  const handleCommitMonthlyGoalVideo = async () => {
+    if (!session?.user.id) {
+      toast.error("Sessao invalida para salvar a meta.");
+      return;
+    }
+
     const parsedValue = Number(String(monthlyGoalVideoDraft).replace(/[^\d]/g, ""));
     const nextValue = Number.isFinite(parsedValue) ? Math.max(1, Math.round(parsedValue)) : defaultMonthlyGoalVideo;
 
-    setMonthlyGoalVideo(nextValue);
-    setMonthlyGoalVideoDraft(String(nextValue));
-    setIsEditingMonthlyGoalVideo(false);
-    toast.success("Meta de vídeo atualizada.");
+    try {
+      await updateGoalMetric(session.user.id, "video", stats.video, nextValue, goalMonthKey);
+      const dashboard = await fetchStoriesDashboard(session.user.id, goalMonthKey);
+      setMonthlyGoalVideo(dashboard.goals.video.goalValue || nextValue);
+      setMonthlyGoalVideoDraft(String(dashboard.goals.video.goalValue || nextValue));
+      setIsEditingMonthlyGoalVideo(false);
+      toast.success("Meta de video atualizada.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Falha ao salvar a meta de video.";
+      toast.error(message);
+    }
   };
 
   const handleCancelMonthlyGoalVideoEdit = () => {
@@ -334,14 +391,26 @@ export function StoriesPage() {
     setIsEditingMonthlyGoalPhoto(true);
   };
 
-  const handleCommitMonthlyGoalPhoto = () => {
+  const handleCommitMonthlyGoalPhoto = async () => {
+    if (!session?.user.id) {
+      toast.error("Sessao invalida para salvar a meta.");
+      return;
+    }
+
     const parsedValue = Number(String(monthlyGoalPhotoDraft).replace(/[^\d]/g, ""));
     const nextValue = Number.isFinite(parsedValue) ? Math.max(1, Math.round(parsedValue)) : defaultMonthlyGoalPhoto;
 
-    setMonthlyGoalPhoto(nextValue);
-    setMonthlyGoalPhotoDraft(String(nextValue));
-    setIsEditingMonthlyGoalPhoto(false);
-    toast.success("Meta de foto atualizada.");
+    try {
+      await updateGoalMetric(session.user.id, "photo", stats.photo, nextValue, goalMonthKey);
+      const dashboard = await fetchStoriesDashboard(session.user.id, goalMonthKey);
+      setMonthlyGoalPhoto(dashboard.goals.photo.goalValue || nextValue);
+      setMonthlyGoalPhotoDraft(String(dashboard.goals.photo.goalValue || nextValue));
+      setIsEditingMonthlyGoalPhoto(false);
+      toast.success("Meta de foto atualizada.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Falha ao salvar a meta de foto.";
+      toast.error(message);
+    }
   };
 
   const handleCancelMonthlyGoalPhotoEdit = () => {
@@ -395,7 +464,12 @@ export function StoriesPage() {
     setIsCreateOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (!session?.user.id) {
+      toast.error("Sessao invalida para salvar Stories.");
+      return;
+    }
+
     const quantity = Number(form.quantity);
 
     if (!form.date || !form.time || !Number.isFinite(quantity) || quantity <= 0) {
@@ -412,7 +486,7 @@ export function StoriesPage() {
     }
 
     const nextItem: StoryLog = {
-      id: editingStoryId ?? Math.max(...items.map((item) => item.id), 0) + 1,
+      id: editingStoryId ?? Date.now(),
       date: form.date,
       time: form.time,
       quantity,
@@ -423,30 +497,51 @@ export function StoriesPage() {
       notes: form.notes.trim(),
     };
 
-    setItems((previous) =>
-      editingStoryId !== null
-        ? previous.map((item) => (item.id === editingStoryId ? nextItem : item))
-        : [nextItem, ...previous],
-    );
-    setHistoryEvents((previous) =>
-      upsertHistoryEvent(
-        previous,
-        buildStoryHistoryEvent(nextItem, madeBy.name, editingStoryId !== null ? "updated" : "created"),
-      ),
-    );
-    toast.success(editingStoryId !== null ? "Story atualizado." : "Stories registrados.");
-    closeModal();
+    try {
+      if (editingStoryId !== null) {
+        await updateStoryPost(editingStoryId, {
+          ...nextItem,
+          userId: session.user.id,
+          actorName: madeBy.name,
+        });
+      } else {
+        await createStoryPost({
+          ...nextItem,
+          userId: session.user.id,
+          actorName: madeBy.name,
+        });
+      }
+
+      await reloadItems();
+      await reloadHistoryEvents();
+      toast.success(editingStoryId !== null ? "Story atualizado." : "Stories registrados.");
+      closeModal();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Falha ao salvar o story no Supabase.";
+      toast.error(message);
+    }
   };
 
-  const handleDelete = (storyId: number) => {
+  const handleDelete = async (storyId: number) => {
+    if (!session?.user.id) {
+      toast.error("Sessao invalida para remover Stories.");
+      return;
+    }
+
     const removedStory = items.find((item) => item.id === storyId);
     if (!removedStory) {
       return;
     }
 
-    setItems((previous) => previous.filter((item) => item.id !== storyId));
-    setHistoryEvents((previous) => removeHistoryEvent(previous, getStoryHistoryId(storyId)));
-    toast.success("Registro removido.");
+    try {
+      await deleteStoryPost(storyId, session.user.id);
+      await reloadItems();
+      await reloadHistoryEvents();
+      toast.success("Registro removido.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Falha ao excluir o lancamento.";
+      toast.error(message);
+    }
   };
 
   const cardClass = isDark

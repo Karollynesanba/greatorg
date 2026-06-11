@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { readLocalJson, subscribeLocalKey, writeLocalJson, writeLocalText } from "./data/localStore";
+import { isSupabaseConfigured, supabase } from "./data/supabase";
 
 export type AuthState = {
   session: LocalSession | null;
@@ -133,6 +134,60 @@ function saveSession(session: LocalSession | null) {
   }
 }
 
+async function syncSupabaseSession(account: DemoAccount, password: string) {
+  if (!isSupabaseConfigured() || !supabase) {
+    return;
+  }
+
+  const client = supabase;
+  const currentSession = await client.auth.getSession();
+  if (currentSession.data.session?.user.id === account.id) {
+    return;
+  }
+
+  const signInResult = await client.auth.signInWithPassword({
+    email: account.email,
+    password,
+  });
+
+  if (!signInResult.error) {
+    return;
+  }
+
+  if (!isDemoAccountEmail(account.email)) {
+    throw new Error(signInResult.error.message);
+  }
+
+  const bootstrapResult = await client.rpc("bootstrap_demo_account", {
+    demo_email: account.email,
+    demo_password: password,
+  });
+
+  if (bootstrapResult.error) {
+    throw new Error(bootstrapResult.error.message);
+  }
+
+  const retryResult = await client.auth.signInWithPassword({
+    email: account.email,
+    password,
+  });
+
+  if (retryResult.error) {
+    throw new Error(retryResult.error.message);
+  }
+}
+
+async function clearSupabaseSession() {
+  if (!isSupabaseConfigured() || !supabase) {
+    return;
+  }
+
+  const { error } = await supabase.auth.signOut();
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 function readLocalSession() {
   const session = readLocalJson<LocalSession | null>(SESSION_KEY, null);
   if (!session) {
@@ -177,10 +232,32 @@ export function useAuthSession() {
   });
 
   useEffect(() => {
-    setState({ session: readLocalSession(), ready: true });
+    const session = readLocalSession();
+    setState({ session, ready: true });
+
+    if (session) {
+      const password = getStoredPassword(session.user.email) ?? "Great2026!";
+      const account = getDemoAccount(session.user.email);
+      if (account) {
+        void syncSupabaseSession(account, password).catch((error) => {
+          console.error("Failed to sync Supabase auth session", error);
+        });
+      }
+    }
 
     return subscribeLocalKey(SESSION_KEY, () => {
-      setState({ session: readLocalSession(), ready: true });
+      const nextSession = readLocalSession();
+      setState({ session: nextSession, ready: true });
+
+      if (nextSession) {
+        const password = getStoredPassword(nextSession.user.email) ?? "Great2026!";
+        const account = getDemoAccount(nextSession.user.email);
+        if (account) {
+          void syncSupabaseSession(account, password).catch((error) => {
+            console.error("Failed to sync Supabase auth session", error);
+          });
+        }
+      }
     });
   }, []);
 
@@ -224,6 +301,8 @@ export async function signInWithPassword(email: string, password: string) {
     throw new Error("Credenciais invalidas.");
   }
 
+  await syncSupabaseSession(account, password);
+
   const session = createSession(account);
   saveSession(session);
   return session;
@@ -264,6 +343,9 @@ export async function updateDemoAccountPassword(userId: string, nextPassword: st
 }
 
 export async function signOut() {
+  await clearSupabaseSession().catch((error) => {
+    console.error("Failed to sign out from Supabase", error);
+  });
   saveSession(null);
 }
 
