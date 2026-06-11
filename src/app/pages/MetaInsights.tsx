@@ -323,10 +323,17 @@ export function MetaInsightsPage() {
                 <code>META_GRAPH_API_VERSION</code>
               </li>
               <li>
+                <code>META_GRAPH_API_BASE_URL</code> se o token veio do fluxo de Instagram Login
+              </li>
+              <li>
                 <code>META_IG_PAGE_ID</code> ou <code>META_IG_USER_ID</code> se necessário
               </li>
             </ul>
-            <p>Também é preciso que a conta Instagram seja Business ou Creator e esteja vinculada a uma Página do Facebook.</p>
+            <p>
+              Também é preciso que a conta Instagram seja Business ou Creator. Se você estiver usando o fluxo de
+              Instagram Login, configure <code>META_GRAPH_API_BASE_URL</code> com o host exigido por esse fluxo e
+              informe <code>META_IG_USER_ID</code>.
+            </p>
             <p>
               Se você já souber os IDs corretos, preencha em <strong>Configurações</strong> para forçar a consulta da
               Página certa.

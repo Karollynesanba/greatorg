@@ -27,7 +27,8 @@ import {
 import { useTeamProfiles } from "../data/profiles";
 import { useCurrentTeamMember } from "../data/profiles";
 import { formatBrazilDateLabel, getBrazilYesterdayDateKey } from "../data/brazilDate";
-import { useSupabaseSharedState, useSupabaseSyncedListState } from "../data/supabaseSync";
+import { useSupabaseSyncedListState } from "../data/supabaseSync";
+import { defaultMonthlyViewsGoal, sumMonthViews, useCalendarDayMetrics } from "../data/calendarMetrics";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import { buildCalendarCompletionHistoryEvent, getCalendarCompletionHistoryId } from "../data/calendarWorkflow";
 import { removeHistoryEvent, upsertHistoryEvent } from "../data/historyEvents";
@@ -49,16 +50,6 @@ import { useThemeMode } from "../theme";
 const viewModes = ["Dia", "Semana", "Mês"] as const;
 const dragType = "calendar-event";
 const getTodayDate = () => new Date();
-const defaultMonthlyViewsGoal = 800000;
-const defaultDayViewsByDate: Record<string, number> = {
-  "2026-05-28": 7,
-  "2026-06-01": 20402,
-  "2026-06-02": 15174,
-  "2026-06-04": 24458,
-};
-const defaultDayReachByDate: Record<string, number> = {
-  "2026-06-04": 24362,
-};
 const weekHeaderLabels = daysOfWeek.map((day) => `${day.toUpperCase()}.`);
 
 function formatDateKey(date: Date) {
@@ -150,12 +141,6 @@ function inferEventVisualization(event: CalendarEvent & { visualization?: Calend
 
 function getMonthKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function sumMonthViews(dayViewsByDate: Record<string, number>, monthKey: string) {
-  return Object.entries(dayViewsByDate).reduce((sum, [dateKey, value]) => {
-    return dateKey.startsWith(monthKey) ? sum + Math.max(0, value) : sum;
-  }, 0);
 }
 
 function buildMonthCells(date: Date) {
@@ -953,14 +938,7 @@ export function CalendarPage() {
     table: "history_events",
     fallback: historyTimeline,
   });
-  const [dayViewsByDate, setDayViewsByDate] = useSupabaseSharedState<Record<string, number>>({
-    key: "calendar-day-views",
-    fallback: defaultDayViewsByDate,
-  });
-  const [dayReachByDate, setDayReachByDate] = useSupabaseSharedState<Record<string, number>>({
-    key: "calendar-day-reach",
-    fallback: defaultDayReachByDate,
-  });
+  const [dayViewsByDate, setDayViewsByDate, dayReachByDate, setDayReachByDate] = useCalendarDayMetrics();
   const [monthlyViewsGoal, setMonthlyViewsGoal] = useSupabaseSharedState<number>({
     key: "calendar-monthly-views-goal",
     fallback: defaultMonthlyViewsGoal,

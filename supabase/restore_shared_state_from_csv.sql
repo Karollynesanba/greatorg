@@ -17,7 +17,7 @@ on conflict (key) do update set
   updated_at = excluded.updated_at;
 
 insert into public.shared_state (key, value, updated_at)
-values ('calendar-day-views', convert_from(decode('eyIyMDI2LTA1LTI4Ijo3LCIyMDI2LTA2LTAxIjoyMDQwMiwiMjAyNi0wNi0wMiI6MTUxNzQsIjIwMjYtMDYtMDQiOjI0NDU4fQ==', 'base64'), 'UTF8')::jsonb, '2026-06-05 13:01:09.252+00'::timestamptz)
+values ('calendar-day-views', convert_from(decode('eyIyMDI2LTA1LTI4Ijo3LCIyMDI2LTA2LTAxIjoyMDQwMiwiMjAyNi0wNi0wMiI6MTUxNzQsIjIwMjYtMDYtMDMiOjE2NzM3LCIyMDI2LTA2LTA0IjozMTQyMiwiMjAyNi0wNi0wNSI6MjE0MjMsIjIwMjYtMDYtMDYiOjEwMTMyLCIyMDI2LTA2LTA3IjoxMjE2NywiMjAyNi0wNi0wOCI6MTczMjMsIjIwMjYtMDYtMDkiOjE3Mjk4fQ==', 'base64'), 'UTF8')::jsonb, '2026-06-05 13:01:09.252+00'::timestamptz)
 on conflict (key) do update set
   value = excluded.value,
   updated_at = excluded.updated_at;

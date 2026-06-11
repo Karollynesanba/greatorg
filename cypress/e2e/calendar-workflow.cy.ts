@@ -83,6 +83,10 @@ describe("Calendário - fluxo principal", () => {
 
     cy.get('[data-cy="calendar-view-mês"]').click();
     cy.get('[data-cy="calendar-view-mês"]').should("have.attr", "aria-pressed", "true");
+    cy.get(`[data-cy="calendar-month-day-${todayKey}"]`).within(() => {
+      cy.contains(firstTitle).should("be.visible");
+      cy.contains(secondTitle).should("be.visible");
+    });
     cy.get(`[data-cy="calendar-month-day-${todayKey}"]`).should("be.visible").trigger("keydown", { key: "Enter", force: true });
     cy.get('[data-cy="calendar-view-dia"]').should("have.attr", "aria-pressed", "true");
     cy.contains("Arraste e solte os posts para reagendar.").should("be.visible");

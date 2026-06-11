@@ -1,11 +1,13 @@
-﻿import type { CSSProperties } from "react";
+import type { CSSProperties } from "react";
 import React from "react";
 import { Link } from "react-router-dom";
 import { BarChart3, Eye, Rocket, Sparkles, type LucideIcon } from "lucide-react";
 import { calendarEvents, getGoalResponsibleIds, storyLogs, type CalendarEvent, type Goal } from "../data/mockData";
 import { usePosts } from "../data/posts";
 import { useTeamProfiles } from "../data/profiles";
-import { useSupabaseSharedState, useSupabaseSyncedListState } from "../data/supabaseSync";
+import { useSupabaseSyncedListState } from "../data/supabaseSync";
+import { defaultMonthlyViewsGoal, sumMonthViews, useCalendarDayMetrics } from "../data/calendarMetrics";
+import { useSupabasePreference } from "../data/userPreferences";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import {
   GlassPanel,
@@ -19,16 +21,6 @@ import {
 import { useThemeMode } from "../theme";
 
 const metricIcons = [Eye, BarChart3, Sparkles, Rocket];
-const defaultMonthlyViewsGoal = 800000;
-const defaultDayViewsByDate: Record<string, number> = {
-  "2026-05-28": 7,
-  "2026-06-01": 20402,
-  "2026-06-02": 15174,
-  "2026-06-04": 24458,
-};
-const defaultDayReachByDate: Record<string, number> = {
-  "2026-06-04": 24362,
-};
 type ComparisonMetricId = "views" | "reach" | "engagement" | "followers";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -71,7 +63,7 @@ function formatDashboardDateRange() {
   const month = now.getMonth();
   const monthLabel = new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(now);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  return `1 — ${daysInMonth} de ${monthLabel} de ${year}`;
+  return `1 â€” ${daysInMonth} de ${monthLabel} de ${year}`;
 }
 
 function todayKey() {
@@ -99,11 +91,6 @@ function isCompletedCalendarEvent(event: CalendarEvent) {
   return event.completed || event.status === "Publicado" || event.status === "Aprovado" || allTasksDone;
 }
 
-function sumMonthViews(dayViewsByDate: Record<string, number>, monthKey: string) {
-  return Object.entries(dayViewsByDate).reduce((sum, [dateKey, value]) => {
-    return dateKey.startsWith(monthKey) ? sum + Math.max(0, value) : sum;
-  }, 0);
-}
 
 function buildRecentDateKeys(days: number) {
   const now = new Date();
@@ -211,7 +198,7 @@ function InstagramHealthScoreRing({ score }: { score: number }) {
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span className="text-sm text-white/78">Saúde do perfil</span>
+        <span className="text-sm text-white/78">SaÃºde do perfil</span>
         <strong data-cy="dashboard-health-score" className="text-5xl font-semibold tracking-tight text-white">{score}</strong>
         <span className="text-sm font-medium text-white/78">de 100</span>
       </div>
@@ -326,14 +313,14 @@ function DashboardProgressBar({ value, max, label }: { value: number; max: numbe
 
 function resolveComparisonStatus(percent: number) {
   if (percent >= 100) {
-    return "🟢 Meta atingida";
+    return "ðŸŸ¢ Meta atingida";
   }
 
   if (percent >= 70) {
-    return "🟡 Em andamento";
+    return "ðŸŸ¡ Em andamento";
   }
 
-  return "🔴 Abaixo do esperado";
+  return "ðŸ”´ Abaixo do esperado";
 }
 
 function buildComparisonSummary(params: { label: string; actual: number; goal: number; percent: number }) {
@@ -345,18 +332,18 @@ function buildComparisonSummary(params: { label: string; actual: number; goal: n
     return [];
   }
 
-  const items = [`Você já atingiu ${formatPercent(percent, 2)} da meta de ${labelLower}.`];
+  const items = [`VocÃª jÃ¡ atingiu ${formatPercent(percent, 2)} da meta de ${labelLower}.`];
 
   if (remaining > 0) {
     items.push(`Faltam ${formatLongNumber(remaining)} ${labelLower} para atingir a meta.`);
   } else {
-    items.push(`A meta de ${labelLower} já foi atingida neste mês.`);
+    items.push(`A meta de ${labelLower} jÃ¡ foi atingida neste mÃªs.`);
   }
 
   if (percent < 70) {
-    items.push(`${label} está abaixo da curva esperada.`);
+    items.push(`${label} estÃ¡ abaixo da curva esperada.`);
   } else if (percent < 100) {
-    items.push(`${label} está próximo do objetivo, faltando apenas ${formatPercent(100 - percent, 2)}.`);
+    items.push(`${label} estÃ¡ prÃ³ximo do objetivo, faltando apenas ${formatPercent(100 - percent, 2)}.`);
   }
 
   return items;
@@ -382,10 +369,10 @@ class DashboardSectionBoundary extends React.Component<
         <GlassPanel className="bg-white/95">
           <SectionTitle
             title={this.props.title}
-            description="Esta seção encontrou um dado inválido e foi isolada para não apagar a página inteira."
+            description="Esta seÃ§Ã£o encontrou um dado invÃ¡lido e foi isolada para nÃ£o apagar a pÃ¡gina inteira."
           />
           <div className="mt-4 rounded-3xl border border-dashed border-border/70 bg-white/70 p-5 text-sm text-muted-foreground dark:bg-white/5">
-            Recarregue a página. Se continuar assim, esta área específica do dashboard ainda precisa de ajuste nos dados.
+            Recarregue a pÃ¡gina. Se continuar assim, esta Ã¡rea especÃ­fica do dashboard ainda precisa de ajuste nos dados.
           </div>
         </GlassPanel>
       );
@@ -402,17 +389,14 @@ export function DashboardPage() {
   const [posts] = usePosts();
   const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
   const [calendarItems] = useSupabaseSyncedListState<CalendarEvent>({ key: "calendar-events", table: "calendar_events", fallback: calendarEvents });
-  const [dayViewsByDate] = useSupabaseSharedState<Record<string, number>>({ key: "calendar-day-views", fallback: defaultDayViewsByDate });
-  const [dayReachByDate] = useSupabaseSharedState<Record<string, number>>({ key: "calendar-day-reach", fallback: defaultDayReachByDate });
-  const [monthlyViewsGoal] = useSupabaseSharedState<number>({ key: "calendar-monthly-views-goal", fallback: defaultMonthlyViewsGoal });
-  const [dashboardMetricGoals] = useSupabaseSharedState<Record<Exclude<ComparisonMetricId, "views">, number>>({
-    key: "dashboard-metric-goals",
-    fallback: { reach: 0, engagement: 0, followers: 0 },
+  const [dayViewsByDate, , dayReachByDate] = useCalendarDayMetrics();
+  const [monthlyViewsGoal] = useSupabasePreference<number>("calendar-monthly-views-goal", defaultMonthlyViewsGoal);
+  const [dashboardMetricGoals] = useSupabasePreference<Record<Exclude<ComparisonMetricId, "views">, number>>("dashboard-metric-goals", {
+    reach: 0,
+    engagement: 0,
+    followers: 0,
   });
-  const [dashboardDailyFollowers] = useSupabaseSharedState<Record<string, number>>({
-    key: "dashboard-daily-followers",
-    fallback: {},
-  });
+  const [dashboardDailyFollowers] = useSupabasePreference<Record<string, number>>("dashboard-daily-followers", {});
   const [teamScope] = useTeamScope();
   const safeDayViewsByDate = normalizeNumberRecord(dayViewsByDate);
   const safeDayReachByDate = normalizeNumberRecord(dayReachByDate);
@@ -471,30 +455,30 @@ export function DashboardPage() {
   const dashboardMetrics = [
     {
       id: "views-goal",
-      label: "Visualizações do mês",
+      label: "VisualizaÃ§Ãµes do mÃªs",
       value: formatLongNumber(monthViews),
       change: 0,
-      highlight: remainingViews > 0 ? `Falta x ${formatLongNumber(remainingViews)} para bater a meta.` : "Meta mensal de visualizações batida.",
+      highlight: remainingViews > 0 ? `Falta x ${formatLongNumber(remainingViews)} para bater a meta.` : "Meta mensal de visualizaÃ§Ãµes batida.",
     },
     {
       id: "stories",
-      label: "Stories do mês",
+      label: "Stories do mÃªs",
       value: formatLongNumber(monthStories),
       change: 0,
-      highlight: monthStories > 0 ? `Faltam ${formatLongNumber(remainingStories)} stories para bater a meta.` : "Nenhum story registrado neste mês.",
+      highlight: monthStories > 0 ? `Faltam ${formatLongNumber(remainingStories)} stories para bater a meta.` : "Nenhum story registrado neste mÃªs.",
     },
     {
       id: "calendar",
-      label: "Posts concluídos no calendário",
+      label: "Posts concluÃ­dos no calendÃ¡rio",
       value: `${completedCalendarItems}/${visibleCalendarItems.length || 0}`,
       change: 0,
-      highlight: visibleCalendarItems.length > 0 ? "Acompanhando os posts marcados como concluídos no calendário." : "Nenhum post de calendário neste mês.",
+      highlight: visibleCalendarItems.length > 0 ? "Acompanhando os posts marcados como concluÃ­dos no calendÃ¡rio." : "Nenhum post de calendÃ¡rio neste mÃªs.",
     },
   ] as const;
   const comparisonMetrics = [
     {
       id: "views" as const,
-      label: "Visualizações",
+      label: "VisualizaÃ§Ãµes",
       goal: Math.max(0, monthlyViewsGoal),
       actual: monthViews,
     },
@@ -594,15 +578,15 @@ export function DashboardPage() {
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-end">
           <div className="flex flex-col gap-3 sm:flex-row">
             <div className="inline-flex items-center gap-3 rounded-2xl border border-border/70 bg-white/90 px-4 py-3 text-sm text-foreground shadow-[0_10px_28px_rgba(15,23,42,0.05)] dark:bg-white/5">
-              <span className="text-muted-foreground">📅</span>
+              <span className="text-muted-foreground">ðŸ“…</span>
               <span>{dashboardDateRange}</span>
             </div>
             <button
               type="button"
               className="inline-flex items-center justify-center gap-2 rounded-2xl border border-border/70 bg-white/90 px-4 py-3 text-sm font-semibold text-foreground shadow-[0_10px_28px_rgba(15,23,42,0.05)] transition hover:-translate-y-0.5 dark:bg-white/5"
             >
-              <span>⇩</span>
-              Exportar relatório
+              <span>â‡©</span>
+              Exportar relatÃ³rio
             </button>
           </div>
         </div>
@@ -624,7 +608,7 @@ export function DashboardPage() {
                 <InstagramHealthScoreRing score={dashboardSummary.healthScore} />
                 <div className="mt-5 grid w-full gap-3">
                   <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-white/72">Metas concluídas</p>
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-white/72">Metas concluÃ­das</p>
                     <p data-cy="dashboard-summary-goals" className="mt-2 text-[1.85rem] font-semibold text-white">
                       {dashboardSummary.completedGoals}/{visibleGoals.length}
                     </p>
@@ -636,7 +620,7 @@ export function DashboardPage() {
                     </p>
                   </div>
                   <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-white/72">Visualizações do mês</p>
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-white/72">VisualizaÃ§Ãµes do mÃªs</p>
                     <p className="mt-2 text-[1.85rem] font-semibold text-white">{formatLongNumber(dashboardSummary.monthViews)}</p>
                   </div>
                   <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
@@ -669,7 +653,7 @@ export function DashboardPage() {
             </div>
 
             <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-              <DashboardSectionBoundary title="Evolução nos últimos 30 dias">
+              <DashboardSectionBoundary title="EvoluÃ§Ã£o nos Ãºltimos 30 dias">
                 <GlassPanel
                   index={5}
                   className="bg-white/95"
@@ -690,13 +674,13 @@ export function DashboardPage() {
                   <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0 flex-1">
                       <SectionTitle
-                        title="Evolução nos últimos 30 dias"
-                        description="Leitura diária de crescimento, estabilidade ou queda a partir dos dados cadastrados pelo usuário."
+                        title="EvoluÃ§Ã£o nos Ãºltimos 30 dias"
+                        description="Leitura diÃ¡ria de crescimento, estabilidade ou queda a partir dos dados cadastrados pelo usuÃ¡rio."
                       />
                       <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                         <span className="inline-flex items-center gap-2">
                           <span className="h-2.5 w-2.5 rounded-full bg-[#E1306C]" />
-                          Visualizações reais
+                          VisualizaÃ§Ãµes reais
                         </span>
                         <span className="inline-flex items-center gap-2">
                           <span className="h-2.5 w-2.5 rounded-full bg-[#833AB4]" />
@@ -709,7 +693,7 @@ export function DashboardPage() {
                       </div>
                     </div>
                     <div className="inline-flex rounded-2xl border border-border/70 bg-white/85 p-1 text-xs shadow-[0_8px_20px_rgba(15,23,42,0.04)] dark:bg-white/5">
-                      <span className="rounded-xl bg-foreground px-3 py-1.5 font-semibold text-background">Diário</span>
+                      <span className="rounded-xl bg-foreground px-3 py-1.5 font-semibold text-background">DiÃ¡rio</span>
                       <span className="px-3 py-1.5 text-muted-foreground">Semanal</span>
                       <span className="px-3 py-1.5 text-muted-foreground">Mensal</span>
                     </div>
@@ -717,7 +701,7 @@ export function DashboardPage() {
                   <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_220px]">
                     <div className="overflow-hidden rounded-[1.8rem] border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(248,250,252,0.98))] p-4 dark:bg-[linear-gradient(180deg,rgba(17,23,35,0.98),rgba(12,18,29,0.98))]">
                       <div className="h-[350px]">
-                        <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="h-full w-full" role="img" aria-label="Gráfico de evolução do dashboard">
+                        <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="h-full w-full" role="img" aria-label="GrÃ¡fico de evoluÃ§Ã£o do dashboard">
                           <defs>
                             <linearGradient id="viewsFill" x1="0" x2="0" y1="0" y2="1">
                               <stop offset="0%" stopColor="rgba(225,48,108,0.24)" />
@@ -764,19 +748,19 @@ export function DashboardPage() {
                     </div>
                     <div className="grid gap-3">
                       <div className="rounded-[1.6rem] border border-border/60 bg-white/72 px-4 py-4 dark:bg-white/5">
-                        <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Visualizações atuais</p>
+                        <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">VisualizaÃ§Ãµes atuais</p>
                         <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{formatLongNumber(lastEvolutionPoint.views)}</p>
                         <p className="mt-1 text-sm text-[#E1306C]">Faltam {formatLongNumber(remainingViews)} para a meta</p>
                       </div>
                       <div className="rounded-[1.6rem] border border-border/60 bg-white/72 px-4 py-4 dark:bg-white/5">
-                        <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Meta do mês</p>
+                        <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Meta do mÃªs</p>
                         <p className="mt-2 text-2xl font-semibold text-foreground">{formatLongNumber(monthlyViewsGoal)}</p>
                         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
                           <div className="h-full rounded-full bg-[linear-gradient(90deg,#833AB4_0%,#E1306C_60%,#F56040_100%)]" style={{ width: `${Math.min((monthViews / Math.max(monthlyViewsGoal, 1)) * 100, 100)}%` }} />
                         </div>
                       </div>
                       <div className="rounded-[1.6rem] border border-border/60 bg-white/72 px-4 py-4 dark:bg-white/5">
-                        <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Projeção</p>
+                        <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">ProjeÃ§Ã£o</p>
                         <p className="mt-2 text-2xl font-semibold text-foreground">{formatLongNumber(currentProjectedMeta)}</p>
                         <p className="mt-1 text-sm text-emerald-600 dark:text-emerald-400">{paceSummary}</p>
                       </div>
@@ -784,7 +768,7 @@ export function DashboardPage() {
                   </div>
                   {!hasEvolutionData ? (
                     <div className="mt-4 rounded-2xl border border-dashed border-border/70 bg-white/70 px-4 py-4 text-center text-sm text-muted-foreground dark:bg-white/5">
-                      O gráfico já está pronto. Assim que você lançar dados diários, as curvas reais começam a subir aqui.
+                      O grÃ¡fico jÃ¡ estÃ¡ pronto. Assim que vocÃª lanÃ§ar dados diÃ¡rios, as curvas reais comeÃ§am a subir aqui.
                     </div>
                   ) : null}
                 </GlassPanel>
@@ -794,7 +778,7 @@ export function DashboardPage() {
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
-        <DashboardSectionBoundary title="Resumo de conteúdo">
+        <DashboardSectionBoundary title="Resumo de conteÃºdo">
           <GlassPanel
             index={2}
             className="bg-white/95"
@@ -814,21 +798,21 @@ export function DashboardPage() {
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <SectionTitle
-                title="Resumo de conteúdo"
-                description="Um panorama rápido do que mais performou e do que precisa de atenção na aba de conteúdo."
+                title="Resumo de conteÃºdo"
+                description="Um panorama rÃ¡pido do que mais performou e do que precisa de atenÃ§Ã£o na aba de conteÃºdo."
               />
               <Link
                 to="/content"
                 className="text-sm font-semibold text-[#833AB4] transition hover:text-[#6C2CA1] dark:text-[#ff9db2] dark:hover:text-[#ffc0cd]"
               >
-                Ver aba conteúdo
+                Ver aba conteÃºdo
               </Link>
             </div>
             <div className="mt-5 grid gap-5 xl:grid-cols-2">
               <div className="rounded-[1.8rem] border border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(249,249,251,0.98))] p-5 shadow-[0_14px_34px_rgba(15,23,42,0.05)] dark:bg-[linear-gradient(180deg,rgba(16,18,24,0.98),rgba(10,12,17,0.96))]">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-foreground">Top conteúdos</p>
+                    <p className="text-sm font-semibold text-foreground">Top conteÃºdos</p>
                     <p className="text-xs text-muted-foreground">Os posts com melhor desempenho no recorte atual.</p>
                   </div>
                   <span className="rounded-full bg-[#833AB4]/8 px-3 py-1 text-xs font-semibold text-[#6C2CA1] dark:bg-white/5 dark:text-[#ff9db2]">
@@ -850,7 +834,7 @@ export function DashboardPage() {
                         </div>
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold text-foreground">{post.title}</p>
-                          <p className="truncate text-xs text-muted-foreground">{member.name} • {post.date}</p>
+                          <p className="truncate text-xs text-muted-foreground">{member.name} â€¢ {post.date}</p>
                         </div>
                         <div className="text-right">
                           <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Views</p>
@@ -864,8 +848,8 @@ export function DashboardPage() {
                     );
                   }) : (
                     <EmptyState
-                      title="Nenhum conteúdo cadastrado"
-                      description="Assim que você inserir conteúdos na aba de conteúdo, o resumo aparece aqui."
+                      title="Nenhum conteÃºdo cadastrado"
+                      description="Assim que vocÃª inserir conteÃºdos na aba de conteÃºdo, o resumo aparece aqui."
                     />
                   )}
                 </div>
@@ -874,11 +858,11 @@ export function DashboardPage() {
               <div className="rounded-[1.8rem] border border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(249,249,251,0.98))] p-5 shadow-[0_14px_34px_rgba(15,23,42,0.05)] dark:bg-[linear-gradient(180deg,rgba(16,18,24,0.98),rgba(10,12,17,0.96))]">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-foreground">Conteúdos com baixa performance</p>
-                    <p className="text-xs text-muted-foreground">Peças que pedem ajuste de gancho, CTA ou formato.</p>
+                    <p className="text-sm font-semibold text-foreground">ConteÃºdos com baixa performance</p>
+                    <p className="text-xs text-muted-foreground">PeÃ§as que pedem ajuste de gancho, CTA ou formato.</p>
                   </div>
                   <span className="rounded-full bg-[#F56040]/8 px-3 py-1 text-xs font-semibold text-[#B94A2D] dark:bg-[#251913] dark:text-[#ffab8c]">
-                    Atenção
+                    AtenÃ§Ã£o
                   </span>
                 </div>
                 <div className="space-y-2.5">
@@ -893,7 +877,7 @@ export function DashboardPage() {
                       >
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold text-foreground">{post.title}</p>
-                          <p className="truncate text-xs text-muted-foreground">{member.name} • {post.date}</p>
+                          <p className="truncate text-xs text-muted-foreground">{member.name} â€¢ {post.date}</p>
                         </div>
                         <div className="text-right">
                           <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Views</p>
@@ -907,8 +891,8 @@ export function DashboardPage() {
                     );
                   }) : (
                     <EmptyState
-                      title="Sem conteúdos para comparar"
-                      description="Quando houver volume suficiente, essa área mostra os posts com menor tração."
+                      title="Sem conteÃºdos para comparar"
+                      description="Quando houver volume suficiente, essa Ã¡rea mostra os posts com menor traÃ§Ã£o."
                     />
                   )}
                 </div>
@@ -916,7 +900,7 @@ export function DashboardPage() {
             </div>
           </GlassPanel>
         </DashboardSectionBoundary>
-          <DashboardSectionBoundary title="Comparação meta vs resultado">
+          <DashboardSectionBoundary title="ComparaÃ§Ã£o meta vs resultado">
           <GlassPanel
             index={4}
             className="bg-white/95"
@@ -935,8 +919,8 @@ export function DashboardPage() {
             }
           >
             <SectionTitle
-              title="Comparação meta vs resultado"
-              description="Metas e resultados cadastrados pelo usuário no ciclo atual."
+              title="ComparaÃ§Ã£o meta vs resultado"
+              description="Metas e resultados cadastrados pelo usuÃ¡rio no ciclo atual."
             />
               <div className="mt-5 space-y-5">
                 {comparisonMetrics.length > 0 ? comparisonMetrics.map((metric) => {
@@ -970,7 +954,7 @@ export function DashboardPage() {
                 }) : (
                 <EmptyState
                   title="Nenhuma meta cadastrada"
-                  description="Cadastre metas de visualizações, alcance, engajamento ou seguidores para ver a comparação por aqui."
+                  description="Cadastre metas de visualizaÃ§Ãµes, alcance, engajamento ou seguidores para ver a comparaÃ§Ã£o por aqui."
                 />
               )}
             </div>

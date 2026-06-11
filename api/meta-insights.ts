@@ -50,9 +50,14 @@ type MediaInsightResponse = {
 };
 
 const DEFAULT_VERSION = "v22.0";
+const DEFAULT_BASE_URL = "https://graph.facebook.com";
 
 function getApiVersion() {
   return process.env.META_GRAPH_API_VERSION?.trim() || DEFAULT_VERSION;
+}
+
+function getGraphBaseUrl() {
+  return (process.env.META_GRAPH_API_BASE_URL?.trim() || DEFAULT_BASE_URL).replace(/\/+$/, "");
 }
 
 function getAccessToken() {
@@ -88,8 +93,13 @@ function getQueryDays(value: unknown) {
   return Math.min(Math.max(Math.trunc(parsed), 1), 90);
 }
 
-function buildGraphUrl(version: string, path: string, params: Record<string, string | number | undefined>) {
-  const url = new URL(`https://graph.facebook.com/${version}${path}`);
+function buildGraphUrl(
+  baseUrl: string,
+  version: string,
+  path: string,
+  params: Record<string, string | number | undefined>,
+) {
+  const url = new URL(`${baseUrl}/${version}${path}`);
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== "") {
       url.searchParams.set(key, String(value));
@@ -99,12 +109,13 @@ function buildGraphUrl(version: string, path: string, params: Record<string, str
 }
 
 async function graphGet<T>(
+  baseUrl: string,
   version: string,
   path: string,
   token: string,
   params: Record<string, string | number | undefined>,
 ): Promise<T> {
-  const url = buildGraphUrl(version, path, {
+  const url = buildGraphUrl(baseUrl, version, path, {
     ...params,
     access_token: token,
   });
@@ -182,6 +193,7 @@ function parseAudience(values: Record<string, number> | undefined): MetaAudience
 }
 
 async function safeMetricSeries(
+  baseUrl: string,
   version: string,
   igUserId: string,
   token: string,
@@ -191,21 +203,27 @@ async function safeMetricSeries(
   until?: number,
 ) {
   try {
-    const response = await graphGet<{ data?: InsightSeriesResponse[] }>(version, `/${igUserId}/insights`, token, {
+    const response = await graphGet<{ data?: InsightSeriesResponse[] }>(
+      baseUrl,
+      version,
+      `/${igUserId}/insights`,
+      token,
+      {
       metric,
       period,
       since,
       until,
-    });
+      },
+    );
     return response.data?.[0];
   } catch {
     return undefined;
   }
 }
 
-async function safeMediaInsights(version: string, mediaId: string, token: string) {
+async function safeMediaInsights(baseUrl: string, version: string, mediaId: string, token: string) {
   try {
-    const response = await graphGet<{ data?: MediaInsightResponse[] }>(version, `/${mediaId}/insights`, token, {
+    const response = await graphGet<{ data?: MediaInsightResponse[] }>(baseUrl, version, `/${mediaId}/insights`, token, {
       metric: "reach,engagement,saved,views",
     });
     const entries = response.data ?? [];
@@ -222,8 +240,8 @@ async function safeMediaInsights(version: string, mediaId: string, token: string
   }
 }
 
-async function discoverInstagramAccount(version: string, token: string, requestedPageId: string) {
-  const pagesResponse = await graphGet<{ data?: PageRecord[] }>(version, "/me/accounts", token, {
+async function discoverInstagramAccount(baseUrl: string, version: string, token: string, requestedPageId: string) {
+  const pagesResponse = await graphGet<{ data?: PageRecord[] }>(baseUrl, version, "/me/accounts", token, {
     fields: "id,name",
     limit: 100,
   });
@@ -279,6 +297,7 @@ export default async function handler(req: any, res: any) {
 
   const query = (req.query ?? {}) as Record<string, unknown>;
   const version = getApiVersion();
+  const baseUrl = getGraphBaseUrl();
   const rangeDays = getQueryDays(query.days);
   const requestedPageId = getRequestedPageId(query);
   const requestedInstagramUserId = getRequestedInstagramUserId(query);
@@ -293,13 +312,19 @@ export default async function handler(req: any, res: any) {
 
   try {
     if (!instagramUserId) {
-      const discovered = await discoverInstagramAccount(version, token, requestedPageId);
+      if (baseUrl.includes("graph.instagram.com")) {
+        throw new Error(
+          "Defina META_IG_USER_ID no ambiente para usar o token do Instagram Login. Nesse fluxo, a descoberta automática por Página do Facebook não está disponível.",
+        );
+      }
+
+      const discovered = await discoverInstagramAccount(baseUrl, version, token, requestedPageId);
       pageId = discovered.pageId;
       pageName = discovered.pageName;
       instagramUserId = discovered.instagramUserId;
       instagramUsername = discovered.instagramUsername;
     } else {
-      const account = await graphGet<{ name?: string; username?: string }>(version, `/${instagramUserId}`, token, {
+      const account = await graphGet<{ name?: string; username?: string }>(baseUrl, version, `/${instagramUserId}`, token, {
         fields: "id,name,username",
       });
 
@@ -308,15 +333,15 @@ export default async function handler(req: any, res: any) {
     }
 
     const [reachSeriesRaw, viewsSeriesRaw, profileViewsSeriesRaw, followersSeriesRaw] = await Promise.all([
-      safeMetricSeries(version, instagramUserId, token, "reach", "day", since, until),
-      safeMetricSeries(version, instagramUserId, token, "views", "day", since, until),
-      safeMetricSeries(version, instagramUserId, token, "profile_views", "day", since, until),
-      safeMetricSeries(version, instagramUserId, token, "follower_count", "day", since, until),
+      safeMetricSeries(baseUrl, version, instagramUserId, token, "reach", "day", since, until),
+      safeMetricSeries(baseUrl, version, instagramUserId, token, "views", "day", since, until),
+      safeMetricSeries(baseUrl, version, instagramUserId, token, "profile_views", "day", since, until),
+      safeMetricSeries(baseUrl, version, instagramUserId, token, "follower_count", "day", since, until),
     ]);
 
-    const accountsEngagedRaw = await safeMetricSeries(version, instagramUserId, token, "accounts_engaged", "lifetime");
-    const totalInteractionsRaw = await safeMetricSeries(version, instagramUserId, token, "total_interactions", "lifetime");
-    const onlineFollowersRaw = await safeMetricSeries(version, instagramUserId, token, "online_followers", "lifetime");
+    const accountsEngagedRaw = await safeMetricSeries(baseUrl, version, instagramUserId, token, "accounts_engaged", "lifetime");
+    const totalInteractionsRaw = await safeMetricSeries(baseUrl, version, instagramUserId, token, "total_interactions", "lifetime");
+    const onlineFollowersRaw = await safeMetricSeries(baseUrl, version, instagramUserId, token, "online_followers", "lifetime");
 
     const reachSeries = parseSeries(reachSeriesRaw);
     const viewsSeries = parseSeries(viewsSeriesRaw);
@@ -326,10 +351,10 @@ export default async function handler(req: any, res: any) {
     const trend = mergeTrendSeries(reachSeries, viewsSeries, profileViewsSeries, followersSeries);
 
     const audienceResponse = await Promise.all([
-      safeMetricSeries(version, instagramUserId, token, "audience_country", "lifetime"),
-      safeMetricSeries(version, instagramUserId, token, "audience_city", "lifetime"),
-      safeMetricSeries(version, instagramUserId, token, "audience_gender_age", "lifetime"),
-      safeMetricSeries(version, instagramUserId, token, "audience_locale", "lifetime"),
+      safeMetricSeries(baseUrl, version, instagramUserId, token, "audience_country", "lifetime"),
+      safeMetricSeries(baseUrl, version, instagramUserId, token, "audience_city", "lifetime"),
+      safeMetricSeries(baseUrl, version, instagramUserId, token, "audience_gender_age", "lifetime"),
+      safeMetricSeries(baseUrl, version, instagramUserId, token, "audience_locale", "lifetime"),
     ]);
 
     const audience = {
@@ -355,14 +380,14 @@ export default async function handler(req: any, res: any) {
       ),
     };
 
-    const mediaResponse = await graphGet<{ data?: MediaRecord[] }>(version, `/${instagramUserId}/media`, token, {
+    const mediaResponse = await graphGet<{ data?: MediaRecord[] }>(baseUrl, version, `/${instagramUserId}/media`, token, {
       fields: "id,caption,media_type,permalink,timestamp,thumbnail_url,like_count,comments_count",
       limit: 10,
     });
 
     const media = await Promise.all(
       (mediaResponse.data ?? []).slice(0, 8).map(async (item) => {
-        const metrics = await safeMediaInsights(version, item.id, token);
+        const metrics = await safeMediaInsights(baseUrl, version, item.id, token);
         const likes = toNumber(item.like_count);
         const comments = toNumber(item.comments_count);
         const reach = metrics?.reach ?? 0;

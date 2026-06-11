@@ -54,10 +54,52 @@ export function useSupabasePreference<T>(key: string, fallback: T) {
           throw error;
         }
 
-        const loadedValue = (data?.value as T | undefined) ?? fallback;
+        if (typeof data?.value !== "undefined") {
+          const loadedValue = data.value as T;
+          setValue(loadedValue);
+          lastSavedSnapshotRef.current = snapshotOf(loadedValue);
+          setReady(true);
+          return;
+        }
+
+        const { data: legacyData, error: legacyError } = await client
+          .from("shared_state")
+          .select("value")
+          .eq("key", key)
+          .maybeSingle();
+
+        if (cancelled) {
+          return;
+        }
+
+        if (legacyError) {
+          throw legacyError;
+        }
+
+        const loadedValue = (legacyData?.value as T | undefined) ?? fallback;
         setValue(loadedValue);
         lastSavedSnapshotRef.current = snapshotOf(loadedValue);
         setReady(true);
+
+        const { error: seedError } = await client.from("app_preferences").upsert(
+          {
+            user_id: session.user.id,
+            key,
+            value: loadedValue,
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "user_id,key",
+          },
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        if (seedError) {
+          console.warn(`Failed to seed preference ${key}`, seedError.message);
+        }
       } catch (error) {
         if (cancelled) {
           return;
