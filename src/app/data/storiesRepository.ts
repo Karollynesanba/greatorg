@@ -10,17 +10,7 @@ type StoryListRow<T> = {
   user_id: string;
   sort_order: number;
   data: T;
-  deleted_at?: string | null;
-  archived_at?: string | null;
 };
-
-function tableSupportsArchivedAt(table: string) {
-  return table !== "history_events";
-}
-
-function tableSupportsDeletedAt(table: string) {
-  return table !== "history_events";
-}
 
 type StoryGoalMetricRow = {
   user_id: string;
@@ -126,7 +116,6 @@ function toStoryRow(data: StoryPostPayload, sortOrder: number): StoryListRow<Sto
 
 function normalizeStories(rows: StoryListRow<StoryLog>[] | null | undefined) {
   return (rows ?? [])
-    .filter((row) => !row.deleted_at && !row.archived_at)
     .map((row) => row.data)
     .sort((a, b) => `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`));
 }
@@ -135,7 +124,7 @@ export async function fetchStoryPosts(_userId: string) {
   const client = getClient();
   const { data, error } = await client
     .from("story_logs")
-    .select("id, user_id, sort_order, data, deleted_at, archived_at")
+    .select("id, user_id, sort_order, data")
     .order("sort_order", { ascending: false });
 
   if (error) {
@@ -149,14 +138,13 @@ export async function fetchMonthlyCalendar(_userId: string, month: string) {
   const client = getClient();
   const { data, error } = await client
     .from("calendar_events")
-    .select("data, deleted_at, archived_at")
+    .select("data");
 
   if (error) {
     throw new Error(error.message);
   }
 
-  return ((data ?? []) as Array<{ data: CalendarEvent; deleted_at?: string | null; archived_at?: string | null }>)
-    .filter((row) => !row.deleted_at && !row.archived_at)
+  return ((data ?? []) as Array<{ data: CalendarEvent }>)
     .map((row) => row.data)
     .filter((row) => row.date.startsWith(month));
 }
@@ -324,8 +312,6 @@ export async function updateGoalMetric(
 async function upsertStoryHistory(userId: string, story: StoryLog, actorName: string, action: "created" | "updated") {
   const client = getClient();
   const historyEvent = buildStoryHistoryEvent(story, actorName, action);
-  const supportsArchivedAt = tableSupportsArchivedAt("history_events");
-  const supportsDeletedAt = tableSupportsDeletedAt("history_events");
   const { error } = await client.from("history_events").upsert(
     {
       id: historyEvent.id,
@@ -333,8 +319,6 @@ async function upsertStoryHistory(userId: string, story: StoryLog, actorName: st
       sort_order: Date.now(),
       data: historyEvent,
       updated_at: new Date().toISOString(),
-      ...(supportsDeletedAt ? { deleted_at: null } : {}),
-      ...(supportsArchivedAt ? { archived_at: null } : {}),
     },
     { onConflict: "id" },
   );
@@ -345,17 +329,10 @@ async function upsertStoryHistory(userId: string, story: StoryLog, actorName: st
 }
 
 async function deleteStoryHistory(userId: string, storyId: number) {
-  if (!tableSupportsDeletedAt("history_events")) {
-    return;
-  }
-
   const client = getClient();
   const { error } = await client
     .from("history_events")
-    .update({
-      deleted_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
+    .delete()
     .eq("user_id", userId)
     .eq("id", getStoryHistoryId(storyId));
 
@@ -370,8 +347,6 @@ export async function createStoryPost(data: StoryPostPayload & { actorName: stri
   const { error } = await client.from("story_logs").upsert(
     {
       ...row,
-      deleted_at: null,
-      archived_at: null,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "id" },
@@ -391,8 +366,6 @@ export async function updateStoryPost(id: number, data: StoryPostPayload & { act
   const { error } = await client.from("story_logs").upsert(
     {
       ...row,
-      deleted_at: null,
-      archived_at: null,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "id" },
@@ -408,13 +381,7 @@ export async function updateStoryPost(id: number, data: StoryPostPayload & { act
 
 export async function deleteStoryPost(id: number, userId: string) {
   const client = getClient();
-  const { error } = await client
-    .from("story_logs")
-    .update({
-      deleted_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id);
+  const { error } = await client.from("story_logs").delete().eq("id", id);
 
   if (error) {
     throw new Error(error.message);

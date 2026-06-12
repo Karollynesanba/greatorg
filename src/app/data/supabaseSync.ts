@@ -18,12 +18,12 @@ type RowEnvelope<T> = {
   archived_by?: string | null;
 };
 
-function tableSupportsArchivedAt(table: string) {
-  return table !== "history_events";
+function tableSupportsArchivedAt(_table: string) {
+  return false;
 }
 
-function tableSupportsDeletedAt(table: string) {
-  return table !== "history_events";
+function tableSupportsDeletedAt(_table: string) {
+  return false;
 }
 
 function normalizeId(value: unknown) {
@@ -132,6 +132,17 @@ async function persistRemoteRows<T extends { id: number }>(
 
   if (removedIds.length > 0) {
     if (!supportsDeletedAt) {
+      let deleteQuery = client.from(table).delete();
+
+      if (userScoped) {
+        deleteQuery = deleteQuery.eq("user_id", currentUserId);
+      }
+
+      const { error } = await deleteQuery.in("id", removedIds);
+      if (error) {
+        throw error;
+      }
+
       return;
     }
 
