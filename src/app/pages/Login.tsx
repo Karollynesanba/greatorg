@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { CalendarDays, ChartColumnBig, Eye, EyeOff, LockKeyhole, Mail, PieChart, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "../components/ui";
-import { signInWithPassword } from "../auth";
+import { signInWithPassword, signInWithProfile } from "../auth";
 
 const quickAccessMembers = [
   { id: 1, name: "Brenda", role: "Video Maker", email: "brendarayssa2706@gmail.com", color: "#833AB4" },
@@ -87,13 +87,26 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
     }
   };
 
-  const handleQuickAccess = (memberEmail: string) => {
+  const handleQuickAccessLogin = async (memberEmail: string) => {
     setActiveProfileEmail(memberEmail);
     setEmail(memberEmail);
+    setLoading(true);
     setErrorMessage(null);
-    window.requestAnimationFrame(() => {
-      passwordInputRef.current?.focus();
-    });
+
+    try {
+      await signInWithProfile(memberEmail);
+      onLogin?.();
+      navigate("/dashboard", { replace: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Nao foi possivel iniciar a sessao.";
+      setErrorMessage(message);
+      toast.error(message);
+      window.requestAnimationFrame(() => {
+        passwordInputRef.current?.focus();
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -165,7 +178,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                       <button
                         key={member.id}
                         type="button"
-                        onClick={() => handleQuickAccess(member.email)}
+                        onClick={() => void handleQuickAccessLogin(member.email)}
                         disabled={loading}
                         data-cy={member.id === 1 ? "login-admin-quick-access" : `login-quick-access-${member.id}`}
                         className={cn(
@@ -184,7 +197,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                           <span className="block text-xs text-[#7a7f87]">{member.role}</span>
                         </span>
                         <span className="text-xs font-medium text-[#e50914]">
-                          {activeProfileEmail === member.email ? "Email preenchido" : "Usar este email"}
+                          {loading && activeProfileEmail === member.email ? "Entrando..." : "Entrar com 1 clique"}
                         </span>
                       </button>
                     ))}
@@ -197,7 +210,10 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                         <Mail className="h-4 w-4 text-[#9ca3af]" />
                         <input
                           value={email}
-                          onChange={(event) => setEmail(event.target.value)}
+                          onChange={(event) => {
+                            setEmail(event.target.value);
+                            setActiveProfileEmail(null);
+                          }}
                           type="email"
                           autoComplete="email"
                           data-cy="login-email"
@@ -214,7 +230,10 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                         <input
                           ref={passwordInputRef}
                           value={password}
-                          onChange={(event) => setPassword(event.target.value)}
+                          onChange={(event) => {
+                            setPassword(event.target.value);
+                            setActiveProfileEmail(null);
+                          }}
                           type={showPassword ? "text" : "password"}
                           autoComplete="current-password"
                           data-cy="login-password"
@@ -247,7 +266,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                       <div>
                         <p className="text-sm font-semibold text-[#141414]">Acesso simplificado</p>
                         <p className="mt-1 text-sm leading-6 text-[#7a7f87]">
-                          Os atalhos acima preenchem o email. A senha usada no login continua sendo a senha real do usuario no Supabase novo.
+                          Os perfis acima tentam entrar automaticamente com as credenciais vinculadas a cada conta da equipe.
                         </p>
                       </div>
                     </div>

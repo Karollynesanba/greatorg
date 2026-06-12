@@ -432,14 +432,8 @@ export async function signInWithProfile(email: string, password?: string) {
     throw new Error("Perfil indisponivel.");
   }
 
-  if (!password?.trim()) {
-    return {
-      email: account.email,
-      name: account.name,
-    };
-  }
-
-  return signInWithPassword(account.email, password);
+  const nextPassword = password?.trim() || getStoredPassword(account.email) || account.password;
+  return signInWithPassword(account.email, nextPassword);
 }
 
 export async function updateDemoAccountPassword(userId: string, nextPassword: string) {
