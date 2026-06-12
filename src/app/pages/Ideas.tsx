@@ -2,7 +2,7 @@
 import { ChevronDown, Image as ImageIcon, Link2, Lightbulb, PencilLine, Plus, Upload, Video, X } from "lucide-react";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "motion/react";
-import { type Idea, type IdeaStatus } from "../data/mockData";
+import { ideas as seedIdeas, type Idea, type IdeaStatus } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
@@ -147,8 +147,8 @@ function MemberDropdown({
 export function IdeasPage() {
   const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
-  const [items, setItems] = useSupabaseSyncedListState<Idea>({ key: "ideas", table: "ideas", fallback: [] });
-  const [teamScope] = useTeamScope();
+  const [items, setItems] = useSupabaseSyncedListState<Idea>({ key: "ideas", table: "ideas", fallback: seedIdeas, seedOnEmpty: true });
+  const [teamScope, setTeamScope] = useTeamScope();
   const [isSparkOpen, setIsSparkOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingIdeaId, setEditingIdeaId] = useState<number | null>(null);
@@ -283,6 +283,10 @@ export function IdeasPage() {
         ? previous.map((idea) => (idea.id === editingIdeaId ? nextIdea : idea))
         : [nextIdea, ...previous],
     );
+
+    if (!matchesTeamScope(nextIdea.responsibleId, teamScope)) {
+      setTeamScope(nextIdea.responsibleId);
+    }
 
     const wasEditing = editingIdeaId !== null;
     closeIdeaModal();
