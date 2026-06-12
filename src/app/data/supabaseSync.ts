@@ -22,6 +22,10 @@ function tableSupportsArchivedAt(table: string) {
   return table !== "history_events";
 }
 
+function tableSupportsDeletedAt(table: string) {
+  return table !== "history_events";
+}
+
 function normalizeId(value: unknown) {
   const parsed = typeof value === "string" ? Number(value) : typeof value === "number" ? value : NaN;
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
@@ -50,12 +54,15 @@ async function fetchRemoteRows<T extends { id: number }>(
 
   try {
     const supportsArchivedAt = tableSupportsArchivedAt(table);
+    const supportsDeletedAt = tableSupportsDeletedAt(table);
     let query = supabase
       .from(table)
       .select(
-        supportsArchivedAt
+        supportsDeletedAt && supportsArchivedAt
           ? "id, user_id, sort_order, data, deleted_at, archived_at"
-          : "id, user_id, sort_order, data, deleted_at",
+          : supportsDeletedAt
+            ? "id, user_id, sort_order, data, deleted_at"
+            : "id, user_id, sort_order, data",
       )
       .order("sort_order", {
         ascending: true,
@@ -76,7 +83,7 @@ async function fetchRemoteRows<T extends { id: number }>(
       .map((row) => row.data as T)
       .filter((_, index) => {
         const row = rows[index] as { deleted_at?: string | null; archived_at?: string | null } | undefined;
-        return !row?.deleted_at && (!supportsArchivedAt || !row?.archived_at);
+        return (!supportsDeletedAt || !row?.deleted_at) && (!supportsArchivedAt || !row?.archived_at);
       })
       .filter((item): item is T => Boolean(item) && normalizeId((item as { id?: unknown }).id) !== null);
 
@@ -104,12 +111,13 @@ async function persistRemoteRows<T extends { id: number }>(
   const client = supabase;
   const timestamp = new Date().toISOString();
   const supportsArchivedAt = tableSupportsArchivedAt(table);
+  const supportsDeletedAt = tableSupportsDeletedAt(table);
   const rows = nextValue.map((item, index) => ({
     ...toRowEnvelope(item, index),
     user_id: currentUserId,
-    deleted_at: null,
     updated_at: timestamp,
     updated_by: currentUserId,
+    ...(supportsDeletedAt ? { deleted_at: null } : {}),
     ...(supportsArchivedAt ? { archived_at: null } : {}),
   }));
   const nextIds = new Set(nextValue.map((item) => item.id));
@@ -123,6 +131,10 @@ async function persistRemoteRows<T extends { id: number }>(
   }
 
   if (removedIds.length > 0) {
+    if (!supportsDeletedAt) {
+      return;
+    }
+
     let query = client.from(table).update({
       deleted_at: timestamp,
       updated_at: timestamp,

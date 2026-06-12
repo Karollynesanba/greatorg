@@ -18,6 +18,10 @@ function tableSupportsArchivedAt(table: string) {
   return table !== "history_events";
 }
 
+function tableSupportsDeletedAt(table: string) {
+  return table !== "history_events";
+}
+
 type StoryGoalMetricRow = {
   user_id: string;
   month_key: string;
@@ -321,14 +325,15 @@ async function upsertStoryHistory(userId: string, story: StoryLog, actorName: st
   const client = getClient();
   const historyEvent = buildStoryHistoryEvent(story, actorName, action);
   const supportsArchivedAt = tableSupportsArchivedAt("history_events");
+  const supportsDeletedAt = tableSupportsDeletedAt("history_events");
   const { error } = await client.from("history_events").upsert(
     {
       id: historyEvent.id,
       user_id: userId,
       sort_order: Date.now(),
       data: historyEvent,
-      deleted_at: null,
       updated_at: new Date().toISOString(),
+      ...(supportsDeletedAt ? { deleted_at: null } : {}),
       ...(supportsArchivedAt ? { archived_at: null } : {}),
     },
     { onConflict: "id" },
@@ -340,6 +345,10 @@ async function upsertStoryHistory(userId: string, story: StoryLog, actorName: st
 }
 
 async function deleteStoryHistory(userId: string, storyId: number) {
+  if (!tableSupportsDeletedAt("history_events")) {
+    return;
+  }
+
   const client = getClient();
   const { error } = await client
     .from("history_events")
