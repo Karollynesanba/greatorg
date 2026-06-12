@@ -173,63 +173,6 @@ function saveSession(session: LocalSession | null) {
   }
 }
 
-async function syncSupabaseSession(account: DemoAccount, password: string) {
-  if (!isSupabaseConfigured() || !supabase) {
-    return null;
-  }
-
-  const client = supabase;
-  const currentSession = await client.auth.getSession();
-  if (normalizeEmail(currentSession.data.session?.user.email ?? "") === normalizeEmail(account.email)) {
-    return currentSession.data.session;
-  }
-
-  const signInResult = await client.auth.signInWithPassword({
-    email: account.email,
-    password,
-  });
-
-  if (!signInResult.error) {
-    return signInResult.data.session;
-  }
-
-  if (!isDemoAccountEmail(account.email)) {
-    throw new Error(signInResult.error.message);
-  }
-
-  const signUpResult = await client.auth.signUp({
-    email: account.email,
-    password,
-    options: {
-      data: {
-        name: account.name,
-      },
-    },
-  });
-
-  if (
-    signUpResult.error &&
-    !/already registered|already exists|user already registered/i.test(signUpResult.error.message)
-  ) {
-    throw new Error(signUpResult.error.message);
-  }
-
-  if (signUpResult.data.session) {
-    return signUpResult.data.session;
-  }
-
-  const retryResult = await client.auth.signInWithPassword({
-    email: account.email,
-    password,
-  });
-
-  if (retryResult.error) {
-    throw new Error(retryResult.error.message);
-  }
-
-  return retryResult.data.session;
-}
-
 async function clearSupabaseSession() {
   if (!isSupabaseConfigured() || !supabase) {
     return;
@@ -263,6 +206,62 @@ function readLocalSession() {
   }
 
   return null;
+}
+
+function buildAuthErrorMessage(message: string, email?: string) {
+  const normalizedEmail = normalizeEmail(email ?? "");
+  const isDemoEmail = isDemoAccountEmail(normalizedEmail);
+  const rawMessage = message.trim();
+
+  if (/invalid login credentials/i.test(rawMessage)) {
+    if (isDemoEmail) {
+      return "Email ou senha invalidos no Supabase novo. Se esta conta existia no projeto antigo, ela precisa ser recriada ou importada no Authentication > Users do projeto novo.";
+    }
+
+    return "Email ou senha invalidos. Se esta conta existia no Supabase antigo, ela ainda precisa ser recriada ou importada no Authentication > Users do projeto novo.";
+  }
+
+  if (/email not confirmed/i.test(rawMessage)) {
+    return "Seu email ainda nao foi confirmado no Supabase novo. Confirme o email ou habilite o fluxo apropriado no Auth.";
+  }
+
+  if (/signup is disabled/i.test(rawMessage)) {
+    return "O Supabase Auth respondeu, mas o cadastro esta desativado. O login so funciona para usuarios que ja existem no Authentication > Users.";
+  }
+
+  if (/network|fetch|failed to fetch|load failed/i.test(rawMessage)) {
+    return "Nao foi possivel conectar ao Supabase novo. Verifique a URL, a ANON KEY e as variaveis do Vercel.";
+  }
+
+  return rawMessage;
+}
+
+async function signInToSupabase(email: string, password: string) {
+  if (!isSupabaseConfigured() || !supabase) {
+    return null;
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+  const client = supabase;
+  const currentSession = await client.auth.getSession();
+  if (normalizeEmail(currentSession.data.session?.user.email ?? "") === normalizedEmail) {
+    return currentSession.data.session;
+  }
+
+  const signInResult = await client.auth.signInWithPassword({
+    email: normalizedEmail,
+    password,
+  });
+
+  if (signInResult.error) {
+    throw new Error(buildAuthErrorMessage(signInResult.error.message, normalizedEmail));
+  }
+
+  if (!signInResult.data.session) {
+    throw new Error("O Supabase nao retornou uma sessao valida apos o login.");
+  }
+
+  return signInResult.data.session;
 }
 
 export function isDemoSession(session: LocalSession | null | undefined) {
@@ -325,39 +324,7 @@ export function useAuthSession() {
         console.error("Failed to read Supabase auth session", error);
       }
 
-      if (data.session) {
-        applySupabaseSession(data.session);
-        return;
-      }
-
-      const localSession = readLocalSession();
-      const account = getDemoAccount(localSession?.user.email ?? "");
-      const password = localSession ? getStoredPassword(localSession.user.email) ?? "Great2026!" : null;
-
-      if (account && password) {
-        try {
-          const syncedSession = await syncSupabaseSession(account, password);
-          if (cancelled) {
-            return;
-          }
-
-          if (syncedSession) {
-            applySupabaseSession(syncedSession);
-            return;
-          }
-        } catch (syncError) {
-          console.error("Failed to sync Supabase auth session", syncError);
-        }
-      }
-
-      saveSession(null);
-      console.info("[Init] User session loaded", {
-        authenticated: false,
-        userId: null,
-        email: null,
-        source: "supabase",
-      });
-      setState({ session: null, ready: true });
+      applySupabaseSession(data.session ?? null);
     };
 
     void initialize();
@@ -405,22 +372,43 @@ export function getAuthenticatedMemberId() {
 }
 
 export async function signInWithPassword(email: string, password: string) {
-  const account = getDemoAccount(email);
+  const normalizedEmail = normalizeEmail(email);
+  const trimmedPassword = password.trim();
+
+  if (!normalizedEmail) {
+    throw new Error("Informe seu email.");
+  }
+
+  if (!trimmedPassword) {
+    throw new Error("Informe sua senha.");
+  }
+
+  if (isSupabaseConfigured() && supabase) {
+    const account = getDemoAccount(normalizedEmail);
+    const session = await signInToSupabase(normalizedEmail, trimmedPassword);
+    if (!session) {
+      throw new Error("Nao foi possivel iniciar a sessao no Supabase.");
+    }
+
+    const storedSession = toStoredSession(session, account?.name);
+    saveSession(storedSession);
+    return storedSession;
+  }
+
+  const account = getDemoAccount(normalizedEmail);
   if (!account) {
-    throw new Error("Conta indisponivel.");
+    throw new Error("Este ambiente local sem Supabase so aceita as contas demo configuradas.");
   }
 
   const storedPassword = getStoredPassword(account.email);
-  const isValidPassword = password === account.password || (storedPassword !== null && password === storedPassword);
+  const isValidPassword = trimmedPassword === account.password || (storedPassword !== null && trimmedPassword === storedPassword);
   if (!isValidPassword) {
     throw new Error("Credenciais invalidas.");
   }
 
-  const syncedSession = await syncSupabaseSession(account, password);
-
-  const session = syncedSession ? toStoredSession(syncedSession, account.name) : createLocalSession(account);
-  saveSession(session);
-  return session;
+  const localSession = createLocalSession(account);
+  saveSession(localSession);
+  return localSession;
 }
 
 export async function signInOrBootstrapDemoAccount(email: string, password: string) {
@@ -438,14 +426,51 @@ export async function signInOrBootstrapDemoAccount(email: string, password: stri
   return signInWithPassword(account.email, password);
 }
 
+export async function signInWithProfile(email: string, password?: string) {
+  const account = getDemoAccount(email);
+  if (!account) {
+    throw new Error("Perfil indisponivel.");
+  }
+
+  if (!password?.trim()) {
+    return {
+      email: account.email,
+      name: account.name,
+    };
+  }
+
+  return signInWithPassword(account.email, password);
+}
+
 export async function updateDemoAccountPassword(userId: string, nextPassword: string) {
   const account = demoAccounts.find((item) => normalizeEmail(item.email) === normalizeEmail(userId));
+  const trimmedPassword = nextPassword.trim();
+
+  if (!trimmedPassword) {
+    return;
+  }
+
+  if (isSupabaseConfigured() && supabase) {
+    const { data } = await supabase.auth.getSession();
+    if (normalizeEmail(data.session?.user.email ?? "") !== normalizeEmail(userId)) {
+      throw new Error("A senha do Supabase so pode ser alterada pelo usuario autenticado.");
+    }
+
+    const { error } = await supabase.auth.updateUser({
+      password: trimmedPassword,
+    });
+
+    if (error) {
+      throw new Error(buildAuthErrorMessage(error.message, userId));
+    }
+  }
+
   if (!account) {
     return;
   }
 
   const currentPasswords = readPasswordMap();
-  currentPasswords[account.email] = nextPassword;
+  currentPasswords[account.email] = trimmedPassword;
   writePasswordMap(currentPasswords);
 
   const currentSession = readLocalSession();

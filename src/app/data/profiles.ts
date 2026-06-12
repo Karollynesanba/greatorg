@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { getAuthenticatedMemberId, getDemoAccountUserId } from "../auth";
+import { getAuthenticatedMemberId, getDemoAccountUserId, useAuthSession } from "../auth";
 import { createStorageKey, useSharedState } from "./sharedState";
 import { isSupabaseConfigured, supabase } from "./supabase";
 import { teamMembers as baseTeamMembers, type TeamMember } from "./mockData";
@@ -187,15 +187,24 @@ export function useTeamProfiles() {
 
 export function useCurrentTeamMember() {
   const [profiles, setProfiles] = useTeamProfiles();
+  const { session } = useAuthSession();
+  const authenticatedEmail = session?.user.email?.trim().toLowerCase() ?? null;
   const memberId = getAuthenticatedMemberId() ?? profiles[0]?.id ?? null;
 
   const member = useMemo(() => {
+    if (authenticatedEmail) {
+      const matchedByEmail = profiles.find((item) => item.email.trim().toLowerCase() === authenticatedEmail) ?? null;
+      if (matchedByEmail) {
+        return matchedByEmail;
+      }
+    }
+
     if (memberId === null) {
       return null;
     }
 
     return profiles.find((item) => item.id === memberId) ?? null;
-  }, [memberId, profiles]);
+  }, [authenticatedEmail, memberId, profiles]);
 
   const updateMember = (memberIdToUpdate: number, updater: (current: EditableTeamMember) => EditableTeamMember) => {
     setProfiles((previous) =>

@@ -1,11 +1,10 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { CalendarDays, ChartColumnBig, Eye, EyeOff, LockKeyhole, Mail, PieChart, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "../components/ui";
-import { isDemoAccountEmail, signInOrBootstrapDemoAccount, signInWithPassword } from "../auth";
+import { signInWithPassword } from "../auth";
 
-const DEMO_PASSWORD = "Great2026!";
 const quickAccessMembers = [
   { id: 1, name: "Brenda", role: "Video Maker", email: "brendarayssa2706@gmail.com", color: "#833AB4" },
   { id: 2, name: "Hannah", role: "Designer de Social", email: "hannahleticia13@gmail.com", color: "#E1306C" },
@@ -48,10 +47,13 @@ function GreatOrganicoMark({ className }: { className?: string }) {
 
 export function LoginPage({ onLogin }: { onLogin?: () => void }) {
   const navigate = useNavigate();
+  const passwordInputRef = useRef<HTMLInputElement | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [activeProfileEmail, setActiveProfileEmail] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -70,38 +72,28 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
+    setErrorMessage(null);
 
     try {
-      if (isDemoAccountEmail(email)) {
-        await signInOrBootstrapDemoAccount(email, password);
-      } else {
-        await signInWithPassword(email, password);
-      }
+      await signInWithPassword(email, password);
       onLogin?.();
       navigate("/dashboard", { replace: true });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Não foi possível iniciar a sessão.";
+      const message = error instanceof Error ? error.message : "Nao foi possivel iniciar a sessao.";
+      setErrorMessage(message);
       toast.error(message);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleQuickAccess = async (email: string) => {
-    setEmail(email);
-    setPassword(DEMO_PASSWORD);
-    setLoading(true);
-
-    try {
-      await signInOrBootstrapDemoAccount(email, DEMO_PASSWORD);
-      onLogin?.();
-      navigate("/dashboard", { replace: true });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Não foi possível acessar esta conta.";
-      toast.error(message);
-    } finally {
-      setLoading(false);
-    }
+  const handleQuickAccess = (memberEmail: string) => {
+    setActiveProfileEmail(memberEmail);
+    setEmail(memberEmail);
+    setErrorMessage(null);
+    window.requestAnimationFrame(() => {
+      passwordInputRef.current?.focus();
+    });
   };
 
   return (
@@ -117,27 +109,27 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
               <GreatOrganicoMark className="h-[88px] w-[88px]" />
               <div>
                 <p className="text-[3.2rem] font-semibold leading-none tracking-tight text-[#141414]">Great</p>
-                <p className="mt-2 pl-0.5 text-[0.92rem] font-semibold uppercase tracking-[0.5em] text-[#e50914]">Orgânico</p>
+                <p className="mt-2 pl-0.5 text-[0.92rem] font-semibold uppercase tracking-[0.5em] text-[#e50914]">Organico</p>
               </div>
             </div>
 
             <div className="flex flex-1 flex-col justify-center pb-10 pt-14">
               <div className="max-w-2xl">
                 <h1 className="mt-5 max-w-xl text-[3.8rem] font-semibold leading-[0.94] tracking-tight text-[#141414] xl:text-[4.1rem]">
-                  Gestão estratégica
+                  Gestao estrategica
                   <br />
-                  do <span className="text-[#e50914]">orgânico.</span>
+                  do <span className="text-[#e50914]">organico.</span>
                 </h1>
                 <p className="mt-6 max-w-xl text-[1.1rem] leading-[1.42] text-[#5d6168]">
-                  Organize conteúdos, acompanhe metas e analise resultados em um só lugar.
+                  Organize conteudos, acompanhe metas e analise resultados em um so lugar.
                 </p>
               </div>
 
               <div className="mt-14 grid max-w-[920px] grid-cols-2 gap-x-12 gap-y-10 xl:grid-cols-4">
-                <Feature icon={CalendarDays} title="Planejamento de conteúdo" description="Estruture e organize suas ideias." />
-                <Feature icon={CalendarDays} title="Calendário editorial" description="Visualize e gerencie suas publicações." />
+                <Feature icon={CalendarDays} title="Planejamento de conteudo" description="Estruture e organize suas ideias." />
+                <Feature icon={CalendarDays} title="Calendario editorial" description="Visualize e gerencie suas publicacoes." />
                 <Feature icon={ChartColumnBig} title="Metas e performance" description="Acompanhe resultados e alcance objetivos." />
-                <Feature icon={PieChart} title="Relatórios e insights" description="Analise dados e tome decisões melhores." />
+                <Feature icon={PieChart} title="Relatorios e insights" description="Analise dados e tome decisoes melhores." />
               </div>
             </div>
           </div>
@@ -166,16 +158,20 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                   className="relative w-full max-w-[560px] rounded-t-[2.3rem] rounded-b-[1.15rem] bg-white px-12 py-12 text-[#141414] shadow-[0_42px_100px_rgba(0,0,0,0.26)]"
                 >
                   <h2 className="text-[2rem] font-semibold tracking-tight text-[#141414]">Entrar na plataforma</h2>
-                  <p className="mt-2 text-[1rem] text-[#7a7f87]">Acesse o painel Great Orgânico</p>
+                  <p className="mt-2 text-[1rem] text-[#7a7f87]">Entre com seu email e senha do Supabase novo.</p>
 
                   <div className="mt-6 grid gap-3 sm:grid-cols-3">
                     {quickAccessMembers.map((member) => (
                       <button
                         key={member.id}
                         type="button"
-                        onClick={() => void handleQuickAccess(member.email)}
+                        onClick={() => handleQuickAccess(member.email)}
+                        disabled={loading}
                         data-cy={member.id === 1 ? "login-admin-quick-access" : `login-quick-access-${member.id}`}
-                        className="flex flex-col items-start gap-3 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-4 text-left shadow-[0_2px_8px_rgba(15,23,42,0.03)] transition hover:-translate-y-0.5 hover:border-[#e50914] hover:shadow-[0_12px_30px_rgba(15,23,42,0.08)]"
+                        className={cn(
+                          "flex flex-col items-start gap-3 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-4 text-left shadow-[0_2px_8px_rgba(15,23,42,0.03)] transition hover:-translate-y-0.5 hover:border-[#e50914] hover:shadow-[0_12px_30px_rgba(15,23,42,0.08)]",
+                          loading && activeProfileEmail === member.email && "border-[#e50914] shadow-[0_12px_30px_rgba(229,9,20,0.12)]",
+                        )}
                       >
                         <span
                           className="inline-flex h-11 w-11 items-center justify-center rounded-2xl text-base font-semibold text-white"
@@ -186,6 +182,9 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                         <span>
                           <span className="block text-sm font-semibold text-[#141414]">{member.name}</span>
                           <span className="block text-xs text-[#7a7f87]">{member.role}</span>
+                        </span>
+                        <span className="text-xs font-medium text-[#e50914]">
+                          {activeProfileEmail === member.email ? "Email preenchido" : "Usar este email"}
                         </span>
                       </button>
                     ))}
@@ -200,6 +199,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                           value={email}
                           onChange={(event) => setEmail(event.target.value)}
                           type="email"
+                          autoComplete="email"
                           data-cy="login-email"
                           placeholder="seu@email.com"
                           className="w-full bg-transparent text-sm outline-none placeholder:text-[#9ca3af]"
@@ -212,11 +212,13 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                       <div className="flex items-center gap-3 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-4 shadow-[0_2px_8px_rgba(15,23,42,0.03)]">
                         <LockKeyhole className="h-4 w-4 text-[#9ca3af]" />
                         <input
+                          ref={passwordInputRef}
                           value={password}
                           onChange={(event) => setPassword(event.target.value)}
                           type={showPassword ? "text" : "password"}
+                          autoComplete="current-password"
                           data-cy="login-password"
-                          placeholder=""
+                          placeholder="Digite sua senha"
                           className="w-full bg-transparent text-sm outline-none placeholder:text-[#9ca3af]"
                         />
                         <button
@@ -229,15 +231,25 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                         </button>
                       </div>
                     </label>
+                  </div>
 
-                    <div className="flex items-center justify-between text-sm">
-                      <label className="flex items-center gap-2 text-[#7a7f87]">
-                        <input type="checkbox" className="rounded border-[#d1d5db]" defaultChecked />
-                        Lembrar-me
-                      </label>
-                      <button type="button" className="font-medium text-[#e50914] hover:underline">
-                        Esqueceu a senha?
-                      </button>
+                  {errorMessage ? (
+                    <div className="mt-6 rounded-2xl border border-[#f4c7ca] bg-[#fff4f4] px-4 py-3 text-sm leading-6 text-[#9f1239]">
+                      {errorMessage}
+                    </div>
+                  ) : null}
+
+                  <div className="mt-8 rounded-[2rem] border border-[#f0d6d7] bg-[#fff8f8] px-5 py-5">
+                    <div className="flex items-start gap-3">
+                      <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-[#ffe4e6] text-[#e50914]">
+                        <LockKeyhole className="h-5 w-5" />
+                      </span>
+                      <div>
+                        <p className="text-sm font-semibold text-[#141414]">Acesso simplificado</p>
+                        <p className="mt-1 text-sm leading-6 text-[#7a7f87]">
+                          Os atalhos acima preenchem o email. A senha usada no login continua sendo a senha real do usuario no Supabase novo.
+                        </p>
+                      </div>
                     </div>
                   </div>
 
@@ -250,11 +262,11 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                       loading && "opacity-80",
                     )}
                   >
-                    Entrar
+                    {loading ? "Entrando..." : "Entrar"}
                   </button>
 
                   <div className="mt-8 border-t border-[#e8e8e8] pt-6 text-center text-sm text-[#7a7f87]">
-                    Não tem uma conta? <span className="font-medium text-[#e50914]">Solicitar acesso</span>
+                    Se a conta existia no Supabase antigo e ainda nao foi migrada para o novo, o login vai falhar ate o usuario ser recriado ou importado no Authentication {" > "} Users.
                   </div>
                 </form>
               </div>
@@ -263,7 +275,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
             <div className="mt-8 flex justify-center gap-12 px-2 text-sm text-white/90">
               <div className="flex items-center gap-3">
                 <Shield className="h-5 w-5" />
-                <span>Ambiente seguro e confiável</span>
+                <span>Ambiente seguro e confiavel</span>
               </div>
               <div className="flex items-center gap-3">
                 <LockKeyhole className="h-5 w-5" />
@@ -271,7 +283,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
               </div>
               <div className="flex items-center gap-3">
                 <ClockIcon />
-                <span>Informações em tempo real</span>
+                <span>Informacoes em tempo real</span>
               </div>
             </div>
           </div>
