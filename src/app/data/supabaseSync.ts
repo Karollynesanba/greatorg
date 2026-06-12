@@ -18,6 +18,10 @@ type RowEnvelope<T> = {
   archived_by?: string | null;
 };
 
+function tableSupportsArchivedAt(table: string) {
+  return table !== "history_events";
+}
+
 function normalizeId(value: unknown) {
   const parsed = typeof value === "string" ? Number(value) : typeof value === "number" ? value : NaN;
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
@@ -45,9 +49,14 @@ async function fetchRemoteRows<T extends { id: number }>(
   }
 
   try {
+    const supportsArchivedAt = tableSupportsArchivedAt(table);
     let query = supabase
       .from(table)
-      .select("id, user_id, sort_order, data, deleted_at, archived_at")
+      .select(
+        supportsArchivedAt
+          ? "id, user_id, sort_order, data, deleted_at, archived_at"
+          : "id, user_id, sort_order, data, deleted_at",
+      )
       .order("sort_order", {
         ascending: true,
       });
@@ -56,7 +65,7 @@ async function fetchRemoteRows<T extends { id: number }>(
       query = query.eq("user_id", currentUserId);
     }
 
-    const { data, error } = await query;
+    const { data, error } = await (query as unknown as Promise<{ data: RowEnvelope<T>[] | null; error: { message: string } | null }>);
 
     if (error) {
       throw error;
@@ -67,7 +76,7 @@ async function fetchRemoteRows<T extends { id: number }>(
       .map((row) => row.data as T)
       .filter((_, index) => {
         const row = rows[index] as { deleted_at?: string | null; archived_at?: string | null } | undefined;
-        return !row?.deleted_at && !row?.archived_at;
+        return !row?.deleted_at && (!supportsArchivedAt || !row?.archived_at);
       })
       .filter((item): item is T => Boolean(item) && normalizeId((item as { id?: unknown }).id) !== null);
 
@@ -94,13 +103,14 @@ async function persistRemoteRows<T extends { id: number }>(
 
   const client = supabase;
   const timestamp = new Date().toISOString();
+  const supportsArchivedAt = tableSupportsArchivedAt(table);
   const rows = nextValue.map((item, index) => ({
     ...toRowEnvelope(item, index),
     user_id: currentUserId,
     deleted_at: null,
-    archived_at: null,
     updated_at: timestamp,
     updated_by: currentUserId,
+    ...(supportsArchivedAt ? { archived_at: null } : {}),
   }));
   const nextIds = new Set(nextValue.map((item) => item.id));
   const removedIds = previousValue.map((item) => item.id).filter((id) => !nextIds.has(id));

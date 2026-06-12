@@ -14,6 +14,10 @@ type StoryListRow<T> = {
   archived_at?: string | null;
 };
 
+function tableSupportsArchivedAt(table: string) {
+  return table !== "history_events";
+}
+
 type StoryGoalMetricRow = {
   user_id: string;
   month_key: string;
@@ -316,6 +320,7 @@ export async function updateGoalMetric(
 async function upsertStoryHistory(userId: string, story: StoryLog, actorName: string, action: "created" | "updated") {
   const client = getClient();
   const historyEvent = buildStoryHistoryEvent(story, actorName, action);
+  const supportsArchivedAt = tableSupportsArchivedAt("history_events");
   const { error } = await client.from("history_events").upsert(
     {
       id: historyEvent.id,
@@ -323,8 +328,8 @@ async function upsertStoryHistory(userId: string, story: StoryLog, actorName: st
       sort_order: Date.now(),
       data: historyEvent,
       deleted_at: null,
-      archived_at: null,
       updated_at: new Date().toISOString(),
+      ...(supportsArchivedAt ? { archived_at: null } : {}),
     },
     { onConflict: "id" },
   );
