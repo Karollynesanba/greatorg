@@ -135,6 +135,7 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
   table: string;
   fallback: T[];
   userScoped?: boolean;
+  seedOnEmpty?: boolean;
 }) {
   const { session, ready: authReady } = useAuthSession();
   const [value, setValue] = useState<T[]>(options.fallback);
@@ -205,7 +206,33 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
 
     const loadRemote = async () => {
       try {
-        const nextValue = await loadValue();
+        const remote = await fetchRemoteRows<T>(options.table, currentUserId, userScoped);
+
+        if (
+          options.seedOnEmpty &&
+          remote.hasRows &&
+          remote.items.length === 0 &&
+          options.fallback.length > 0
+        ) {
+          await persistRemoteRows(options.table, [], options.fallback, currentUserId, userScoped);
+          if (cancelled) {
+            return;
+          }
+
+          commitValue(options.fallback);
+          return;
+        }
+
+        const nextValue =
+          !remote.hasRows
+            ? lastPersistedValueRef.current.length > 0
+              ? lastPersistedValueRef.current
+              : options.fallback
+            : remote.items.length > 0
+              ? remote.items
+              : lastPersistedValueRef.current.length > 0
+                ? lastPersistedValueRef.current
+                : options.fallback;
 
         if (cancelled) {
           return;
@@ -250,7 +277,7 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
       cancelled = true;
       unsubscribe();
     };
-  }, [authReady, commitValue, isRemoteSourceAvailable, loadValue, options.fallback, options.table]);
+  }, [authReady, commitValue, currentUserId, isRemoteSourceAvailable, options.fallback, options.seedOnEmpty, options.table, userScoped]);
 
   useEffect(() => {
     if (!hydratedRef.current) {

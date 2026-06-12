@@ -206,6 +206,7 @@ export function HistoryPage() {
     key: "history",
     table: "history_events",
     fallback: historyTimeline,
+    seedOnEmpty: true,
   });
   const [view, setView] = useState<"Timeline" | "Tabela">("Timeline");
   const [personFilter, setPersonFilter] = useState<number | "todos">("todos");

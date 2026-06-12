@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import {
   calendarEvents,
   getGoalResponsibleIds,
+  goals as seedGoals,
   storyLogs,
   type CalendarEvent,
   type ContentType,
@@ -642,7 +643,7 @@ function ContentEditorModal({
 export function ContentPage() {
   const [teamMembers] = useTeamProfiles();
   const [posts, setPosts] = usePosts();
-  const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
+  const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: seedGoals, seedOnEmpty: true });
   const [stories] = useSupabaseSyncedListState<StoryLog>({ key: "story-logs", table: "story_logs", fallback: storyLogs });
   const [calendarItems] = useSupabaseSyncedListState<CalendarEvent>({
     key: "calendar-events",

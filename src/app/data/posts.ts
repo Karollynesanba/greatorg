@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useSupabaseSyncedListState } from "./supabaseSync";
-import type { Post } from "./mockData";
+import { posts as seedPosts, type Post } from "./mockData";
 
 export type { Post } from "./mockData";
 
@@ -10,7 +10,8 @@ export function usePosts() {
   return useSupabaseSyncedListState<Post>({
     key: "posts",
     table: postsTable,
-    fallback: [],
+    fallback: seedPosts,
+    seedOnEmpty: true,
   });
 }
 
