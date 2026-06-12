@@ -262,7 +262,7 @@ async function discoverInstagramAccount(baseUrl: string, version: string, token:
   }
 
   for (const page of candidatePages) {
-    const pageDetails = await graphGet<PageDetails>(version, `/${page.id}`, token, {
+    const pageDetails = await graphGet<PageDetails>(baseUrl, version, `/${page.id}`, token, {
       fields: "instagram_business_account{id,username}",
     });
 

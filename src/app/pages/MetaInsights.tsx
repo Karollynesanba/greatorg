@@ -146,10 +146,21 @@ export function MetaInsightsPage() {
         cache: "no-store",
       });
 
-      const payload = (await response.json()) as MetaInsightsPayload & { error?: string };
+      const rawResponse = await response.text();
+      let payload: (MetaInsightsPayload & { error?: string }) | null = null;
+
+      try {
+        payload = JSON.parse(rawResponse) as MetaInsightsPayload & { error?: string };
+      } catch {
+        throw new Error("A rota /api/meta-insights respondeu em formato invalido. Verifique o deploy da API no Vercel.");
+      }
 
       if (!response.ok) {
-        throw new Error(payload.error || "Não foi possível carregar os insights da Meta.");
+        throw new Error(payload?.error || "Não foi possível carregar os insights da Meta.");
+      }
+
+      if (!payload) {
+        throw new Error("A rota /api/meta-insights nao retornou um payload valido.");
       }
 
       setData(payload);
