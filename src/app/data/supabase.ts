@@ -28,6 +28,10 @@ console.info("[Init] Supabase configuration evaluated", {
   projectHost: getSupabaseHost(supabaseUrl),
 });
 
+if (!hasSupabaseConfig) {
+  console.error("[Init] Supabase environment is incomplete. Expected VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
+}
+
 export const supabase = hasSupabaseConfig
   ? (() => {
       const url = supabaseUrl as string;

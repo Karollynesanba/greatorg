@@ -3,8 +3,9 @@ import { ChevronDown, Image as ImageIcon, Link2, Lightbulb, PencilLine, Plus, Up
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "motion/react";
 import { ideas as seedIdeas, type Idea, type IdeaStatus } from "../data/mockData";
+import { createClientNumericId } from "../data/clientIds";
+import { useSupabaseIdeasState } from "../data/ideasRepository";
 import { useTeamProfiles } from "../data/profiles";
-import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import { useThemeMode } from "../theme";
 import {
@@ -147,7 +148,7 @@ function MemberDropdown({
 export function IdeasPage() {
   const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
-  const [items, setItems] = useSupabaseSyncedListState<Idea>({ key: "ideas", table: "ideas", fallback: seedIdeas, seedOnEmpty: true });
+  const [items, , { createIdea, updateIdea, deleteIdea }] = useSupabaseIdeasState(seedIdeas);
   const [teamScope, setTeamScope] = useTeamScope();
   const [isSparkOpen, setIsSparkOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -257,14 +258,14 @@ export function IdeasPage() {
     setEditingIdeaId(null);
   };
 
-  const handleSaveIdea = () => {
+  const handleSaveIdea = async () => {
     if (!form.title.trim() || !form.category.trim() || !form.theme.trim() || !form.description.trim()) {
       toast.error("Preencha título, categoria, tema e descrição.");
       return;
     }
 
     const nextIdea: Idea = {
-      id: editingIdeaId ?? Math.max(...items.map((idea) => idea.id), 0) + 1,
+      id: editingIdeaId ?? createClientNumericId(),
       title: form.title.trim(),
       category: form.category,
       theme: form.theme.trim(),
@@ -278,11 +279,17 @@ export function IdeasPage() {
       mediaFileName: form.mediaFileName.trim() || undefined,
     };
 
-    setItems((previous) =>
-      editingIdeaId !== null
-        ? previous.map((idea) => (idea.id === editingIdeaId ? nextIdea : idea))
-        : [nextIdea, ...previous],
-    );
+    try {
+      if (editingIdeaId !== null) {
+        await updateIdea(nextIdea);
+      } else {
+        await createIdea(nextIdea);
+      }
+    } catch (error) {
+      console.error("Failed to save idea", error);
+      toast.error("Não foi possível salvar a ideia no Supabase.");
+      return;
+    }
 
     if (!matchesTeamScope(nextIdea.responsibleId, teamScope)) {
       setTeamScope(nextIdea.responsibleId);
@@ -334,29 +341,31 @@ export function IdeasPage() {
     toast.success("Mídia adicionada à ideia.");
   };
 
-  const handleDeleteIdea = (ideaId: number) => {
+  const handleDeleteIdea = async (ideaId: number) => {
     const removedIdea = items.find((idea) => idea.id === ideaId);
 
     if (!removedIdea) {
       return;
     }
 
-    setItems((previous) => previous.filter((idea) => idea.id !== ideaId));
-    setPendingDelete(null);
-    toast.success("Ideia apagada com sucesso.", {
-      action: {
-        label: "Desfazer",
-        onClick: () => {
-          setItems((previous) => {
-            if (previous.some((idea) => idea.id === removedIdea.id)) {
-              return previous;
-            }
-
-            return [removedIdea, ...previous];
-          });
+    try {
+      await deleteIdea(ideaId);
+      setPendingDelete(null);
+      toast.success("Ideia apagada com sucesso.", {
+        action: {
+          label: "Desfazer",
+          onClick: () => {
+            void createIdea(removedIdea).catch((error) => {
+              console.error("Failed to restore idea", error);
+              toast.error("Não foi possível restaurar a ideia.");
+            });
+          },
         },
-      },
-    });
+      });
+    } catch (error) {
+      console.error("Failed to delete idea", error);
+      toast.error("Não foi possível apagar a ideia no Supabase.");
+    }
   };
 
   return (
@@ -756,7 +765,7 @@ export function IdeasPage() {
           confirmLabel="Apagar"
           confirmDataCy="idea-delete-confirm"
           onCancel={() => setPendingDelete(null)}
-          onConfirm={() => handleDeleteIdea(pendingDelete.ideaId)}
+          onConfirm={() => { void handleDeleteIdea(pendingDelete.ideaId); }}
         />
       ) : null}
     </PageTransition>

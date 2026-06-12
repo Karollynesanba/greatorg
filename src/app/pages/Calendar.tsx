@@ -14,6 +14,7 @@ import {
   Plus,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuthSession } from "../auth";
 import {
   calendarHours,
   daysOfWeek,
@@ -22,9 +23,11 @@ import {
   type CalendarTaskItem,
   type HistoryEvent,
 } from "../data/mockData";
+import { createClientNumericId } from "../data/clientIds";
 import { useTeamProfiles } from "../data/profiles";
 import { useCurrentTeamMember } from "../data/profiles";
 import { formatBrazilDateLabel, getBrazilYesterdayDateKey } from "../data/brazilDate";
+import { useSupabaseCalendarItemsState } from "../data/calendarItemsRepository";
 import { useSupabaseSharedState, useSupabaseSyncedListState } from "../data/supabaseSync";
 import { defaultMonthlyViewsGoal, sumMonthViews, useCalendarDayMetrics } from "../data/calendarMetrics";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
@@ -920,17 +923,14 @@ function SideAgenda({
 
 export function CalendarPage() {
   const { isDark } = useThemeMode();
+  const { session } = useAuthSession();
   const [view, setView] = useState<(typeof viewModes)[number]>("Semana");
   const [currentDate, setCurrentDate] = useState(() => getTodayDate());
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [teamMembers] = useTeamProfiles();
   const { member: currentMember, memberId: currentMemberId, updateMember } = useCurrentTeamMember();
   const [teamScope] = useTeamScope();
-  const [events, setEvents] = useSupabaseSyncedListState<CalendarEvent>({
-    key: "calendar-events",
-    table: "calendar_events",
-    fallback: [],
-  });
+  const [events, , { createEvent, updateEvent, deleteEvent: deleteCalendarEvent }] = useSupabaseCalendarItemsState([]);
   const [, setHistoryEvents] = useSupabaseSyncedListState<HistoryEvent>({
     key: "history",
     table: "history_events",
@@ -953,6 +953,7 @@ export function CalendarPage() {
   const [dayReachDraft, setDayReachDraft] = useState("0");
   const [isEditingMonthlyViewsGoal, setIsEditingMonthlyViewsGoal] = useState(false);
   const [monthlyViewsGoalDraft, setMonthlyViewsGoalDraft] = useState(String(defaultMonthlyViewsGoal));
+  const currentUserId = session?.user.id ?? null;
 
   const syncCompletedEventHistory = (event: CalendarEvent, actorId?: number | null) => {
     const historyId = getCalendarCompletionHistoryId(event.id);
@@ -1194,12 +1195,22 @@ export function CalendarPage() {
   };
 
   const handleDropEvent = (eventId: number, nextDate: string, nextTime: string) => {
-    setEvents((previous) =>
-      previous.map((event) => (event.id === eventId ? { ...event, date: nextDate, time: nextTime } : event)),
-    );
-    setSelectedEvent((current) => (current?.id === eventId ? { ...current, date: nextDate, time: nextTime } : current));
+    const existingEvent = events.find((event) => event.id === eventId);
+    if (!existingEvent) {
+      return;
+    }
+
+    const updatedEvent = { ...existingEvent, date: nextDate, time: nextTime };
+    setSelectedEvent((current) => (current?.id === eventId ? updatedEvent : current));
     setEventForm((current) => (current && selectedEvent?.id === eventId ? { ...current, date: nextDate, time: nextTime } : current));
-    toast.success("Post reagendado com sucesso.");
+    void updateEvent(updatedEvent, currentUserId)
+      .then(() => {
+        toast.success("Post reagendado com sucesso.");
+      })
+      .catch((error) => {
+        console.error("Failed to reschedule calendar item", error);
+        toast.error("Não foi possível reagendar no Supabase.");
+      });
   };
 
   const handleOpenCreateModal = () => {
@@ -1207,12 +1218,12 @@ export function CalendarPage() {
     setIsCreateOpen(true);
   };
 
-  const handleDuplicateEvent = () => {
+  const handleDuplicateEvent = async () => {
     if (!selectedEvent) {
       return;
     }
 
-    const nextId = Math.max(...events.map((event) => event.id), 0) + 1;
+    const nextId = createClientNumericId();
     const responsibleIds = getEventResponsibleIds(selectedEvent);
     const duplicatedEvent: CalendarEvent = {
       ...selectedEvent,
@@ -1221,11 +1232,16 @@ export function CalendarPage() {
       responsibleIds,
     };
 
-    setEvents((previous) => [...previous, duplicatedEvent]);
-    toast.success("Tarefa duplicada com sucesso.");
+    try {
+      await createEvent(duplicatedEvent, currentUserId);
+      toast.success("Tarefa duplicada com sucesso.");
+    } catch (error) {
+      console.error("Failed to duplicate calendar item", error);
+      toast.error("Não foi possível duplicar no Supabase.");
+    }
   };
 
-  const handleSaveEvent = () => {
+  const handleSaveEvent = async () => {
     if (!selectedEvent || !eventForm) {
       return;
     }
@@ -1254,26 +1270,31 @@ export function CalendarPage() {
       tasks: eventForm.tasks,
     }, currentMemberId ?? currentMember?.id ?? null);
 
-    setEvents((previous) => previous.map((event) => (event.id === selectedEvent.id ? updatedEvent : event)));
-    syncCompletedEventHistory(updatedEvent, currentMemberId ?? currentMember?.id ?? null);
-    setSelectedEvent(updatedEvent);
-    setEventForm({
-      title: updatedEvent.title,
-      description: updatedEvent.description,
-      type: updatedEvent.type,
-      status: updatedEvent.status,
-      visualization: updatedEvent.visualization ?? inferEventVisualization(updatedEvent),
-      date: updatedEvent.date,
-      time: updatedEvent.time,
-      responsibleId: updatedEvent.responsibleId,
-      responsibleIds: updatedEvent.responsibleIds?.length ? updatedEvent.responsibleIds : [updatedEvent.responsibleId],
-      addedById: updatedEvent.addedById,
-      tasks: updatedEvent.tasks ?? [],
-    });
-    toast.success("Tarefa atualizada com sucesso.");
+    try {
+      await updateEvent(updatedEvent, currentUserId);
+      syncCompletedEventHistory(updatedEvent, currentMemberId ?? currentMember?.id ?? null);
+      setSelectedEvent(updatedEvent);
+      setEventForm({
+        title: updatedEvent.title,
+        description: updatedEvent.description,
+        type: updatedEvent.type,
+        status: updatedEvent.status,
+        visualization: updatedEvent.visualization ?? inferEventVisualization(updatedEvent),
+        date: updatedEvent.date,
+        time: updatedEvent.time,
+        responsibleId: updatedEvent.responsibleId,
+        responsibleIds: updatedEvent.responsibleIds?.length ? updatedEvent.responsibleIds : [updatedEvent.responsibleId],
+        addedById: updatedEvent.addedById,
+        tasks: updatedEvent.tasks ?? [],
+      });
+      toast.success("Tarefa atualizada com sucesso.");
+    } catch (error) {
+      console.error("Failed to update calendar item", error);
+      toast.error("Não foi possível salvar a tarefa no Supabase.");
+    }
   };
 
-  const handleMarkEventCompleted = () => {
+  const handleMarkEventCompleted = async () => {
     if (!selectedEvent) {
       return;
     }
@@ -1290,72 +1311,79 @@ export function CalendarPage() {
       tasks: (selectedEvent.tasks ?? []).map((task) => ({ ...task, done: true })),
     }, currentMemberId ?? currentMember?.id ?? null);
 
-    setEvents((previous) => previous.map((event) => (event.id === selectedEvent.id ? completedEvent : event)));
-    syncCompletedEventHistory(completedEvent, currentMemberId ?? currentMember?.id ?? null);
-    setSelectedEvent(completedEvent);
-    setEventForm((current) =>
-      current ? { ...current, status: completedEvent.status, tasks: completedEvent.tasks ?? current.tasks } : current,
-    );
+    try {
+      await updateEvent(completedEvent, currentUserId);
+      syncCompletedEventHistory(completedEvent, currentMemberId ?? currentMember?.id ?? null);
+      setSelectedEvent(completedEvent);
+      setEventForm((current) =>
+        current ? { ...current, status: completedEvent.status, tasks: completedEvent.tasks ?? current.tasks } : current,
+      );
 
-    const actorId = getEventResponsibleIds(selectedEvent)[0] ?? currentMemberId ?? currentMember?.id;
-    if (typeof actorId === "number") {
-      updateMember(actorId, (member) => {
-        const monthLabel = getMonthLabel(completedEvent.date);
-        const currentStats = member.stats ?? {
-          postsCreated: 0,
-          avgEngagement: 0,
-          goalsCompleted: 0,
-          performance: 0,
-          punctuality: 0,
-        };
-        const currentMonthlyPosts = member.monthlyPosts ?? [];
-        const currentMonth = currentMonthlyPosts.find((entry) => entry.month === monthLabel);
-        const nextMonthlyPosts = currentMonth
-          ? currentMonthlyPosts.map((entry) =>
-              entry.month === monthLabel ? { ...entry, posts: entry.posts + 1 } : entry,
-            )
-          : [...currentMonthlyPosts, { month: monthLabel, posts: 1 }];
+      const actorId = getEventResponsibleIds(selectedEvent)[0] ?? currentMemberId ?? currentMember?.id;
+      if (typeof actorId === "number") {
+        updateMember(actorId, (member) => {
+          const monthLabel = getMonthLabel(completedEvent.date);
+          const currentStats = member.stats ?? {
+            postsCreated: 0,
+            avgEngagement: 0,
+            goalsCompleted: 0,
+            performance: 0,
+            punctuality: 0,
+          };
+          const currentMonthlyPosts = member.monthlyPosts ?? [];
+          const currentMonth = currentMonthlyPosts.find((entry) => entry.month === monthLabel);
+          const nextMonthlyPosts = currentMonth
+            ? currentMonthlyPosts.map((entry) =>
+                entry.month === monthLabel ? { ...entry, posts: entry.posts + 1 } : entry,
+              )
+            : [...currentMonthlyPosts, { month: monthLabel, posts: 1 }];
 
-        return {
-          ...member,
-          stats: {
-            ...currentStats,
-            postsCreated: currentStats.postsCreated + 1,
-            performance: currentStats.performance + 1,
-          },
-          monthlyPosts: nextMonthlyPosts,
-        };
-      });
+          return {
+            ...member,
+            stats: {
+              ...currentStats,
+              postsCreated: currentStats.postsCreated + 1,
+              performance: currentStats.performance + 1,
+            },
+            monthlyPosts: nextMonthlyPosts,
+          };
+        });
+      }
+
+      toast.success("Atividade marcada como concluída.");
+    } catch (error) {
+      console.error("Failed to complete calendar item", error);
+      toast.error("Não foi possível concluir a atividade no Supabase.");
     }
-
-     toast.success("Atividade marcada como concluída.");
   };
 
-  const handleDeleteEvent = (eventId: number) => {
+  const handleDeleteEvent = async (eventId: number) => {
     const removedEvent = events.find((event) => event.id === eventId);
 
     if (!removedEvent) {
       return;
     }
 
-    setEvents((previous) => previous.filter((event) => event.id !== eventId));
-    setHistoryEvents((previous) => removeHistoryEvent(previous, getCalendarCompletionHistoryId(eventId)));
-    setSelectedEvent((current) => (current?.id === eventId ? null : current));
-    setPendingDelete(null);
-    toast.success("Evento apagado com sucesso.", {
-      action: {
-        label: "Desfazer",
-        onClick: () => {
-          setEvents((previous) => {
-            if (previous.some((event) => event.id === removedEvent.id)) {
-              return previous;
-            }
-
-            return [removedEvent, ...previous];
-          });
+    try {
+      await deleteCalendarEvent(eventId);
+      setHistoryEvents((previous) => removeHistoryEvent(previous, getCalendarCompletionHistoryId(eventId)));
+      setSelectedEvent((current) => (current?.id === eventId ? null : current));
+      setPendingDelete(null);
+      toast.success("Evento apagado com sucesso.", {
+        action: {
+          label: "Desfazer",
+          onClick: () => {
+            void createEvent(removedEvent, currentUserId).catch((error) => {
+              console.error("Failed to restore calendar item", error);
+              toast.error("Não foi possível restaurar o evento.");
+            });
+          },
         },
-      },
-    });
+      });
+    } catch (error) {
+      console.error("Failed to delete calendar item", error);
+      toast.error("Não foi possível apagar o evento no Supabase.");
+    }
   };
 
   const handleOpenQuickCreate = (date: string, time: string) => {
@@ -1363,7 +1391,7 @@ export function CalendarPage() {
     setIsCreateOpen(true);
   };
 
-  const handleCreateEvent = () => {
+  const handleCreateEvent = async () => {
     if (!createForm) {
       return;
     }
@@ -1373,7 +1401,7 @@ export function CalendarPage() {
       return;
     }
 
-    const nextId = Math.max(...events.map((event) => event.id), 0) + 1;
+    const nextId = createClientNumericId();
     const nextResponsibleIds = getUniqueIds(
       createForm.responsibleIds.length > 0 ? createForm.responsibleIds : [createForm.responsibleId],
     );
@@ -1393,25 +1421,30 @@ export function CalendarPage() {
       tasks: createForm.tasks,
     }, currentMemberId ?? currentMember?.id ?? null);
 
-    setEvents((previous) => [...previous, newEvent]);
-    syncCompletedEventHistory(newEvent, currentMemberId ?? currentMember?.id ?? null);
-    setSelectedEvent(newEvent);
-    setEventForm({
-      title: newEvent.title,
-      description: newEvent.description,
-      type: newEvent.type,
-      status: newEvent.status,
-      visualization: newEvent.visualization ?? inferEventVisualization(newEvent),
-      date: newEvent.date,
-      time: newEvent.time,
-      responsibleId: newEvent.responsibleId,
-      responsibleIds: newEvent.responsibleIds?.length ? newEvent.responsibleIds : [newEvent.responsibleId],
-      addedById: newEvent.addedById,
-      tasks: newEvent.tasks ?? [],
-    });
-    setIsCreateOpen(false);
-    setCreateForm(null);
-    toast.success("Tarefa criada com sucesso.");
+    try {
+      await createEvent(newEvent, currentUserId);
+      syncCompletedEventHistory(newEvent, currentMemberId ?? currentMember?.id ?? null);
+      setSelectedEvent(newEvent);
+      setEventForm({
+        title: newEvent.title,
+        description: newEvent.description,
+        type: newEvent.type,
+        status: newEvent.status,
+        visualization: newEvent.visualization ?? inferEventVisualization(newEvent),
+        date: newEvent.date,
+        time: newEvent.time,
+        responsibleId: newEvent.responsibleId,
+        responsibleIds: newEvent.responsibleIds?.length ? newEvent.responsibleIds : [newEvent.responsibleId],
+        addedById: newEvent.addedById,
+        tasks: newEvent.tasks ?? [],
+      });
+      setIsCreateOpen(false);
+      setCreateForm(null);
+      toast.success("Tarefa criada com sucesso.");
+    } catch (error) {
+      console.error("Failed to create calendar item", error);
+      toast.error("Não foi possível criar a tarefa no Supabase.");
+    }
   };
 
   const handleMarkCreateCompleted = () => {
@@ -2481,7 +2514,7 @@ export function CalendarPage() {
            description="Essa ação não pode ser desfeita."
           confirmDataCy="calendar-confirm-delete"
           onCancel={() => setPendingDelete(null)}
-          onConfirm={() => handleDeleteEvent(pendingDelete.id)}
+          onConfirm={() => { void handleDeleteEvent(pendingDelete.id); }}
         />
       ) : null}
 
