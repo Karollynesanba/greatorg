@@ -556,7 +556,7 @@ export function StoriesPage() {
   const memberContributions = useMemo(
     () =>
       teamMembers
-        .filter((member) => matchesTeamScope(member.id, teamScope))
+        .filter((member) => member.name === "Brenda")
         .map((member) => {
         const memberItems = visibleItems.filter((item) => item.madeById === member.id);
         const total = memberItems.reduce((sum, item) => sum + item.quantity, 0);
