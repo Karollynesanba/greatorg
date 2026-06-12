@@ -156,7 +156,15 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
     }
 
     const remote = await fetchRemoteRows<T>(options.table, currentUserId, userScoped);
-    return remote.hasRows ? remote.items : [];
+    if (!remote.hasRows) {
+      return lastPersistedValueRef.current.length > 0 ? lastPersistedValueRef.current : options.fallback;
+    }
+
+    if (remote.items.length === 0) {
+      return lastPersistedValueRef.current.length > 0 ? lastPersistedValueRef.current : options.fallback;
+    }
+
+    return remote.items;
   }, [authReady, currentUserId, isRemoteSourceAvailable, options.fallback, options.table, userScoped]);
 
   const commitValue = useCallback((nextValue: T[]) => {
@@ -210,7 +218,7 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
         }
 
         console.error(`Unexpected failure loading ${options.table}`, error);
-        commitValue([]);
+        commitValue(lastPersistedValueRef.current.length > 0 ? lastPersistedValueRef.current : options.fallback);
       }
     };
 
