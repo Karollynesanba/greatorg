@@ -371,7 +371,7 @@ export function StoriesPage() {
 
   const handleCommitMonthlyGoalVideo = async () => {
     if (!session?.user.id) {
-      toast.error("Sessao invalida para salvar a meta.");
+      toast.error("Sessão inválida para salvar a meta.");
       return;
     }
 
@@ -403,7 +403,7 @@ export function StoriesPage() {
 
   const handleCommitMonthlyGoalPhoto = async () => {
     if (!session?.user.id) {
-      toast.error("Sessao invalida para salvar a meta.");
+      toast.error("Sessão inválida para salvar a meta.");
       return;
     }
 
@@ -436,7 +436,7 @@ export function StoriesPage() {
 
   const handleCommitVideoCard = async () => {
     if (!session?.user.id) {
-      toast.error("Sessao invalida para salvar os dados de video.");
+      toast.error("Sessão inválida para salvar os dados de vídeo.");
       return;
     }
 
@@ -491,7 +491,7 @@ export function StoriesPage() {
 
   const handleCommitPhotoCard = async () => {
     if (!session?.user.id) {
-      toast.error("Sessao invalida para salvar os dados de foto.");
+      toast.error("Sessão inválida para salvar os dados de foto.");
       return;
     }
 
@@ -597,7 +597,7 @@ export function StoriesPage() {
 
   const handleSave = async () => {
     if (!session?.user.id) {
-      toast.error("Sessao invalida para salvar Stories.");
+      toast.error("Sessão inválida para salvar stories.");
       return;
     }
 
@@ -655,7 +655,7 @@ export function StoriesPage() {
 
   const handleDelete = async (storyId: number) => {
     if (!session?.user.id) {
-      toast.error("Sessao invalida para remover Stories.");
+      toast.error("Sessão inválida para remover stories.");
       return;
     }
 

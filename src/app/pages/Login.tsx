@@ -79,7 +79,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
       onLogin?.();
       navigate("/dashboard", { replace: true });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Nao foi possivel iniciar a sessao.";
+      const message = error instanceof Error ? error.message : "Não foi possível iniciar a sessão.";
       setErrorMessage(message);
       toast.error(message);
     } finally {
@@ -98,7 +98,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
       onLogin?.();
       navigate("/dashboard", { replace: true });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Nao foi possivel iniciar a sessao.";
+      const message = error instanceof Error ? error.message : "Não foi possível iniciar a sessão.";
       setErrorMessage(message);
       toast.error(message);
       window.requestAnimationFrame(() => {

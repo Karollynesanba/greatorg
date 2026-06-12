@@ -1005,13 +1005,13 @@ export function ReportPreviewPage() {
               <span className="rounded-full bg-muted/60 px-3 py-1 text-xs font-semibold text-muted-foreground">
                 {reportState.responsibleFilter === "todos"
                   ? "Todos os responsáveis"
-                  : teamMembers.find((member) => member.id === reportState.responsibleFilter)?.name ?? "Respons�vel"}
+                  : teamMembers.find((member) => member.id === reportState.responsibleFilter)?.name ?? "Responsável"}
               </span>
             </div>
             <p className="text-sm leading-6 text-muted-foreground">
               {reportState.period === "custom"
-                ? `${formatDateLabel(reportState.customStartDate)} at� ${formatDateLabel(reportState.customEndDate)}`
-                : `${formatDateLabel(currentRange.start.toISOString().slice(0, 10))} at� ${formatDateLabel(
+                ? `${formatDateLabel(reportState.customStartDate)} até ${formatDateLabel(reportState.customEndDate)}`
+                : `${formatDateLabel(currentRange.start.toISOString().slice(0, 10))} até ${formatDateLabel(
                     currentRange.end.toISOString().slice(0, 10),
                   )}`}
             </p>

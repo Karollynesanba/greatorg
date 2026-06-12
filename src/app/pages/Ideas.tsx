@@ -363,8 +363,8 @@ export function IdeasPage() {
     <PageTransition>
       <PageHeader
         eyebrow="Pipeline"
-        title="Banco de ideias pronto para produÃ§Ã£o"
-        description="Temas, roteiros e responsÃ¡veis ficam organizados para a operaÃ§Ã£o girar com mais velocidade e menos retrabalho."
+        title="Banco de ideias pronto para produção"
+        description="Temas, roteiros e responsáveis ficam organizados para a operação girar com mais velocidade e menos retrabalho."
         actions={
           <ActionButton onClick={openCreateModal} dataCy="idea-create-open">
             <Plus className="h-4 w-4" />
@@ -462,7 +462,7 @@ export function IdeasPage() {
                         <ImageIcon className="h-4 w-4 text-muted-foreground" />
                       )}
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                        {idea.mediaKind === "video" || isVideoLike(idea.mediaUrl) ? "VÃ­deo" : "Foto"}
+                        {idea.mediaKind === "video" || isVideoLike(idea.mediaUrl) ? "Vídeo" : "Foto"}
                       </p>
                     </div>
                     {idea.mediaFileName ? (
@@ -496,7 +496,7 @@ export function IdeasPage() {
           <GlassPanel className="xl:col-span-2">
             <EmptyState
               title="Nenhuma ideia neste filtro"
-              description="Troque o membro na visualizaÃ§Ã£o ou crie uma nova ideia compartilhada para aparecer aqui."
+              description="Troque o membro na visualização ou crie uma nova ideia compartilhada para aparecer aqui."
             />
           </GlassPanel>
         )}
@@ -539,7 +539,7 @@ export function IdeasPage() {
               </motion.div>
               <div className="text-center">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-500">Ideia surgindo</p>
-                <p className="mt-2 text-sm text-muted-foreground">Abrindo a criaÃ§Ã£o rÃ¡pida...</p>
+                <p className="mt-2 text-sm text-muted-foreground">Abrindo a criação rápida...</p>
               </div>
             </motion.div>
           </motion.div>
@@ -559,7 +559,7 @@ export function IdeasPage() {
               <div>
                 <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{editingIdeaId !== null ? "Editar ideia" : "Nova Ideia"}</p>
                 <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
-                  {editingIdeaId !== null ? "Ajustar ideia existente" : "Criar ideia rÃ¡pida"}
+                  {editingIdeaId !== null ? "Ajustar ideia existente" : "Criar ideia rápida"}
                 </h3>
               </div>
               <button
@@ -573,7 +573,7 @@ export function IdeasPage() {
 
             <div className="mt-6 grid gap-4 md:grid-cols-2">
                 <label className="grid gap-2">
-                <span className="text-sm font-medium text-foreground">TÃ­tulo</span>
+                <span className="text-sm font-medium text-foreground">Título</span>
                 <input
                   value={form.title}
                   onChange={(event) => setForm((previous) => ({ ...previous, title: event.target.value }))}
@@ -582,7 +582,7 @@ export function IdeasPage() {
                 />
               </label>
               <label className="grid gap-2">
-                <span className="text-sm font-medium text-foreground">ResponsÃ¡vel</span>
+                <span className="text-sm font-medium text-foreground">Responsável</span>
                 <MemberDropdown
                   value={form.responsibleId}
                   onChange={(value) => setForm((previous) => ({ ...previous, responsibleId: value }))}
@@ -616,7 +616,7 @@ export function IdeasPage() {
                 />
               </label>
                 <label className="grid gap-2 md:col-span-2">
-                  <span className="text-sm font-medium text-foreground">DescriÃ§Ã£o</span>
+                  <span className="text-sm font-medium text-foreground">Descrição</span>
                   <textarea
                     value={form.description}
                     onChange={(event) => setForm((previous) => ({ ...previous, description: event.target.value }))}
@@ -639,7 +639,7 @@ export function IdeasPage() {
                 <div className="md:col-span-2 rounded-[1.75rem] border border-border/60 bg-muted/20 p-4">
                   <div className="flex items-center gap-2">
                     <Upload className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium text-foreground">MÃ­dia da ideia</span>
+                    <span className="text-sm font-medium text-foreground">Mídia da ideia</span>
                   </div>
 
                   <div className="mt-4 inline-flex rounded-full border border-border/60 bg-background p-1">
@@ -667,13 +667,13 @@ export function IdeasPage() {
 
                   <div className="mt-4 grid gap-4 md:grid-cols-2">
                     <label className="grid gap-2">
-                      <span className="text-sm font-medium text-foreground">Tipo de mÃ­dia</span>
+                      <span className="text-sm font-medium text-foreground">Tipo de mídia</span>
                       <RoundedDropdown
-                        label="Tipo de mÃ­dia"
+                        label="Tipo de mídia"
                         value={form.mediaKind}
                         options={[
                           { label: "Foto", value: "photo" },
-                          { label: "VÃ­deo", value: "video" },
+                          { label: "Vídeo", value: "video" },
                         ]}
                         onChange={(value) => setForm((previous) => ({ ...previous, mediaKind: value }))}
                       />
@@ -681,7 +681,7 @@ export function IdeasPage() {
 
                     {form.mediaSource === "url" ? (
                       <label className="grid gap-2">
-                        <span className="text-sm font-medium text-foreground">URL da mÃ­dia</span>
+                        <span className="text-sm font-medium text-foreground">URL da mídia</span>
                         <input
                           value={form.mediaUrl}
                           onChange={(event) => setForm((previous) => ({ ...previous, mediaUrl: event.target.value }))}
@@ -691,7 +691,7 @@ export function IdeasPage() {
                       </label>
                     ) : (
                       <div className="grid gap-2">
-                        <span className="text-sm font-medium text-foreground">Upload de mÃ­dia</span>
+                        <span className="text-sm font-medium text-foreground">Upload de mídia</span>
                         <input
                           ref={mediaInputRef}
                           type="file"
@@ -723,13 +723,13 @@ export function IdeasPage() {
                           <ImageIcon className="h-4 w-4 text-muted-foreground" />
                         )}
                         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                          PrÃ©via
+                          Prévia
                         </p>
                       </div>
                       {form.mediaKind === "video" || isVideoLike(form.mediaUrl) ? (
                         <video src={form.mediaUrl} controls className="h-44 w-full bg-black object-cover" />
                       ) : (
-                        <img src={form.mediaUrl} alt="PrÃ©via da mÃ­dia" className="h-44 w-full object-cover" />
+                        <img src={form.mediaUrl} alt="Prévia da mídia" className="h-44 w-full object-cover" />
                       )}
                     </div>
                   ) : null}
@@ -752,7 +752,7 @@ export function IdeasPage() {
       {pendingDelete ? (
         <ConfirmDialog
           title="Tem certeza que deseja apagar?"
-          description="Essa aÃ§Ã£o nÃ£o pode ser desfeita."
+          description="Essa ação não pode ser desfeita."
           confirmLabel="Apagar"
           confirmDataCy="idea-delete-confirm"
           onCancel={() => setPendingDelete(null)}

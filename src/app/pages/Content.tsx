@@ -1278,7 +1278,7 @@ export function ContentPage() {
                       <div>
                         <p className="text-base font-semibold text-slate-950">{entry.member.name}</p>
                         <p className="text-sm text-slate-500">
-                          {entry.member.role} â€¢ {entry.member.specialty}
+                          {entry.member.role} • {entry.member.specialty}
                         </p>
                       </div>
                     </div>
@@ -1393,7 +1393,7 @@ export function ContentPage() {
                     <div>
                       <p className="text-sm font-semibold text-slate-950">{goal.name}</p>
                       <p className="mt-1 text-xs text-slate-500">
-                        {goal.category} â€¢ {goal.period} â€¢ {formatDateTime(goal.deadline)}
+                        {goal.category} • {goal.period} • {formatDateTime(goal.deadline)}
                       </p>
                     </div>
                     <Target className="h-5 w-5 text-rose-500" />

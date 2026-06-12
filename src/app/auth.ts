@@ -230,7 +230,7 @@ function buildAuthErrorMessage(message: string, email?: string) {
   }
 
   if (/network|fetch|failed to fetch|load failed/i.test(rawMessage)) {
-    return "Nao foi possivel conectar ao Supabase novo. Verifique a URL, a ANON KEY e as variaveis do Vercel.";
+    return "Não foi possível conectar ao Supabase novo. Verifique a URL, a ANON KEY e as variáveis do Vercel.";
   }
 
   return rawMessage;
@@ -387,7 +387,7 @@ export async function signInWithPassword(email: string, password: string) {
     const account = getDemoAccount(normalizedEmail);
     const session = await signInToSupabase(normalizedEmail, trimmedPassword);
     if (!session) {
-      throw new Error("Nao foi possivel iniciar a sessao no Supabase.");
+      throw new Error("Não foi possível iniciar a sessão no Supabase.");
     }
 
     const storedSession = toStoredSession(session, account?.name);
