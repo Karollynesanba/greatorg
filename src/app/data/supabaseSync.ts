@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuthSession } from "../auth";
-import { useSharedState } from "./sharedState";
 import { isSupabaseConfigured, supabase } from "./supabase";
 import { subscribeSharedChannel } from "./supabaseRealtime";
 
@@ -9,22 +8,7 @@ type RowEnvelope<T> = {
   user_id?: string | null;
   sort_order: number;
   data: T;
-  created_at?: string;
-  updated_at?: string;
-  deleted_at?: string | null;
-  archived_at?: string | null;
-  created_by?: string | null;
-  updated_by?: string | null;
-  archived_by?: string | null;
 };
-
-function tableSupportsArchivedAt(_table: string) {
-  return false;
-}
-
-function tableSupportsDeletedAt(_table: string) {
-  return false;
-}
 
 function normalizeId(value: unknown) {
   const parsed = typeof value === "string" ? Number(value) : typeof value === "number" ? value : NaN;
@@ -48,22 +32,14 @@ async function fetchRemoteRows<T extends { id: number }>(
   currentUserId: string | null,
   userScoped: boolean,
 ) {
-  if (!supabase || !currentUserId) {
+  if (!supabase || (userScoped && !currentUserId)) {
     return { items: [] as T[], hasRows: false };
   }
 
   try {
-    const supportsArchivedAt = tableSupportsArchivedAt(table);
-    const supportsDeletedAt = tableSupportsDeletedAt(table);
     let query = supabase
       .from(table)
-      .select(
-        supportsDeletedAt && supportsArchivedAt
-          ? "id, user_id, sort_order, data, deleted_at, archived_at"
-          : supportsDeletedAt
-            ? "id, user_id, sort_order, data, deleted_at"
-            : "id, user_id, sort_order, data",
-      )
+      .select(userScoped ? "id, user_id, sort_order, data" : "id, sort_order, data")
       .order("sort_order", {
         ascending: true,
       });
@@ -81,10 +57,6 @@ async function fetchRemoteRows<T extends { id: number }>(
     const rows = data ?? [];
     const items = rows
       .map((row) => row.data as T)
-      .filter((_, index) => {
-        const row = rows[index] as { deleted_at?: string | null; archived_at?: string | null } | undefined;
-        return (!supportsDeletedAt || !row?.deleted_at) && (!supportsArchivedAt || !row?.archived_at);
-      })
       .filter((item): item is T => Boolean(item) && normalizeId((item as { id?: unknown }).id) !== null);
 
     return {
@@ -109,16 +81,9 @@ async function persistRemoteRows<T extends { id: number }>(
   }
 
   const client = supabase;
-  const timestamp = new Date().toISOString();
-  const supportsArchivedAt = tableSupportsArchivedAt(table);
-  const supportsDeletedAt = tableSupportsDeletedAt(table);
   const rows = nextValue.map((item, index) => ({
     ...toRowEnvelope(item, index),
-    user_id: currentUserId,
-    updated_at: timestamp,
-    updated_by: currentUserId,
-    ...(supportsDeletedAt ? { deleted_at: null } : {}),
-    ...(supportsArchivedAt ? { archived_at: null } : {}),
+    ...(userScoped ? { user_id: currentUserId } : {}),
   }));
   const nextIds = new Set(nextValue.map((item) => item.id));
   const removedIds = previousValue.map((item) => item.id).filter((id) => !nextIds.has(id));
@@ -131,32 +96,13 @@ async function persistRemoteRows<T extends { id: number }>(
   }
 
   if (removedIds.length > 0) {
-    if (!supportsDeletedAt) {
-      let deleteQuery = client.from(table).delete();
-
-      if (userScoped) {
-        deleteQuery = deleteQuery.eq("user_id", currentUserId);
-      }
-
-      const { error } = await deleteQuery.in("id", removedIds);
-      if (error) {
-        throw error;
-      }
-
-      return;
-    }
-
-    let query = client.from(table).update({
-      deleted_at: timestamp,
-      updated_at: timestamp,
-      updated_by: currentUserId,
-    });
+    let deleteQuery = client.from(table).delete();
 
     if (userScoped) {
-      query = query.eq("user_id", currentUserId);
+      deleteQuery = deleteQuery.eq("user_id", currentUserId);
     }
 
-    const { error } = await query.in("id", removedIds);
+    const { error } = await deleteQuery.in("id", removedIds);
     if (error) {
       throw error;
     }
@@ -191,10 +137,6 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
 
     const remote = await fetchRemoteRows<T>(options.table, currentUserId, userScoped);
     if (!remote.hasRows) {
-      return lastPersistedValueRef.current.length > 0 ? lastPersistedValueRef.current : options.fallback;
-    }
-
-    if (remote.items.length === 0) {
       return lastPersistedValueRef.current.length > 0 ? lastPersistedValueRef.current : options.fallback;
     }
 
@@ -261,11 +203,7 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
             ? lastPersistedValueRef.current.length > 0
               ? lastPersistedValueRef.current
               : options.fallback
-            : remote.items.length > 0
-              ? remote.items
-              : lastPersistedValueRef.current.length > 0
-                ? lastPersistedValueRef.current
-                : options.fallback;
+            : remote.items;
 
         if (cancelled) {
           return;
@@ -343,7 +281,6 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
 }
 
 type SharedStateRow<T> = {
-  user_id: string;
   key: string;
   value: T;
   updated_at?: string;
@@ -353,17 +290,15 @@ export function useSupabaseSharedState<T>(options: {
   key: string;
   fallback: T;
 }) {
-  const { session, ready: authReady } = useAuthSession();
-  const sharedState = useSharedState(options.key, options.fallback);
-  const [value, setValue] = sharedState;
+  const { ready: authReady } = useAuthSession();
+  const [value, setValue] = useState<T>(options.fallback);
   const [hydrated, setHydrated] = useState(!isSupabaseConfigured());
   const hydratedRef = useRef(false);
   const lastRemoteSnapshotRef = useRef<string | null>(null);
   const supabaseClient = supabase;
-  const currentUserId = session?.user.id ?? null;
 
   useEffect(() => {
-    if (!authReady || !isSupabaseConfigured() || !supabaseClient || !currentUserId) {
+    if (!authReady || !isSupabaseConfigured() || !supabaseClient) {
       hydratedRef.current = true;
       setHydrated(true);
       return;
@@ -374,8 +309,7 @@ export function useSupabaseSharedState<T>(options: {
     const loadRemote = async () => {
       const { data, error } = await supabaseClient
         .from("shared_state")
-        .select("user_id, key, value, updated_at")
-        .eq("user_id", currentUserId)
+        .select("key, value, updated_at")
         .eq("key", options.key)
         .maybeSingle();
 
@@ -401,12 +335,11 @@ export function useSupabaseSharedState<T>(options: {
 
       const { error: seedError } = await supabaseClient.from("shared_state").upsert(
         {
-          user_id: currentUserId,
           key: options.key,
           value: options.fallback,
           updated_at: new Date().toISOString(),
         },
-        { onConflict: "user_id,key" },
+        { onConflict: "key" },
       );
 
       if (cancelled) {
@@ -428,10 +361,10 @@ export function useSupabaseSharedState<T>(options: {
     return () => {
       cancelled = true;
     };
-  }, [authReady, currentUserId, options.fallback, options.key, supabaseClient, setValue]);
+  }, [authReady, options.fallback, options.key, supabaseClient]);
 
   useEffect(() => {
-    if (!hydratedRef.current || !isSupabaseConfigured() || !supabaseClient || !currentUserId) {
+    if (!hydratedRef.current || !isSupabaseConfigured() || !supabaseClient) {
       return;
     }
 
@@ -445,12 +378,11 @@ export function useSupabaseSharedState<T>(options: {
     const persistRemote = async () => {
       const { error } = await supabaseClient.from("shared_state").upsert(
         {
-          user_id: currentUserId,
           key: options.key,
           value,
           updated_at: new Date().toISOString(),
         },
-        { onConflict: "user_id,key" },
+        { onConflict: "key" },
       );
 
       if (cancelled) {
@@ -470,23 +402,22 @@ export function useSupabaseSharedState<T>(options: {
     return () => {
       cancelled = true;
     };
-  }, [currentUserId, options.key, supabaseClient, value]);
+  }, [options.key, supabaseClient, value]);
 
   useEffect(() => {
-    if (!isSupabaseConfigured() || !supabaseClient || !currentUserId) {
+    if (!isSupabaseConfigured() || !supabaseClient) {
       return;
     }
 
     const channel = supabaseClient
-      .channel(`shared_state:${currentUserId}:${options.key}`)
+      .channel(`shared_state:${options.key}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "shared_state", filter: `user_id=eq.${currentUserId}` },
+        { event: "*", schema: "public", table: "shared_state", filter: `key=eq.${options.key}` },
         (payload) => {
           const nextValue = (payload.new as SharedStateRow<T> | null)?.value;
-          const nextUserId = (payload.new as SharedStateRow<T> | null)?.user_id;
           const nextKey = (payload.new as SharedStateRow<T> | null)?.key;
-          if (nextUserId !== currentUserId || nextKey !== options.key) {
+          if (nextKey !== options.key) {
             return;
           }
           if (typeof nextValue === "undefined") {
@@ -507,7 +438,7 @@ export function useSupabaseSharedState<T>(options: {
     return () => {
       void supabaseClient.removeChannel(channel);
     };
-  }, [currentUserId, options.key, supabaseClient, setValue]);
+  }, [options.key, supabaseClient]);
 
-  return [...sharedState, hydrated] as const;
+  return [value, setValue, hydrated] as const;
 }

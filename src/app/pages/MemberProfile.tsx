@@ -15,7 +15,6 @@ import {
 import { useNavigate, useParams } from "react-router-dom";
 import {
   calendarEvents as seedCalendarEvents,
-  goals as seedGoals,
   getGoalResponsibleIds,
   historyTimeline,
   type HistoryEvent,
@@ -114,7 +113,7 @@ export function MemberProfilePage() {
   const params = useParams();
   const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
-  const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: seedGoals });
+  const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
   const [calendarEvents, setCalendarEvents] = useSupabaseSyncedListState<CalendarEvent>({
     key: "calendar-events",
     table: "calendar_events",

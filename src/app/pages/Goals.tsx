@@ -16,9 +16,9 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { goals, getGoalResponsibleIds, type Goal, type GoalChecklistItem, type GoalValueEntry } from "../data/mockData";
+import { getGoalResponsibleIds, type Goal, type GoalChecklistItem, type GoalValueEntry } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
-import { useSupabaseSyncedListState } from "../data/supabaseSync";
+import { useSupabaseGoalsState } from "../data/goalsRepository";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import {
   ActionButton,
@@ -919,7 +919,7 @@ function getGoalView(goal: Goal) {
 export function GoalsPage() {
   const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
-  const [items, setItems] = useSupabaseSyncedListState({ key: "goals", table: "goals", fallback: goals });
+  const [items, , { createGoal, updateGoal, deleteGoal }] = useSupabaseGoalsState([]);
   const [teamScope] = useTeamScope();
   const [goalView, setGoalView] = useState<GoalView>("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -1013,8 +1013,12 @@ export function GoalsPage() {
     });
 
     migratedGoalsRef.current = true;
-    setItems(nextItems);
-  }, [items, setItems, teamCards]);
+    void Promise.all(
+      nextItems.map((goal, index) => updateGoal(goal, index)),
+    ).catch((error) => {
+      console.error("[GoalsSync] Failed to migrate initial goals", error);
+    });
+  }, [items, teamCards, updateGoal]);
 
   useEffect(() => {
     if (form.responsibleIds.length > 0) {
@@ -1073,7 +1077,7 @@ export function GoalsPage() {
     }));
   };
 
-  const handleSaveGoal = () => {
+  const handleSaveGoal = async () => {
     const target = Number(form.target);
     const selectedResponsibleIds = form.responsibleIds.length > 0 ? form.responsibleIds : teamCards[0] ? [teamCards[0].id] : [];
 
@@ -1108,48 +1112,48 @@ export function GoalsPage() {
     };
 
     if (editingGoalId !== null) {
-      setItems((previous) => previous.map((goal) => (goal.id === editingGoalId ? { ...goal, ...goalPayload } : goal)));
+      const nextGoals = items.map((goal) =>
+        goal.id === editingGoalId
+          ? {
+              ...goal,
+              ...goalPayload,
+              current: goal.current,
+              history: goal.history,
+            }
+          : goal,
+      );
+      const updatedGoal = nextGoals.find((goal) => goal.id === editingGoalId);
+      if (!updatedGoal) {
+        return;
+      }
+      const sortOrder = nextGoals.findIndex((goal) => goal.id === editingGoalId);
+      await updateGoal(updatedGoal, sortOrder);
       toast.success("Meta atualizada com sucesso.");
     } else {
-      setItems((previous) => [
-        {
-          id: Math.max(...previous.map((goal) => goal.id), 0) + 1,
-          ...goalPayload,
-        },
-        ...previous,
-      ]);
+      const newGoal: Goal = {
+        id: Math.max(...items.map((goal) => goal.id), 0) + 1,
+        ...goalPayload,
+      };
+      await createGoal(newGoal, 0);
       toast.success("Meta criada com sucesso.");
     }
 
     closeModal();
   };
 
-  const handleDeleteGoal = (goalId: number) => {
+  const handleDeleteGoal = async (goalId: number) => {
     const removedGoal = items.find((goal) => goal.id === goalId);
 
     if (!removedGoal) {
       return;
     }
 
-    setItems((previous) => previous.filter((goal) => goal.id !== goalId));
+    await deleteGoal(goalId);
     setPendingDelete(null);
-    toast.success("Meta apagada com sucesso.", {
-      action: {
-        label: "Desfazer",
-        onClick: () => {
-          setItems((previous) => {
-            if (previous.some((goal) => goal.id === removedGoal.id)) {
-              return previous;
-            }
-
-            return [removedGoal, ...previous];
-          });
-        },
-      },
-    });
+    toast.success("Meta apagada com sucesso.");
   };
 
-  const handleAddDailyValue = ({ date, value }: { date: string; value: number }) => {
+  const handleAddDailyValue = async ({ date, value }: { date: string; value: number }) => {
     if (editingGoalId === null || !Number.isFinite(value) || value <= 0) {
       toast.error("Informe um valor diário válido.");
       return;
@@ -1172,8 +1176,7 @@ export function GoalsPage() {
       addedById,
     };
 
-    setItems((previous) =>
-      previous.map((goal) =>
+    const nextGoals = items.map((goal) =>
         goal.id === editingGoalId
           ? {
               ...goal,
@@ -1181,8 +1184,13 @@ export function GoalsPage() {
               history: [nextEntry, ...(goal.history ?? [])],
             }
           : goal,
-      ),
     );
+    const updatedGoal = nextGoals.find((goal) => goal.id === editingGoalId);
+    if (!updatedGoal) {
+      return;
+    }
+    const sortOrder = nextGoals.findIndex((goal) => goal.id === editingGoalId);
+    await updateGoal(updatedGoal, sortOrder);
 
     toast.success("Valor diário adicionado com sucesso.");
   };
