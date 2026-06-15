@@ -65,21 +65,21 @@ export function Sidebar({ onLogout }: { onLogout?: () => void }) {
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-40 flex w-[300px] -translate-x-full flex-col px-5 py-6 transition-transform duration-300 xl:left-0 xl:top-0 xl:bottom-0 xl:flex xl:w-[286px] xl:translate-x-0 xl:rounded-none",
-          "bg-transparent shadow-none backdrop-blur-0 border-r-0",
+          "border-r-0 bg-[linear-gradient(180deg,#E30613_0%,#C40010_100%)] shadow-[18px_0_42px_rgba(227,6,19,0.18)] backdrop-blur-0",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
         <div className="mb-10 flex items-center px-1 pt-1">
           <div className="flex items-center gap-3">
             <img
-              src="/logo-great.png"
+              src="/logo-great-white.png"
               alt="Great Orgânico"
               className="h-12 w-12 shrink-0 object-contain"
             />
 
             <div className="flex min-w-0 flex-col justify-center leading-none">
-              <span className={cn("text-[22px] font-black tracking-[0.18em]", isDark ? "text-white" : "text-black")}>GREAT</span>
-              <span className={cn("mt-1 text-[13px] font-semibold tracking-[0.22em]", isDark ? "text-white/78" : "text-slate-600")}> 
+              <span className="text-[22px] font-black tracking-[0.18em] text-white">GREAT</span>
+              <span className="mt-1 text-[13px] font-semibold tracking-[0.22em] text-white/78"> 
                 ORGÂNICO
               </span>
             </div>
@@ -105,16 +105,14 @@ export function Sidebar({ onLogout }: { onLogout?: () => void }) {
               key={to}
               to={to}
               data-cy={`nav-${to.slice(1)}`}
-              className={({ isActive }) =>
-                cn(
-                  "flex h-12 w-full items-center gap-4 rounded-full border px-4 text-[15px] font-medium transition duration-200",
-                  isActive
-                    ? "border-primary bg-primary text-white shadow-[0_18px_40px_rgba(229,20,20,0.28)]"
-                    : isDark
-                      ? "border-transparent text-slate-300/90 hover:bg-primary/10 hover:text-white"
-                      : "border-transparent text-slate-600 hover:bg-primary/8 hover:text-primary",
-                )
-              }
+            className={({ isActive }) =>
+              cn(
+                "flex h-12 w-full items-center gap-4 rounded-full border px-4 text-[15px] font-medium transition duration-200",
+                isActive
+                  ? "border-white/90 bg-white text-primary shadow-[0_18px_40px_rgba(0,0,0,0.16)]"
+                  : "border-transparent text-white/88 hover:bg-white/12 hover:text-white",
+              )
+            }
             >
               <Icon className="h-[17px] w-[17px] shrink-0" />
               {label}
@@ -131,10 +129,8 @@ export function Sidebar({ onLogout }: { onLogout?: () => void }) {
                 cn(
                   "flex items-center gap-4 rounded-full border px-4 py-3 text-[15px] font-medium transition",
                   isActive
-                    ? "border-primary bg-primary text-white shadow-[0_18px_40px_rgba(229,20,20,0.28)]"
-                    : isDark
-                      ? "border-transparent text-slate-300/90 hover:bg-primary/10 hover:text-white"
-                      : "border-transparent text-slate-600 hover:bg-primary/8 hover:text-primary",
+                    ? "border-white/90 bg-white text-primary shadow-[0_18px_40px_rgba(0,0,0,0.16)]"
+                    : "border-transparent text-white/88 hover:bg-white/12 hover:text-white",
                 )
               }
             >
@@ -148,9 +144,7 @@ export function Sidebar({ onLogout }: { onLogout?: () => void }) {
                 onClick={onLogout}
                 className={cn(
                   "flex w-full items-center gap-4 rounded-full border px-4 py-3 text-[15px] font-medium transition",
-                  isDark
-                    ? "border-transparent text-slate-300/90 hover:bg-primary/10 hover:text-white"
-                    : "border-transparent text-slate-600 hover:bg-primary/8 hover:text-primary",
+                  "border-transparent text-white/88 hover:bg-white/12 hover:text-white",
                 )}
               >
                 <LogOut className="h-4 w-4 shrink-0" />
