@@ -87,7 +87,15 @@ function mergeSeededMetrics(records: CalendarDayMetricRecord[]) {
   let changed = false;
 
   for (const [date, views] of Object.entries(seededViewsByDate)) {
-    if (byDate.has(date)) {
+    const existing = byDate.get(date);
+    if (existing) {
+      if (existing.views !== views) {
+        byDate.set(date, {
+          ...existing,
+          views,
+        });
+        changed = true;
+      }
       continue;
     }
 
