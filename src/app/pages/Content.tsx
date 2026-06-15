@@ -109,19 +109,6 @@ function formatDate(value: string) {
   }).format(date);
 }
 
-function formatDateTime(value: string) {
-  const date = new Date(`${value}T12:00:00`);
-  if (Number.isNaN(date.getTime())) {
-    return value || "Sem data";
-  }
-
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(date);
-}
-
 function emptyDraft(authorId: number): ContentDraft {
   return {
     title: "",
@@ -972,10 +959,10 @@ export function ContentPage() {
             style={{ borderRadius: "2.5rem" }}
           >
             <div className="grid min-h-[500px] gap-0 lg:grid-cols-[0.76fr_1.24fr]">
-              <div className="flex flex-col justify-between bg-[linear-gradient(180deg,#e11d48_0%,#e11d48_100%)] p-6 text-white sm:p-7">
+              <div className="flex flex-col justify-between bg-[linear-gradient(180deg,#E30613_0%,#C40010_100%)] p-6 text-white sm:p-7">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-2">
-                    <div className="inline-flex items-center gap-2 rounded-full bg-white/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/85">
+                    <div className="inline-flex items-center gap-2 rounded-full bg-white/14 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/88">
                       <Sparkles className="h-3.5 w-3.5" />
                       Pontuação de desempenho
                     </div>
@@ -985,7 +972,7 @@ export function ContentPage() {
                   <button
                     type="button"
                     onClick={openCreateEditor}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/14 text-white transition hover:bg-white/20"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/16 text-white transition hover:bg-white/22"
                     title="Adicionar card"
                   >
                     <Pencil className="h-4 w-4" />
@@ -995,7 +982,7 @@ export function ContentPage() {
                 <div className="flex flex-1 items-center justify-center py-5">
                   <div className="relative flex h-[188px] w-[188px] items-center justify-center">
                     <svg viewBox="0 0 180 180" className="-rotate-90 h-[188px] w-[188px]">
-                      <circle cx="90" cy="90" r="74" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="12" />
+                      <circle cx="90" cy="90" r="74" fill="none" stroke="rgba(255,255,255,0.16)" strokeWidth="12" />
                       <circle
                         cx="90"
                         cy="90"
@@ -1017,14 +1004,14 @@ export function ContentPage() {
                 </div>
 
                 <div className="grid gap-3">
-                  <div className="rounded-[1.4rem] bg-white/12 p-4 backdrop-blur">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-white/75">Metas concluídas</p>
+                  <div className="rounded-[1.4rem] bg-white/14 p-4 backdrop-blur">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-white/78">Metas concluídas</p>
                     <p className="mt-2 text-[2rem] font-semibold text-white">
                       {`${overallGoalProgress.completed}/${overallGoalProgress.total}`}
                     </p>
                   </div>
-                  <div className="rounded-[1.4rem] bg-white/12 p-4 backdrop-blur">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-white/75">Atividades concluídas</p>
+                  <div className="rounded-[1.4rem] bg-white/14 p-4 backdrop-blur">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-white/78">Atividades concluídas</p>
                     <p className="mt-2 text-[2rem] font-semibold text-white">{formatLongNumber(completedCalendarUnits)}</p>
                   </div>
                 </div>
@@ -1383,30 +1370,6 @@ export function ContentPage() {
             </div>
           </GlassPanel>
 
-          <GlassPanel className="border-slate-200/80 bg-white shadow-[0_16px_38px_rgba(15,23,42,0.05)]" index={6}>
-            <SectionTitle title="Metas e conteúdo" description="Tudo o que foi publicado e acompanhado no período." />
-            <div className="mt-5 space-y-4">
-              {visibleGoals.slice(0, 3).map((goal) => (
-                <div key={goal.id} className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-950">{goal.name}</p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {goal.category} • {goal.period} • {formatDateTime(goal.deadline)}
-                      </p>
-                    </div>
-                    <Target className="h-5 w-5 text-rose-500" />
-                  </div>
-                  <ProgressBar value={goal.current} max={goal.target} label="Progresso da meta" />
-                </div>
-              ))}
-              {visibleGoals.length === 0 ? (
-                <div className="rounded-3xl border border-dashed border-rose-200 bg-rose-50/40 p-6 text-sm text-slate-500">
-                  Nenhuma meta encontrada para o recorte selecionado.
-                </div>
-              ) : null}
-            </div>
-          </GlassPanel>
         </div>
       </div>
 
