@@ -2003,12 +2003,12 @@ export function CalendarPage() {
                             </div>
                             <div
                               className={cn(
-                                "mt-3 inline-flex w-fit max-w-full items-center gap-1.5 rounded-full border border-border/50 bg-white/80 px-2.5 py-1 text-[11px] font-semibold shadow-sm",
+                                "mt-3 inline-flex max-w-full items-center gap-1.5 rounded-full border border-border/50 bg-white/80 px-2.5 py-1 text-[11px] font-semibold shadow-sm",
                                 monthDayViews > 0 ? "text-foreground" : "text-muted-foreground/75",
                               )}
                             >
                               <Eye className="h-3.5 w-3.5 shrink-0 text-primary" />
-                              <span className="truncate">{formatViewsNumber(monthDayViews)}</span>
+                              <span className="whitespace-nowrap">{formatViewsNumber(monthDayViews)}</span>
                             </div>
                           </div>
                         );

@@ -5,6 +5,23 @@ import { subscribeSharedChannel } from "./supabaseRealtime";
 
 export const defaultMonthlyViewsGoal = 800000;
 
+const seededViewsByDate: Record<string, number> = {
+  "2026-06-01": 20404,
+  "2026-06-02": 15181,
+  "2026-06-03": 16794,
+  "2026-06-04": 6964,
+  "2026-06-05": 22258,
+  "2026-06-06": 10122,
+  "2026-06-07": 12145,
+  "2026-06-08": 17387,
+  "2026-06-09": 17281,
+  "2026-06-10": 16994,
+  "2026-06-11": 24475,
+  "2026-06-12": 22120,
+  "2026-06-13": 8966,
+  "2026-06-14": 5952,
+};
+
 type CalendarDayMetricRow = {
   id: number;
   user_id: string;
@@ -62,6 +79,31 @@ function toRow(record: CalendarDayMetricRecord, userId: string) {
 
 function sortRecords(records: CalendarDayMetricRecord[]) {
   return [...records].sort((left, right) => left.date.localeCompare(right.date));
+}
+
+function mergeSeededMetrics(records: CalendarDayMetricRecord[]) {
+  const byDate = new Map(records.map((record) => [record.date, record] as const));
+  let nextId = Math.max(...records.map((record) => record.id), 0) + 1;
+  let changed = false;
+
+  for (const [date, views] of Object.entries(seededViewsByDate)) {
+    if (byDate.has(date)) {
+      continue;
+    }
+
+    byDate.set(date, {
+      id: nextId++,
+      date,
+      views,
+      reach: 0,
+    });
+    changed = true;
+  }
+
+  return {
+    changed,
+    records: sortRecords([...byDate.values()]),
+  };
 }
 
 function recordsToMaps(records: CalendarDayMetricRecord[]) {
@@ -150,10 +192,11 @@ export function useCalendarDayMetrics() {
       return;
     }
 
-    const nextRecords = sortRecords((data ?? []).map((row) => toRecord(row as CalendarDayMetricRow)));
-    setRecords(nextRecords);
-    lastSavedSnapshotRef.current = snapshotOf(nextRecords);
-    lastPersistedIdsRef.current = new Set(nextRecords.map((record) => record.id));
+    const remoteRecords = sortRecords((data ?? []).map((row) => toRecord(row as CalendarDayMetricRow)));
+    const mergedRecords = mergeSeededMetrics(remoteRecords).records;
+    setRecords(mergedRecords);
+    lastSavedSnapshotRef.current = snapshotOf(remoteRecords);
+    lastPersistedIdsRef.current = new Set(remoteRecords.map((record) => record.id));
     hydratedRef.current = true;
     setReady(true);
   }, [authReady, session, supabaseClient]);

@@ -1,6 +1,6 @@
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
 import { Sidebar } from "./components/Sidebar";
@@ -27,15 +27,14 @@ import { ThemeModeProvider, useThemeMode } from "./theme";
 
 export default function App() {
   const { session, ready } = useAuthSession();
-  const [authenticated, setAuthenticated] = useState(false);
+  const authenticated = Boolean(session);
 
   useEffect(() => {
     console.info("[Init] App started", {
-      authenticatedAtBoot: Boolean(session),
+      authenticatedAtBoot: authenticated,
       supabaseConfigured: Boolean(supabase),
     });
-    setAuthenticated(Boolean(session));
-  }, [session]);
+  }, [authenticated]);
 
   if (!ready) {
     return (
@@ -59,9 +58,8 @@ export default function App() {
         <BrowserRouter>
           {authenticated ? (
             <AppShell
-              onLogout={() => {
-                signOut();
-                setAuthenticated(false);
+              onLogout={async () => {
+                await signOut();
               }}
             />
           ) : (
@@ -71,7 +69,7 @@ export default function App() {
                 element={
                   <LoginPage
                     onLogin={() => {
-                      setAuthenticated(true);
+                      console.info("[Init] Login completed, waiting for Supabase session confirmation");
                     }}
                   />
                 }
