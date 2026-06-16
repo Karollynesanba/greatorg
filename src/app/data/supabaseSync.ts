@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useAuthSession } from "../auth";
+import { isDemoSession, useAuthSession } from "../auth";
 import { isSupabaseConfigured, supabase } from "./supabase";
 import { subscribeSharedChannel } from "./supabaseRealtime";
 
@@ -122,7 +122,7 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
   const hydratedRef = useRef(false);
   const lastSavedSnapshotRef = useRef<string | null>(null);
   const lastPersistedValueRef = useRef<T[]>(options.fallback);
-  const isRemoteSourceAvailable = isSupabaseConfigured() && Boolean(supabase) && Boolean(session);
+  const isRemoteSourceAvailable = isSupabaseConfigured() && Boolean(supabase) && Boolean(session) && !isDemoSession(session);
   const currentUserId = session?.user.id ?? null;
   const userScoped = options.userScoped ?? false;
 
@@ -290,7 +290,7 @@ export function useSupabaseSharedState<T>(options: {
   key: string;
   fallback: T;
 }) {
-  const { ready: authReady } = useAuthSession();
+  const { session, ready: authReady } = useAuthSession();
   const [value, setValue] = useState<T>(options.fallback);
   const [hydrated, setHydrated] = useState(!isSupabaseConfigured());
   const hydratedRef = useRef(false);
@@ -298,7 +298,7 @@ export function useSupabaseSharedState<T>(options: {
   const supabaseClient = supabase;
 
   useEffect(() => {
-    if (!authReady || !isSupabaseConfigured() || !supabaseClient) {
+    if (!authReady || !isSupabaseConfigured() || !supabaseClient || !session || isDemoSession(session)) {
       hydratedRef.current = true;
       setHydrated(true);
       return;
@@ -405,7 +405,7 @@ export function useSupabaseSharedState<T>(options: {
   }, [options.key, supabaseClient, value]);
 
   useEffect(() => {
-    if (!isSupabaseConfigured() || !supabaseClient) {
+    if (!isSupabaseConfigured() || !supabaseClient || !session || isDemoSession(session)) {
       return;
     }
 

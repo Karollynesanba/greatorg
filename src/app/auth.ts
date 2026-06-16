@@ -274,7 +274,7 @@ async function signInToSupabase(email: string, password: string) {
 }
 
 export function isDemoSession(session: LocalSession | null | undefined) {
-  return Boolean(session);
+  return session?.user.app_metadata.provider === "local";
 }
 
 export function isDemoAccountEmail(email: string) {
@@ -446,7 +446,17 @@ export async function signInOrBootstrapDemoAccount(email: string, password: stri
     writePasswordMap(currentPasswords);
   }
 
-  return signInWithPassword(account.email, password);
+  try {
+    return await signInWithPassword(account.email, password);
+  } catch (error) {
+    const localSession = createLocalSession(account);
+    saveSession(localSession);
+    console.warn("[Auth] Falling back to local demo session", {
+      email: account.email,
+      reason: error instanceof Error ? error.message : String(error),
+    });
+    return localSession;
+  }
 }
 
 export async function signInWithProfile(email: string, password?: string) {
@@ -456,7 +466,17 @@ export async function signInWithProfile(email: string, password?: string) {
   }
 
   const nextPassword = password?.trim() || getStoredPassword(account.email) || account.password;
-  return signInWithPassword(account.email, nextPassword);
+  try {
+    return await signInWithPassword(account.email, nextPassword);
+  } catch (error) {
+    const localSession = createLocalSession(account);
+    saveSession(localSession);
+    console.warn("[Auth] Falling back to local demo session", {
+      email: account.email,
+      reason: error instanceof Error ? error.message : String(error),
+    });
+    return localSession;
+  }
 }
 
 export async function updateDemoAccountPassword(userId: string, nextPassword: string) {

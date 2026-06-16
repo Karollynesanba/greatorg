@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useAuthSession } from "../auth";
+import { isDemoSession, useAuthSession } from "../auth";
 import { isSupabaseConfigured, supabase } from "./supabase";
 import { subscribeSharedChannel } from "./supabaseRealtime";
 
@@ -17,7 +17,7 @@ export function useSupabasePreference<T>(key: string, fallback: T) {
       return;
     }
 
-    if (!isSupabaseConfigured() || !supabase || !session) {
+    if (!isSupabaseConfigured() || !supabase || !session || isDemoSession(session)) {
       setValue(fallback);
       lastSavedSnapshotRef.current = snapshotOf(fallback);
       setReady(true);
@@ -149,7 +149,7 @@ export function useSupabasePreference<T>(key: string, fallback: T) {
       return;
     }
 
-    if (!isSupabaseConfigured() || !supabase || !session) {
+    if (!isSupabaseConfigured() || !supabase || !session || isDemoSession(session)) {
       return;
     }
 
