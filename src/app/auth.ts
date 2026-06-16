@@ -165,6 +165,15 @@ function isStoredSession(value: unknown): value is LocalSession {
   return Boolean(candidate?.user?.id && candidate?.user?.email && candidate?.access_token);
 }
 
+function readStoredSession() {
+  const session = readLocalJson<LocalSession | null>(SESSION_KEY, null);
+  return isStoredSession(session) ? session : null;
+}
+
+function isSessionExpired(session: LocalSession) {
+  return typeof session.expires_at === "number" && session.expires_at <= Math.floor(Date.now() / 1000) + 30;
+}
+
 function saveSession(session: LocalSession | null) {
   if (session) {
     writeLocalJson(SESSION_KEY, session);
@@ -185,8 +194,8 @@ async function clearSupabaseSession() {
 }
 
 function readLocalSession() {
-  const session = readLocalJson<LocalSession | null>(SESSION_KEY, null);
-  if (isStoredSession(session)) {
+  const session = readStoredSession();
+  if (session) {
     return session;
   }
 
@@ -303,8 +312,22 @@ export function useAuthSession() {
     const client = supabase;
 
     const applySupabaseSession = (session: Session | null) => {
-      const nextSession = session ? toStoredSession(session) : null;
-      saveSession(nextSession);
+    const nextSession = session ? toStoredSession(session) : null;
+      if (nextSession) {
+        saveSession(nextSession);
+      } else {
+        const previousSession = readStoredSession();
+        if (previousSession && !isSessionExpired(previousSession)) {
+          console.warn("[Init] Supabase session missing; keeping last known local session", {
+            userId: previousSession.user.id,
+            email: previousSession.user.email,
+          });
+          setState({ session: previousSession, ready: true });
+          return;
+        }
+
+        saveSession(null);
+      }
       console.info("[Init] User session updated", {
         authenticated: Boolean(nextSession),
         userId: nextSession?.user.id ?? null,

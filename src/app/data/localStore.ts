@@ -1,4 +1,5 @@
 const LOCAL_STORAGE_EVENT = "great-organico:local-storage-change";
+const memoryStore = new Map<string, string>();
 
 type LocalStorageChangeDetail = {
   key: string;
@@ -8,12 +9,47 @@ function canUseStorage() {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 }
 
-export function readLocalJson<T>(key: string, fallback: T): T {
+function safeGetItem(key: string) {
   if (!canUseStorage()) {
-    return fallback;
+    return memoryStore.get(key) ?? null;
   }
 
-  const raw = window.localStorage.getItem(key);
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return memoryStore.get(key) ?? null;
+  }
+}
+
+function safeSetItem(key: string, value: string) {
+  if (!canUseStorage()) {
+    memoryStore.set(key, value);
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    memoryStore.set(key, value);
+  }
+}
+
+function safeRemoveItem(key: string) {
+  memoryStore.delete(key);
+
+  if (!canUseStorage()) {
+    return;
+  }
+
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    return;
+  }
+}
+
+export function readLocalJson<T>(key: string, fallback: T): T {
+  const raw = safeGetItem(key);
   if (!raw) {
     return fallback;
   }
@@ -26,31 +62,19 @@ export function readLocalJson<T>(key: string, fallback: T): T {
 }
 
 export function writeLocalJson<T>(key: string, value: T) {
-  if (!canUseStorage()) {
-    return;
-  }
-
-  window.localStorage.setItem(key, JSON.stringify(value));
+  safeSetItem(key, JSON.stringify(value));
   window.dispatchEvent(new CustomEvent<LocalStorageChangeDetail>(LOCAL_STORAGE_EVENT, { detail: { key } }));
 }
 
 export function readLocalText(key: string) {
-  if (!canUseStorage()) {
-    return null;
-  }
-
-  return window.localStorage.getItem(key);
+  return safeGetItem(key);
 }
 
 export function writeLocalText(key: string, value: string | null) {
-  if (!canUseStorage()) {
-    return;
-  }
-
   if (value === null) {
-    window.localStorage.removeItem(key);
+    safeRemoveItem(key);
   } else {
-    window.localStorage.setItem(key, value);
+    safeSetItem(key, value);
   }
 
   window.dispatchEvent(new CustomEvent<LocalStorageChangeDetail>(LOCAL_STORAGE_EVENT, { detail: { key } }));
