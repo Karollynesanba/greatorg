@@ -10,7 +10,7 @@ import {
 export type ContentType = "Reels" | "Stories" | "Carrossel" | "Feed";
 export type PostStatus = "Agendado" | "Em produção" | "Aprovado" | "Publicado";
 export type IdeaStatus = "Ideia" | "Em produção" | "Pronto";
-export type TimelineType = "post" | "goal" | "schedule";
+export type TimelineType = "post" | "goal" | "schedule" | "idea";
 export type IdeaCategory = "Stories em foto" | "Stories em vídeo" | "Reels" | "Post" | "Carrossel" | "Feed";
 export type CalendarVisualizationType = "Carrossel" | "Depoimento" | "Agendamento" | "Material" | "Vídeo viral";
 
@@ -281,7 +281,7 @@ export const storyLogs: StoryLog[] = seedHistoryTimeline
   }));
 
 export const ideas: Idea[] = seedIdeas;
-export const historyTimeline: HistoryEvent[] = seedHistoryTimeline.filter((entry) => entry.authorId === 1);
+export const historyTimeline: HistoryEvent[] = seedHistoryTimeline;
 
 export const insights = {
   bestTime: {
@@ -350,6 +350,7 @@ export const timelineTypeColors: Record<TimelineType, string> = {
   post: "#D10000",
   goal: "#34C759",
   schedule: "#007AFF",
+  idea: "#F59E0B",
 };
 
 export const daysOfWeek = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];

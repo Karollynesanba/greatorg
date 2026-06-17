@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { CalendarClock, ChevronDown, Clock3, FileText, Search, SlidersHorizontal, Target, Users } from "lucide-react";
+import { CalendarClock, ChevronDown, Clock3, FileText, Lightbulb, Search, SlidersHorizontal, Target, Users } from "lucide-react";
 import { toast } from "sonner";
 import { historyTimeline } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
-import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import {
   ConfirmDialog,
   DeleteIconButton,
@@ -18,12 +17,14 @@ import {
 } from "../components/ui";
 
 const typeLabels = {
+  idea: "Ideia",
   post: "Conteúdo",
   goal: "Meta",
   schedule: "Calendário",
 };
 
 const typeIcons = {
+  idea: Lightbulb,
   post: FileText,
   goal: Target,
   schedule: CalendarClock,
@@ -201,16 +202,16 @@ function FilterDropdown<T extends string | number>({
 
 export function HistoryPage() {
   const [teamMembers] = useTeamProfiles();
-  const [teamScope] = useTeamScope();
   const [itemsState, setItemsState] = useSupabaseSyncedListState({
     key: "history",
     table: "history_events",
     fallback: historyTimeline,
     seedOnEmpty: true,
+    mergeFallback: true,
   });
   const [view, setView] = useState<"Timeline" | "Tabela">("Timeline");
   const [personFilter, setPersonFilter] = useState<number | "todos">("todos");
-  const [typeFilter, setTypeFilter] = useState<"todos" | "post" | "goal" | "schedule">("todos");
+  const [typeFilter, setTypeFilter] = useState<"todos" | "post" | "goal" | "schedule" | "idea">("todos");
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [pendingDelete, setPendingDelete] = useState<{ historyId: number; historyTitle: string } | null>(null);
@@ -219,13 +220,12 @@ export function HistoryPage() {
     const matchesPerson = personFilter === "todos" || item.authorId === personFilter;
     const matchesType = typeFilter === "todos" || item.type === typeFilter;
     const matchesPeriod = isWithinPeriod(item.date, periodFilter);
-    const matchesScope = matchesTeamScope(item.authorId, teamScope);
     const normalizedQuery = searchQuery.trim().toLowerCase();
     const matchesSearch =
       normalizedQuery.length === 0 ||
       `${item.title} ${item.description} ${item.result} ${item.metrics ?? ""}`.toLowerCase().includes(normalizedQuery);
 
-    return matchesPerson && matchesType && matchesPeriod && matchesScope && matchesSearch;
+    return matchesPerson && matchesType && matchesPeriod && matchesSearch;
   });
 
   const orderedItems = [...items].sort((left, right) => {
@@ -319,7 +319,7 @@ export function HistoryPage() {
                 ]}
               />
 
-              <FilterDropdown<"todos" | "post" | "goal" | "schedule">
+              <FilterDropdown<"todos" | "post" | "goal" | "schedule" | "idea">
                 label="Tipo"
                 valueLabel={typeFilter === "todos" ? "Todos os tipos" : typeLabels[typeFilter]}
                 onChange={(value) => setTypeFilter(value)}
@@ -329,6 +329,7 @@ export function HistoryPage() {
                   { label: "Todos os tipos", value: "todos" as const, color: "#e11d48" },
                   { label: "Conteúdo", value: "post" as const, color: "#ef4444" },
                   { label: "Meta", value: "goal" as const, color: "#f43f5e" },
+                  { label: "Ideia", value: "idea" as const, color: "#f59e0b" },
                   { label: "Calendário", value: "schedule" as const, color: "#fb7185" },
                 ]}
               />

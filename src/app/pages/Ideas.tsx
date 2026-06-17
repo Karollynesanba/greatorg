@@ -2,10 +2,12 @@
 import { ChevronDown, Image as ImageIcon, Link2, Lightbulb, PencilLine, Plus, Upload, Video, X } from "lucide-react";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "motion/react";
-import { ideas as seedIdeas, type Idea, type IdeaStatus } from "../data/mockData";
+import { historyTimeline, ideas as seedIdeas, type HistoryEvent, type Idea, type IdeaStatus } from "../data/mockData";
 import { createClientNumericId } from "../data/clientIds";
+import { buildIdeaHistoryEvent, upsertHistoryEvent } from "../data/historyEvents";
 import { useSupabaseIdeasState } from "../data/ideasRepository";
-import { useTeamProfiles } from "../data/profiles";
+import { useCurrentTeamMember, useTeamProfiles } from "../data/profiles";
+import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import { useThemeMode } from "../theme";
 import {
@@ -148,7 +150,15 @@ function MemberDropdown({
 export function IdeasPage() {
   const { isDark } = useThemeMode();
   const [teamMembers] = useTeamProfiles();
+  const { member: currentMember } = useCurrentTeamMember();
   const [items, , { createIdea, updateIdea, deleteIdea }] = useSupabaseIdeasState(seedIdeas);
+  const [, setHistoryEvents] = useSupabaseSyncedListState<HistoryEvent>({
+    key: "history",
+    table: "history_events",
+    fallback: historyTimeline,
+    seedOnEmpty: true,
+    mergeFallback: true,
+  });
   const [teamScope, setTeamScope] = useTeamScope();
   const [isSparkOpen, setIsSparkOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -258,6 +268,15 @@ export function IdeasPage() {
     setEditingIdeaId(null);
   };
 
+  const getHistoryActor = (fallbackMemberId: number) => {
+    const actor = currentMember ?? teamMembers.find((member) => member.id === fallbackMemberId) ?? teamMembers[0];
+
+    return {
+      id: actor?.id ?? fallbackMemberId,
+      name: actor?.name ?? "Equipe",
+    };
+  };
+
   const handleSaveIdea = async () => {
     if (!form.title.trim() || !form.category.trim() || !form.theme.trim() || !form.description.trim()) {
       toast.error("Preencha título, categoria, tema e descrição.");
@@ -278,9 +297,10 @@ export function IdeasPage() {
       mediaUrl: form.mediaUrl.trim() || undefined,
       mediaFileName: form.mediaFileName.trim() || undefined,
     };
+    const wasEditing = editingIdeaId !== null;
 
     try {
-      if (editingIdeaId !== null) {
+      if (wasEditing) {
         await updateIdea(nextIdea);
       } else {
         await createIdea(nextIdea);
@@ -295,7 +315,12 @@ export function IdeasPage() {
       setTeamScope(nextIdea.responsibleId);
     }
 
-    const wasEditing = editingIdeaId !== null;
+    setHistoryEvents((previous) =>
+      upsertHistoryEvent(
+        previous,
+        buildIdeaHistoryEvent(nextIdea, getHistoryActor(nextIdea.responsibleId), wasEditing ? "updated" : "created"),
+      ),
+    );
     closeIdeaModal();
     setForm({
       title: "",
@@ -350,15 +375,24 @@ export function IdeasPage() {
 
     try {
       await deleteIdea(ideaId);
+      setHistoryEvents((previous) =>
+        upsertHistoryEvent(previous, buildIdeaHistoryEvent(removedIdea, getHistoryActor(removedIdea.responsibleId), "deleted")),
+      );
       setPendingDelete(null);
       toast.success("Ideia apagada com sucesso.", {
         action: {
           label: "Desfazer",
           onClick: () => {
-            void createIdea(removedIdea).catch((error) => {
-              console.error("Failed to restore idea", error);
-              toast.error("Não foi possível restaurar a ideia.");
-            });
+            void createIdea(removedIdea)
+              .then(() => {
+                setHistoryEvents((previous) =>
+                  upsertHistoryEvent(previous, buildIdeaHistoryEvent(removedIdea, getHistoryActor(removedIdea.responsibleId), "created")),
+                );
+              })
+              .catch((error) => {
+                console.error("Failed to restore idea", error);
+                toast.error("Não foi possível restaurar a ideia.");
+              });
           },
         },
       });

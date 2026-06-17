@@ -115,6 +115,7 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
   fallback: T[];
   userScoped?: boolean;
   seedOnEmpty?: boolean;
+  mergeFallback?: boolean;
 }) {
   const { session, ready: authReady } = useAuthSession();
   const [value, setValue] = useState<T[]>(options.fallback);
@@ -198,6 +199,22 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
           return;
         }
 
+        if (options.mergeFallback && remote.hasRows && options.fallback.length > 0) {
+          const remoteIds = new Set(remote.items.map((item) => item.id));
+          const missingFallbackItems = options.fallback.filter((item) => !remoteIds.has(item.id));
+
+          if (missingFallbackItems.length > 0) {
+            const mergedItems = [...remote.items, ...missingFallbackItems];
+            await persistRemoteRows(options.table, remote.items, mergedItems, currentUserId, userScoped);
+            if (cancelled) {
+              return;
+            }
+
+            commitValue(mergedItems);
+            return;
+          }
+        }
+
         const nextValue =
           !remote.hasRows
             ? lastPersistedValueRef.current.length > 0
@@ -248,7 +265,7 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
       cancelled = true;
       unsubscribe();
     };
-  }, [authReady, commitValue, currentUserId, isRemoteSourceAvailable, options.fallback, options.seedOnEmpty, options.table, userScoped]);
+  }, [authReady, commitValue, currentUserId, isRemoteSourceAvailable, options.fallback, options.mergeFallback, options.seedOnEmpty, options.table, userScoped]);
 
   useEffect(() => {
     if (!hydratedRef.current) {
