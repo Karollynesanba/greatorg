@@ -46,12 +46,15 @@ import {
   MemberChip,
   cn,
 } from "../components/ui";
+import { RecordingCalendarView } from "../components/RecordingCalendarView";
 import { useThemeMode } from "../theme";
 
 const viewModes = ["Dia", "Semana", "Mês"] as const;
 const dragType = "calendar-event";
 const getTodayDate = () => new Date();
 const weekHeaderLabels = daysOfWeek.map((day) => `${day.toUpperCase()}.`);
+const emptyCalendarEvents: CalendarEvent[] = [];
+const emptyHistoryEvents: HistoryEvent[] = [];
 
 function formatDateKey(date: Date) {
   const year = date.getFullYear();
@@ -70,6 +73,8 @@ const statusOptions: Array<{ label: string; value: CalendarEvent["status"]; colo
   { label: "Em produção", value: "Em produção", color: "#06b6d4" },
   { label: "Aprovado", value: "Aprovado", color: "#10b981" },
   { label: "Publicado", value: "Publicado", color: "#f97316" },
+  { label: "Reagendado", value: "Reagendado", color: "#f59e0b" },
+  { label: "Cancelado", value: "Cancelado", color: "#ef4444" },
 ];
 const visualizationOptions = [
   { label: "Carrossel", value: "Carrossel" as const, color: "#8b5cf6" },
@@ -112,6 +117,18 @@ function formatDayLabel(date: Date) {
 
 function formatViewsNumber(value: number) {
   return new Intl.NumberFormat("pt-BR").format(value);
+}
+
+function getCalendarErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  if (typeof error === "object" && error && "message" in error && typeof error.message === "string") {
+    return error.message;
+  }
+
+  return "Erro desconhecido ao acessar o Supabase.";
 }
 
 function inferEventVisualization(event: CalendarEvent & { visualization?: CalendarVisualizationType }) {
@@ -930,11 +947,11 @@ export function CalendarPage() {
   const [teamMembers] = useTeamProfiles();
   const { member: currentMember, memberId: currentMemberId, updateMember } = useCurrentTeamMember();
   const [teamScope] = useTeamScope();
-  const [events, , { createEvent, updateEvent, deleteEvent: deleteCalendarEvent }] = useSupabaseCalendarItemsState([]);
+  const [events, , { createEvent, updateEvent, deleteEvent: deleteCalendarEvent }] = useSupabaseCalendarItemsState(emptyCalendarEvents);
   const [, setHistoryEvents] = useSupabaseSyncedListState<HistoryEvent>({
     key: "history",
     table: "history_events",
-    fallback: [],
+    fallback: emptyHistoryEvents,
   });
   const [dayViewsByDate, setDayViewsByDate, dayReachByDate, setDayReachByDate] = useCalendarDayMetrics();
   const [monthlyViewsGoal, setMonthlyViewsGoal] = useSupabaseSharedState<number>({
@@ -942,6 +959,7 @@ export function CalendarPage() {
     fallback: defaultMonthlyViewsGoal,
   });
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [eventForm, setEventForm] = useState<CalendarEventFormState | null>(null);
   const [pendingDelete, setPendingDelete] = useState<CalendarEvent | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -1209,7 +1227,7 @@ export function CalendarPage() {
       })
       .catch((error) => {
         console.error("Failed to reschedule calendar item", error);
-        toast.error("Não foi possível reagendar no Supabase.");
+        toast.error(`Não foi possível reagendar: ${getCalendarErrorMessage(error)}`);
       });
   };
 
@@ -1237,7 +1255,7 @@ export function CalendarPage() {
       toast.success("Tarefa duplicada com sucesso.");
     } catch (error) {
       console.error("Failed to duplicate calendar item", error);
-      toast.error("Não foi possível duplicar no Supabase.");
+      toast.error(`Não foi possível duplicar: ${getCalendarErrorMessage(error)}`);
     }
   };
 
@@ -1290,7 +1308,7 @@ export function CalendarPage() {
       toast.success("Tarefa atualizada com sucesso.");
     } catch (error) {
       console.error("Failed to update calendar item", error);
-      toast.error("Não foi possível salvar a tarefa no Supabase.");
+      toast.error(`Não foi possível salvar: ${getCalendarErrorMessage(error)}`);
     }
   };
 
@@ -1353,7 +1371,7 @@ export function CalendarPage() {
       toast.success("Atividade marcada como concluída.");
     } catch (error) {
       console.error("Failed to complete calendar item", error);
-      toast.error("Não foi possível concluir a atividade no Supabase.");
+      toast.error(`Não foi possível concluir: ${getCalendarErrorMessage(error)}`);
     }
   };
 
@@ -1375,14 +1393,14 @@ export function CalendarPage() {
           onClick: () => {
             void createEvent(removedEvent, currentUserId).catch((error) => {
               console.error("Failed to restore calendar item", error);
-              toast.error("Não foi possível restaurar o evento.");
+              toast.error(`Não foi possível restaurar: ${getCalendarErrorMessage(error)}`);
             });
           },
         },
       });
     } catch (error) {
       console.error("Failed to delete calendar item", error);
-      toast.error("Não foi possível apagar o evento no Supabase.");
+      toast.error(`Não foi possível apagar: ${getCalendarErrorMessage(error)}`);
     }
   };
 
@@ -1443,7 +1461,7 @@ export function CalendarPage() {
       toast.success("Tarefa criada com sucesso.");
     } catch (error) {
       console.error("Failed to create calendar item", error);
-      toast.error("Não foi possível criar a tarefa no Supabase.");
+      toast.error(`Não foi possível criar a gravação: ${getCalendarErrorMessage(error)}`);
     }
   };
 
@@ -1479,6 +1497,7 @@ export function CalendarPage() {
 
   useEffect(() => {
     if (!selectedEvent) {
+      setIsDetailsOpen(false);
       setEventForm(null);
       setTaskDraft(emptyActivityDraft());
       return undefined;
@@ -1525,7 +1544,7 @@ export function CalendarPage() {
   }, [isCreateOpen]);
 
   useEffect(() => {
-    if (!selectedEvent && !isCreateOpen && !pendingDelete) {
+    if (!isDetailsOpen && !isCreateOpen && !pendingDelete) {
       return undefined;
     }
 
@@ -1541,7 +1560,7 @@ export function CalendarPage() {
       document.body.style.overflow = previousBodyStyle.overflow;
       document.documentElement.style.overflow = previousHtmlOverflow;
     };
-  }, [isCreateOpen, pendingDelete, selectedEvent]);
+  }, [isCreateOpen, isDetailsOpen, pendingDelete]);
 
   const dayHeader = view === "Dia" ? formatDayLabel(currentDate) : formatWeekRange(currentDate);
   const selectedEventResponsibleIds = selectedEvent ? getEventResponsibleIds(selectedEvent) : [];
@@ -1572,15 +1591,33 @@ export function CalendarPage() {
   return (
     <PageTransition>
       <PageHeader
-        title="Calendário Orgânico"
+        eyebrow="Agenda mensal"
+        title="Calendário de Gravação"
+        description="Organize gravações, acompanhe retornos e visualize toda a agenda do mês."
         actions={
           <ActionButton dataCy="calendar-open-create" onClick={handleOpenCreateModal}>
             <Plus className="h-4 w-4" />
-            Novo Post
+            Nova gravação
           </ActionButton>
         }
       />
 
+      <RecordingCalendarView
+        currentDate={currentDate}
+        events={filteredEvents}
+        selectedEvent={selectedEvent}
+        teamMembers={teamMembers}
+        onChangeDate={setCurrentDate}
+        onCreate={(date) => handleOpenQuickCreate(date ?? formatDateKey(currentDate), "09:00")}
+        onSelectEvent={(event) => {
+          setSelectedEvent(event);
+          setIsDetailsOpen(false);
+        }}
+        onOpenDetails={() => setIsDetailsOpen(true)}
+        onDelete={setPendingDelete}
+      />
+
+      {false ? (
       <div className={cn("grid gap-6", isSidebarCollapsed ? "xl:grid-cols-[56px_minmax(0,1fr)]" : "xl:grid-cols-[260px_minmax(0,1fr)]")}>
         <aside className="flex flex-col gap-5 xl:sticky xl:top-6 xl:self-start">
           {!isSidebarCollapsed ? (
@@ -2212,8 +2249,9 @@ export function CalendarPage() {
           </div>
         </div>
       </div>
+      ) : null}
 
-      {selectedEvent ? (
+      {isDetailsOpen && selectedEvent ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4"
           onWheelCapture={(event) => event.stopPropagation()}
@@ -2540,8 +2578,8 @@ export function CalendarPage() {
                   </div>
                   <div className="space-y-1">
                     <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Agenda</p>
-                    <h3 className="text-3xl font-semibold tracking-tight text-foreground">Criar atividade rápida</h3>
-                    <p className="text-sm text-muted-foreground">Defina, confirme e acompanhe esta atividade.</p>
+                    <h3 className="text-3xl font-semibold tracking-tight text-foreground">Criar nova gravação</h3>
+                    <p className="text-sm text-muted-foreground">Defina, confirme e acompanhe esta gravação.</p>
                   </div>
                 </div>
                 <button
@@ -2614,7 +2652,7 @@ export function CalendarPage() {
                     {createForm?.type ?? "Reels"}
                   </span>
                   <span className="text-sm font-medium text-foreground">
-                    {createForm?.description || "Defina, confirme e acompanhe esta atividade."}
+                    {createForm?.description || "Defina, confirme e acompanhe esta gravação."}
                   </span>
                 </div>
               </div>
@@ -2773,7 +2811,7 @@ export function CalendarPage() {
                 </ActionButton>
                 <ActionButton dataCy="calendar-create-submit" onClick={handleCreateEvent} className="bg-primary text-primary-foreground shadow-lg shadow-primary/20">
                   <Plus className="h-4 w-4" />
-                  Criar post
+                  Criar gravação
                 </ActionButton>
                 <ActionButton onClick={handleDuplicateCreate} className="bg-primary text-primary-foreground shadow-lg shadow-primary/20">
                   <Plus className="h-4 w-4" />
