@@ -8,7 +8,7 @@ import {
 } from "./siteSeed";
 
 export type ContentType = "Reels" | "Stories" | "Carrossel" | "Feed";
-export type PostStatus = "Agendado" | "Em produção" | "Aprovado" | "Publicado" | "Reagendado" | "Cancelado";
+export type PostStatus = "Agendado" | "Em produção" | "Aprovado" | "Publicado";
 export type IdeaStatus = "Ideia" | "Em produção" | "Pronto";
 export type TimelineType = "post" | "goal" | "schedule" | "idea";
 export type IdeaCategory = "Stories em foto" | "Stories em vídeo" | "Reels" | "Post" | "Carrossel" | "Feed";
@@ -344,8 +344,6 @@ export const statusColors: Record<PostStatus, string> = {
   "Em produção": "#007AFF",
   Aprovado: "#34C759",
   Publicado: "#8B5CF6",
-  Reagendado: "#F59E0B",
-  Cancelado: "#EF4444",
 };
 
 export const timelineTypeColors: Record<TimelineType, string> = {
