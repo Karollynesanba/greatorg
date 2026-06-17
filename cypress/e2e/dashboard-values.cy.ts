@@ -54,8 +54,9 @@ describe("Dashboard", () => {
       cy.get('[data-cy="dashboard-metric-posts"]').should("contain", String(posts.length));
       cy.get('[data-cy="dashboard-metric-goals"]').should("contain", `${completedGoals}/${goalsCount}`);
       cy.get('[data-cy="dashboard-health-score"]').should("contain", String(healthScore));
-      cy.get('[data-cy="dashboard-summary-goals"]').should("contain", `${completedGoals}/${goalsCount}`);
-      cy.get('[data-cy="dashboard-summary-engagement"]').should("contain", formatLongNumber(totalEngagement));
+      cy.get('[data-cy="dashboard-summary-reach"]').should("be.visible");
+      cy.get('[data-cy="dashboard-summary-goals"]').should("not.exist");
+      cy.get('[data-cy="dashboard-summary-engagement"]').should("not.exist");
     });
   });
 });

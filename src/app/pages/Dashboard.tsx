@@ -452,8 +452,7 @@ export function DashboardPage() {
   const showOverallGoalCard = teamScope === "todos";
   const dashboardSummary = {
     healthScore,
-    completedGoals,
-    totalEngagement,
+    monthReach,
     monthViews,
     remainingViews,
   };
@@ -613,15 +612,9 @@ export function DashboardPage() {
                 <InstagramHealthScoreRing score={dashboardSummary.healthScore} />
                 <div className="mt-5 grid w-full gap-3">
                   <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-white/72">Metas concluídas</p>
-                    <p data-cy="dashboard-summary-goals" className="mt-2 text-[1.85rem] font-semibold text-white">
-                      {dashboardSummary.completedGoals}/{visibleGoals.length}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-white/72">Engajamento total</p>
-                    <p data-cy="dashboard-summary-engagement" className="mt-2 text-[1.85rem] font-semibold text-white">
-                      {formatLongNumber(dashboardSummary.totalEngagement)}
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-white/72">Alcance do mês</p>
+                    <p data-cy="dashboard-summary-reach" className="mt-2 text-[1.85rem] font-semibold text-white">
+                      {formatLongNumber(dashboardSummary.monthReach)}
                     </p>
                   </div>
                   <div className="rounded-2xl bg-white/12 p-4 text-center backdrop-blur dark:bg-white/7">
