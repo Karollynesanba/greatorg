@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { BarChart3, Eye, Rocket, Sparkles, type LucideIcon } from "lucide-react";
 import { getGoalResponsibleIds, type CalendarEvent, type Goal, type StoryLog } from "../data/mockData";
@@ -19,6 +19,8 @@ import {
   formatPercent,
 } from "../components/ui";
 import { useThemeMode } from "../theme";
+import { useAuthSession } from "../auth";
+import { fetchStoriesMonthlySummary } from "../data/storiesRepository";
 
 const metricIcons = [Eye, BarChart3, Sparkles, Rocket];
 type ComparisonMetricId = "views" | "reach" | "engagement" | "followers";
@@ -388,12 +390,18 @@ export function DashboardPage() {
   }, []);
 
   const { isDark } = useThemeMode();
+  const { session } = useAuthSession();
   const [teamMembers] = useTeamProfiles();
   const fallbackMember = teamMembers[0] ?? { id: 0, name: "Equipe Great", color: "#833AB4" };
   const [posts] = usePosts();
   const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
   const [calendarItems] = useSupabaseSyncedListState<CalendarEvent>({ key: "calendar-events", table: "calendar_events", fallback: [] });
-  const [storyItems] = useSupabaseSyncedListState<StoryLog>({ key: "story-logs", table: "story_logs", fallback: [] });
+  const [storyItems, , storyItemsHydrated] = useSupabaseSyncedListState<StoryLog>({ key: "story-logs", table: "story_logs", fallback: [] });
+  const dashboardMonthKey = currentMonthKey();
+  const [monthlyStoriesSnapshot, setMonthlyStoriesSnapshot] = useState<{
+    currentValue: number;
+    goalValue: number;
+  } | null>(null);
   const [dayViewsByDate, , dayReachByDate] = useCalendarDayMetrics();
   const [monthlyViewsGoal] = useSupabasePreference<number>("calendar-monthly-views-goal", defaultMonthlyViewsGoal);
   const [dashboardMetricGoals] = useSupabasePreference<Record<Exclude<ComparisonMetricId, "views">, number>>("dashboard-metric-goals", {
@@ -403,6 +411,41 @@ export function DashboardPage() {
   });
   const [dashboardDailyFollowers] = useSupabasePreference<Record<string, number>>("dashboard-daily-followers", {});
   const [teamScope] = useTeamScope();
+
+  useEffect(() => {
+    if (!session?.user.id) {
+      setMonthlyStoriesSnapshot(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadMonthlyStories = async () => {
+      try {
+        const snapshot = await fetchStoriesMonthlySummary(session.user.id, dashboardMonthKey);
+        if (cancelled) {
+          return;
+        }
+
+        setMonthlyStoriesSnapshot({
+          currentValue: snapshot.totalCurrent,
+          goalValue: snapshot.totalGoal,
+        });
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Failed to load monthly stories in dashboard", error);
+          setMonthlyStoriesSnapshot(null);
+        }
+      }
+    };
+
+    void loadMonthlyStories();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dashboardMonthKey, session?.user.id]);
+
   const safeDayViewsByDate = normalizeNumberRecord(dayViewsByDate);
   const safeDayReachByDate = normalizeNumberRecord(dayReachByDate);
   const safeDashboardDailyFollowers = normalizeNumberRecord(dashboardDailyFollowers);
@@ -428,13 +471,16 @@ export function DashboardPage() {
   });
   const topPosts = [...visiblePosts].sort((a, b) => asNumber(b.engagement) - asNumber(a.engagement)).slice(0, 5);
   const worstPosts = [...visiblePosts].sort((a, b) => asNumber(a.engagement) - asNumber(b.engagement)).slice(0, 2);
-  const monthKey = currentMonthKey();
+  const monthKey = dashboardMonthKey;
   const monthViews = sumMonthViews(safeDayViewsByDate, currentMonthKey());
   const monthReach = sumMonthViews(safeDayReachByDate, monthKey);
   const monthFollowers = sumMonthViews(safeDashboardDailyFollowers, monthKey);
-  const monthStories = visibleStoryLogs.reduce((sum, story) => sum + asNumber((story as { quantity?: unknown }).quantity), 0);
+  const storyLogMonthTotal = visibleStoryLogs.reduce((sum, story) => sum + asNumber((story as { quantity?: unknown }).quantity), 0);
+  const monthStories = Math.max(monthlyStoriesSnapshot?.currentValue ?? 0, storyLogMonthTotal);
+  const monthlyStoriesGoal = monthlyStoriesSnapshot?.goalValue ?? 168;
+  const monthlyStoriesReady = monthlyStoriesSnapshot !== null || storyItemsHydrated;
   const remainingViews = Math.max(monthlyViewsGoal - monthViews, 0);
-  const remainingStories = Math.max(168 - monthStories, 0);
+  const remainingStories = Math.max(monthlyStoriesGoal - monthStories, 0);
   const totalEngagement = visiblePosts.reduce((sum, post) => sum + asNumber(post.engagement), 0);
   const completedGoals = visibleGoals.filter((goal) => asNumber((goal as { current?: unknown }).current) >= asNumber((goal as { target?: unknown }).target)).length;
   const completedCalendarItems = visibleCalendarItems.filter((event) => isCompletedCalendarEvent(event)).length;
@@ -467,9 +513,13 @@ export function DashboardPage() {
     {
       id: "stories",
       label: "Stories do mês",
-      value: formatLongNumber(monthStories),
+      value: monthlyStoriesReady ? formatLongNumber(monthStories) : "...",
       change: 0,
-      highlight: monthStories > 0 ? `Faltam ${formatLongNumber(remainingStories)} stories para bater a meta.` : "Nenhum story registrado neste mês.",
+      highlight: monthlyStoriesReady
+        ? monthStories > 0
+          ? `Faltam ${formatLongNumber(remainingStories)} stories para bater a meta.`
+          : "Nenhum story registrado neste mês."
+        : "Carregando o total mensal de stories.",
     },
     {
       id: "calendar",

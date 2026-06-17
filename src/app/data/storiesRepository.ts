@@ -149,6 +149,74 @@ export async function fetchMonthlyCalendar(_userId: string, month: string) {
     .filter((row) => row.date.startsWith(month));
 }
 
+export async function fetchStoriesMonthlySummary(userId: string, month: string): Promise<StoriesMonthlySummary> {
+  const client = getClient();
+  const { data: monthlyDataRow, error: monthlyDataError } = await client
+    .from("stories_monthly_data")
+    .select("user_id, reference_month, video_current, video_goal, photo_current, photo_goal, total_current, total_goal, updated_at")
+    .eq("user_id", userId)
+    .eq("reference_month", monthKeyToDate(month))
+    .maybeSingle();
+
+  if (!monthlyDataError && monthlyDataRow) {
+    const row = monthlyDataRow as StoriesMonthlyDataRow;
+    const videoCurrent = Number(row.video_current) || 0;
+    const photoCurrent = Number(row.photo_current) || 0;
+    const videoGoal = Number(row.video_goal) || defaultGoalValues.video;
+    const photoGoal = Number(row.photo_goal) || defaultGoalValues.photo;
+
+    return {
+      videoCurrent,
+      videoGoal,
+      photoCurrent,
+      photoGoal,
+      totalCurrent: Number(row.total_current) || videoCurrent + photoCurrent,
+      totalGoal: Number(row.total_goal) || videoGoal + photoGoal,
+    };
+  }
+
+  const { data: goalRows, error: goalError } = await client
+    .from("story_goal_metrics")
+    .select("user_id, month_key, category, current_value, goal_value, updated_at")
+    .eq("user_id", userId)
+    .eq("month_key", month);
+
+  if (goalError) {
+    throw new Error(monthlyDataError?.message || goalError.message);
+  }
+
+  const goals = (goalRows as StoryGoalMetricRow[] | null)?.reduce<StoryGoalMetricMap>(
+    (accumulator, row) => {
+      accumulator[row.category] = {
+        currentValue: Number(row.current_value) || 0,
+        goalValue: Number(row.goal_value) || defaultGoalValues[row.category],
+      };
+      return accumulator;
+    },
+    {
+      total: { currentValue: 0, goalValue: defaultGoalValues.total },
+      video: { currentValue: 0, goalValue: defaultGoalValues.video },
+      photo: { currentValue: 0, goalValue: defaultGoalValues.photo },
+    },
+  ) ?? {
+    total: { currentValue: 0, goalValue: defaultGoalValues.total },
+    video: { currentValue: 0, goalValue: defaultGoalValues.video },
+    photo: { currentValue: 0, goalValue: defaultGoalValues.photo },
+  };
+
+  const categoryCurrent = goals.video.currentValue + goals.photo.currentValue;
+  const categoryGoal = goals.video.goalValue + goals.photo.goalValue;
+
+  return {
+    videoCurrent: goals.video.currentValue,
+    videoGoal: goals.video.goalValue,
+    photoCurrent: goals.photo.currentValue,
+    photoGoal: goals.photo.goalValue,
+    totalCurrent: goals.total.currentValue || categoryCurrent,
+    totalGoal: goals.total.goalValue || categoryGoal || defaultGoalValues.total,
+  };
+}
+
 export async function fetchStoriesDashboard(userId: string, month: string): Promise<StoriesDashboardSnapshot> {
   const client = getClient();
   const [{ data: monthlyDataRow, error: monthlyDataError }, { data: metricRows, error: metricError }, stories, calendar] = await Promise.all([
