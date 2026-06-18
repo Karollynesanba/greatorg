@@ -9,7 +9,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { BarChart3, Eye, RefreshCw, Sparkles, Target, Users } from "lucide-react";
+import { AlertCircle, BarChart3, CheckCircle2, Eye, RefreshCw, Settings2, Sparkles, Target, Users } from "lucide-react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import {
   emptyMetaInsightsPayload,
@@ -259,9 +260,6 @@ export function MetaInsightsPage() {
   const shellClass = isDark
     ? "space-y-5 p-6"
     : "space-y-5 p-6 bg-[linear-gradient(180deg,rgba(245,247,255,0.98),rgba(255,255,255,0.98))] border border-indigo-100/90 shadow-[0_18px_48px_rgba(79,70,229,0.06)]";
-  const softPanelClass = isDark
-    ? "grid gap-3 rounded-[1.75rem] bg-muted/35 p-5 text-sm text-muted-foreground"
-    : "grid gap-3 rounded-[1.75rem] border border-indigo-100/80 bg-white/96 p-5 text-sm text-muted-foreground shadow-[0_12px_28px_rgba(79,70,229,0.05)]";
   const statGridClass = isDark
     ? "grid gap-3 rounded-[1.75rem] bg-muted/35 p-4 sm:grid-cols-2 lg:w-[420px]"
     : "grid gap-3 rounded-[1.75rem] border border-indigo-100/80 bg-white/96 p-4 sm:grid-cols-2 lg:w-[420px] shadow-[0_12px_28px_rgba(79,70,229,0.05)]";
@@ -313,42 +311,69 @@ export function MetaInsightsPage() {
       {status === "loading" ? <LoadingState /> : null}
 
       {status === "error" ? (
-        <GlassPanel className={shellClass} dataCy="meta-summary-shell">
-          <div className="flex items-start gap-4">
-            <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-              <Sparkles className="h-5 w-5" />
-            </div>
-            <div className="space-y-2">
-              <h2 className="text-xl font-semibold text-foreground">Não consegui conectar na Meta</h2>
-              <p className="text-sm leading-6 text-muted-foreground">{error}</p>
-            </div>
-          </div>
+        <GlassPanel
+          className="relative overflow-hidden border border-rose-100/80 bg-white p-0 shadow-[0_24px_70px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-card"
+          dataCy="meta-summary-shell"
+        >
+          <div className="absolute -right-24 -top-24 h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(229,9,20,0.12),transparent_68%)]" />
+          <div className="relative grid lg:grid-cols-[1.05fr_0.95fr]">
+            <div className="flex flex-col justify-between p-7 sm:p-9 lg:p-11">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[#d20a17] dark:bg-rose-500/10 dark:text-rose-300">
+                  <span className="h-2 w-2 rounded-full bg-[#e50914]" />
+                  Conexão pendente
+                </div>
+                <div className="mt-6 inline-flex h-14 w-14 items-center justify-center rounded-[20px] bg-[#e50914] text-white shadow-[0_16px_32px_rgba(229,9,20,0.24)]">
+                  <Sparkles className="h-6 w-6" />
+                </div>
+                <h2 className="mt-6 max-w-lg text-3xl font-semibold tracking-[-0.035em] text-foreground sm:text-4xl">
+                  Falta só conectar a conta certa.
+                </h2>
+                <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground sm:text-base">
+                  Assim que a conta profissional for identificada, seus dados reais de alcance, audiência e conteúdo aparecem aqui automaticamente.
+                </p>
+              </div>
 
-          <div className={softPanelClass}>
-            <p>Confira se estas variáveis estão configuradas no ambiente:</p>
-            <ul className="space-y-1">
-              <li>
-                <code>META_IG_ACCESS_TOKEN</code>
-              </li>
-              <li>
-                <code>META_GRAPH_API_VERSION</code>
-              </li>
-              <li>
-                <code>META_GRAPH_API_BASE_URL</code> se o token veio do fluxo de Instagram Login
-              </li>
-              <li>
-                <code>META_IG_PAGE_ID</code> ou <code>META_IG_USER_ID</code> se necessário
-              </li>
-            </ul>
-            <p>
-              Também é preciso que a conta Instagram seja Business ou Creator. Se você estiver usando o fluxo de
-              Instagram Login, configure <code>META_GRAPH_API_BASE_URL</code> com o host exigido por esse fluxo e
-              informe <code>META_IG_USER_ID</code>.
-            </p>
-            <p>
-              Se você já souber os IDs corretos, preencha em <strong>Configurações</strong> para forçar a consulta da
-              Página certa.
-            </p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Link
+                  to="/settings"
+                  className="inline-flex h-11 items-center gap-2 rounded-full bg-[#e50914] px-5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(229,9,20,0.22)] transition hover:-translate-y-0.5 hover:bg-[#cf0812]"
+                >
+                  <Settings2 className="h-4 w-4" />
+                  Abrir configurações
+                </Link>
+                <ActionButton variant="secondary" onClick={() => void loadMetaInsights()}>
+                  <RefreshCw className="h-4 w-4" />
+                  Tentar novamente
+                </ActionButton>
+              </div>
+            </div>
+
+            <div className="border-t border-rose-100/70 bg-[#fff9f8] p-7 sm:p-9 lg:border-l lg:border-t-0 dark:border-white/10 dark:bg-white/[0.025]">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Para conectar</p>
+              <div className="mt-5 space-y-3">
+                {[
+                  "Use uma conta Instagram Business ou Creator",
+                  "Informe o ID da Página ou da conta profissional",
+                  "Confirme se o token da Meta ainda está válido",
+                ].map((item) => (
+                  <div key={item} className="flex items-start gap-3 rounded-2xl border border-rose-100/70 bg-white px-4 py-3.5 shadow-[0_8px_20px_rgba(15,23,42,0.035)] dark:border-white/10 dark:bg-white/[0.04]">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#e50914]" />
+                    <span className="text-sm leading-5 text-foreground/85">{item}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-amber-200/80 bg-amber-50/80 p-4 dark:border-amber-400/20 dark:bg-amber-400/10">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" />
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-800 dark:text-amber-200">Detalhe técnico</p>
+                    <p className="mt-1.5 text-sm leading-5 text-amber-900/75 dark:text-amber-100/70">{error}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </GlassPanel>
       ) : null}
