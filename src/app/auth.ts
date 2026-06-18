@@ -252,11 +252,8 @@ async function signInToSupabase(email: string, password: string) {
 
   const normalizedEmail = normalizeEmail(email);
   const client = supabase;
-  const currentSession = await client.auth.getSession();
-  if (normalizeEmail(currentSession.data.session?.user.email ?? "") === normalizedEmail) {
-    return currentSession.data.session;
-  }
-
+  // Always exchange the submitted credentials for a fresh refresh token. Reusing
+  // a stale session here makes login appear successful until its access token expires.
   const signInResult = await client.auth.signInWithPassword({
     email: normalizedEmail,
     password,
