@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CalendarEvent } from "./mockData";
-import { isSupabaseConfigured, supabase } from "./supabase";
+import { getSupabaseDiagnostics, isSupabaseConfigured, supabase } from "./supabase";
 import { subscribeSharedChannel } from "./supabaseRealtime";
 
 type CalendarItemRow = {
@@ -90,6 +90,13 @@ function toCalendarItemRow(event: CalendarEvent, userId?: string | null): Record
   };
 }
 
+function logCalendar(message: string, details?: Record<string, unknown>) {
+  console.info("[CalendarItemsSync]", message, {
+    ...getSupabaseDiagnostics(),
+    ...details,
+  });
+}
+
 async function requireAuthenticatedSession() {
   if (!isSupabaseConfigured() || !supabase) {
     return null;
@@ -102,18 +109,23 @@ async function requireAuthenticatedSession() {
 
   const userId = data.session?.user.id ?? null;
   if (!userId) {
+    console.error("[CalendarItemsSync] Missing authenticated session", getSupabaseDiagnostics());
     throw new Error("Nenhuma sessao autenticada encontrada no Supabase.");
   }
+
+  logCalendar("Authenticated session resolved", { userId });
 
   return userId;
 }
 
 async function fetchCalendarItems() {
   if (!isSupabaseConfigured() || !supabase) {
+    logCalendar("Fetch skipped because Supabase is not configured.");
     return { items: [] as CalendarEvent[], hasRows: false };
   }
 
   try {
+    logCalendar("Fetching calendar_items from Supabase.");
     const { data, error } = await supabase
       .from("calendar_items")
       .select("id, user_id, source_calendar_event_id, title, description, status, type, category, date, data, created_at, deleted_at, updated_at")
@@ -143,7 +155,10 @@ async function fetchCalendarItems() {
       hasRows: true,
     };
   } catch (error) {
-    console.error("Failed to load calendar_items from Supabase", error);
+    console.error("[CalendarItemsSync] Failed to load calendar_items from Supabase", {
+      error,
+      ...getSupabaseDiagnostics(),
+    });
     return { items: [] as CalendarEvent[], hasRows: false };
   }
 }
@@ -155,6 +170,14 @@ async function upsertCalendarItem(event: CalendarEvent, currentUserId: string | 
 
   const sessionUserId = await requireAuthenticatedSession();
   const payload = toCalendarItemRow(event, currentUserId ?? sessionUserId);
+  logCalendar("Persisting calendar item", {
+    action: "upsert",
+    eventId: event.id,
+    sessionUserId,
+    payloadUserId: currentUserId ?? sessionUserId,
+    title: event.title,
+    date: event.date,
+  });
 
   const updateResult = await supabase
     .from("calendar_items")
@@ -168,11 +191,21 @@ async function upsertCalendarItem(event: CalendarEvent, currentUserId: string | 
   }
 
   if ((updateResult.data ?? []).length > 0) {
+    logCalendar("Calendar item updated", {
+      action: "update",
+      eventId: event.id,
+      affectedRows: updateResult.data?.length ?? 0,
+    });
     return;
   }
 
   const insertResult = await supabase.from("calendar_items").insert(payload).select("id");
   if (!insertResult.error && (insertResult.data ?? []).length > 0) {
+    logCalendar("Calendar item inserted", {
+      action: "insert",
+      eventId: event.id,
+      affectedRows: insertResult.data?.length ?? 0,
+    });
     return;
   }
 
@@ -189,6 +222,12 @@ async function upsertCalendarItem(event: CalendarEvent, currentUserId: string | 
   if ((fallbackUpdate.data ?? []).length === 0) {
     throw insertResult.error ?? new Error(`O Supabase nao confirmou a gravacao do item ${event.id}.`);
   }
+
+  logCalendar("Calendar item updated after insert fallback", {
+    action: "update-fallback",
+    eventId: event.id,
+    affectedRows: fallbackUpdate.data?.length ?? 0,
+  });
 }
 
 async function softDeleteCalendarItem(eventId: number) {
@@ -196,7 +235,12 @@ async function softDeleteCalendarItem(eventId: number) {
     return;
   }
 
-  await requireAuthenticatedSession();
+  const userId = await requireAuthenticatedSession();
+  logCalendar("Soft deleting calendar item", {
+    action: "delete",
+    eventId,
+    userId,
+  });
 
   const { data, error } = await supabase
     .from("calendar_items")
@@ -212,14 +256,20 @@ async function softDeleteCalendarItem(eventId: number) {
   if (!data || data.length === 0) {
     throw new Error(`O item do calendario ${eventId} nao foi encontrado para exclusao no Supabase.`);
   }
+
+  logCalendar("Calendar item soft deleted", {
+    action: "delete",
+    eventId,
+    affectedRows: data.length,
+  });
 }
 
 export function useSupabaseCalendarItemsState(fallback: CalendarEvent[]) {
-  const [value, setValue] = useState<CalendarEvent[]>(fallback);
+  const [value, setValue] = useState<CalendarEvent[]>(isSupabaseConfigured() ? [] : fallback);
   const [hydrated, setHydrated] = useState(false);
   const hydratedRef = useRef(false);
   const lastSavedSnapshotRef = useRef<string | null>(null);
-  const lastPersistedValueRef = useRef<CalendarEvent[]>(fallback);
+  const lastPersistedValueRef = useRef<CalendarEvent[]>(isSupabaseConfigured() ? [] : fallback);
 
   const commitValue = useCallback((nextValue: CalendarEvent[]) => {
     setValue(nextValue);
@@ -234,13 +284,15 @@ export function useSupabaseCalendarItemsState(fallback: CalendarEvent[]) {
     const remote = await fetchCalendarItems();
     const nextValue =
       !remote.hasRows
-        ? lastPersistedValueRef.current.length > 0
-          ? lastPersistedValueRef.current
-          : fallback
+        ? lastPersistedValueRef.current
         : remote.items;
 
+    logCalendar("Reload completed", {
+      hasRows: remote.hasRows,
+      count: nextValue.length,
+    });
     return commitValue(nextValue);
-  }, [commitValue, fallback]);
+  }, [commitValue]);
 
   useEffect(() => {
     let cancelled = false;
@@ -253,11 +305,13 @@ export function useSupabaseCalendarItemsState(fallback: CalendarEvent[]) {
 
       const nextValue =
         !remote.hasRows
-          ? lastPersistedValueRef.current.length > 0
-            ? lastPersistedValueRef.current
-            : fallback
+          ? lastPersistedValueRef.current
           : remote.items;
 
+      logCalendar("Initial load completed", {
+        hasRows: remote.hasRows,
+        count: nextValue.length,
+      });
       commitValue(nextValue);
     };
 
@@ -287,6 +341,10 @@ export function useSupabaseCalendarItemsState(fallback: CalendarEvent[]) {
 
   const createEvent = useCallback(async (event: CalendarEvent, currentUserId?: string | null) => {
     if (!isSupabaseConfigured() || !supabase) {
+      logCalendar("Persisting calendar item in memory fallback", {
+        action: "create",
+        eventId: event.id,
+      });
       commitValue([...lastPersistedValueRef.current, event]);
       return event;
     }
@@ -298,6 +356,10 @@ export function useSupabaseCalendarItemsState(fallback: CalendarEvent[]) {
 
   const updateEvent = useCallback(async (event: CalendarEvent, currentUserId?: string | null) => {
     if (!isSupabaseConfigured() || !supabase) {
+      logCalendar("Updating calendar item in memory fallback", {
+        action: "update",
+        eventId: event.id,
+      });
       commitValue(lastPersistedValueRef.current.map((current) => (current.id === event.id ? event : current)));
       return event;
     }
@@ -309,6 +371,10 @@ export function useSupabaseCalendarItemsState(fallback: CalendarEvent[]) {
 
   const deleteEvent = useCallback(async (eventId: number) => {
     if (!isSupabaseConfigured() || !supabase) {
+      logCalendar("Deleting calendar item in memory fallback", {
+        action: "delete",
+        eventId,
+      });
       commitValue(lastPersistedValueRef.current.filter((event) => event.id !== eventId));
       return;
     }

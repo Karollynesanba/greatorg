@@ -16,6 +16,8 @@ describe("Ideias", () => {
 
     cy.contains("Entrar na plataforma").should("be.visible");
     cy.get('[data-cy="login-admin-quick-access"]').click();
+    cy.get('[data-cy="login-password"]').clear().type("Great2026!");
+    cy.get('[data-cy="login-submit"]').click();
 
     cy.get("aside").contains("Ideias").click();
     cy.contains("Banco de ideias pronto para produção").should("be.visible");

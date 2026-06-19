@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Idea } from "./mockData";
-import { isSupabaseConfigured, supabase } from "./supabase";
+import { getSupabaseDiagnostics, isSupabaseConfigured, supabase } from "./supabase";
 import { subscribeSharedChannel } from "./supabaseRealtime";
 
 type IdeaRow = {
@@ -63,6 +63,13 @@ function toIdeaRow(idea: Idea): IdeaRow {
   };
 }
 
+function logIdeas(message: string, details?: Record<string, unknown>) {
+  console.info("[IdeasSync]", message, {
+    ...getSupabaseDiagnostics(),
+    ...details,
+  });
+}
+
 async function requireAuthenticatedSession() {
   if (!isSupabaseConfigured() || !supabase) {
     return null;
@@ -75,18 +82,23 @@ async function requireAuthenticatedSession() {
 
   const userId = data.session?.user.id ?? null;
   if (!userId) {
+    console.error("[IdeasSync] Missing authenticated session", getSupabaseDiagnostics());
     throw new Error("Nenhuma sessao autenticada encontrada no Supabase.");
   }
+
+  logIdeas("Authenticated session resolved", { userId });
 
   return userId;
 }
 
 async function fetchIdeas() {
   if (!isSupabaseConfigured() || !supabase) {
+    logIdeas("Fetch skipped because Supabase is not configured.");
     return { items: [] as Idea[], hasRows: false };
   }
 
   try {
+    logIdeas("Fetching ideas from Supabase.");
     const { data, error } = await supabase
       .from("ideas")
       .select("id, title, description, status, category, date, data, created_at, updated_at, deleted_at")
@@ -116,7 +128,10 @@ async function fetchIdeas() {
       hasRows: true,
     };
   } catch (error) {
-    console.error("Failed to load ideas from Supabase", error);
+    console.error("[IdeasSync] Failed to load ideas from Supabase", {
+      error,
+      ...getSupabaseDiagnostics(),
+    });
     return { items: [] as Idea[], hasRows: false };
   }
 }
@@ -126,7 +141,13 @@ async function upsertIdea(idea: Idea) {
     return;
   }
 
-  await requireAuthenticatedSession();
+  const userId = await requireAuthenticatedSession();
+  logIdeas("Persisting idea", {
+    action: "upsert",
+    ideaId: idea.id,
+    userId,
+    title: idea.title,
+  });
 
   const { data, error } = await supabase
     .from("ideas")
@@ -139,6 +160,12 @@ async function upsertIdea(idea: Idea) {
   if (!data || data.length === 0) {
     throw new Error(`O Supabase nao confirmou a gravacao da ideia ${idea.id}.`);
   }
+
+  logIdeas("Idea persisted", {
+    action: "upsert",
+    ideaId: idea.id,
+    affectedRows: data.length,
+  });
 }
 
 async function softDeleteIdea(ideaId: number) {
@@ -146,7 +173,12 @@ async function softDeleteIdea(ideaId: number) {
     return;
   }
 
-  await requireAuthenticatedSession();
+  const userId = await requireAuthenticatedSession();
+  logIdeas("Soft deleting idea", {
+    action: "delete",
+    ideaId,
+    userId,
+  });
 
   const { data, error } = await supabase
     .from("ideas")
@@ -162,14 +194,20 @@ async function softDeleteIdea(ideaId: number) {
   if (!data || data.length === 0) {
     throw new Error(`A ideia ${ideaId} nao foi encontrada para exclusao no Supabase.`);
   }
+
+  logIdeas("Idea soft deleted", {
+    action: "delete",
+    ideaId,
+    affectedRows: data.length,
+  });
 }
 
 export function useSupabaseIdeasState(fallback: Idea[]) {
-  const [value, setValue] = useState<Idea[]>(fallback);
+  const [value, setValue] = useState<Idea[]>(isSupabaseConfigured() ? [] : fallback);
   const [hydrated, setHydrated] = useState(false);
   const hydratedRef = useRef(false);
   const lastSavedSnapshotRef = useRef<string | null>(null);
-  const lastPersistedValueRef = useRef<Idea[]>(fallback);
+  const lastPersistedValueRef = useRef<Idea[]>(isSupabaseConfigured() ? [] : fallback);
 
   const commitValue = useCallback((nextValue: Idea[]) => {
     setValue(nextValue);
@@ -184,13 +222,15 @@ export function useSupabaseIdeasState(fallback: Idea[]) {
     const remote = await fetchIdeas();
     const nextValue =
       !remote.hasRows
-        ? lastPersistedValueRef.current.length > 0
-          ? lastPersistedValueRef.current
-          : fallback
+        ? lastPersistedValueRef.current
         : remote.items;
 
+    logIdeas("Reload completed", {
+      hasRows: remote.hasRows,
+      count: nextValue.length,
+    });
     return commitValue(nextValue);
-  }, [commitValue, fallback]);
+  }, [commitValue]);
 
   useEffect(() => {
     let cancelled = false;
@@ -203,11 +243,13 @@ export function useSupabaseIdeasState(fallback: Idea[]) {
 
       const nextValue =
         !remote.hasRows
-          ? lastPersistedValueRef.current.length > 0
-            ? lastPersistedValueRef.current
-            : fallback
+          ? lastPersistedValueRef.current
           : remote.items;
 
+      logIdeas("Initial load completed", {
+        hasRows: remote.hasRows,
+        count: nextValue.length,
+      });
       commitValue(nextValue);
     };
 
@@ -237,6 +279,10 @@ export function useSupabaseIdeasState(fallback: Idea[]) {
 
   const createIdea = useCallback(async (idea: Idea) => {
     if (!isSupabaseConfigured() || !supabase) {
+      logIdeas("Persisting idea in memory fallback", {
+        action: "create",
+        ideaId: idea.id,
+      });
       commitValue([idea, ...lastPersistedValueRef.current]);
       return idea;
     }
@@ -248,6 +294,10 @@ export function useSupabaseIdeasState(fallback: Idea[]) {
 
   const updateIdea = useCallback(async (idea: Idea) => {
     if (!isSupabaseConfigured() || !supabase) {
+      logIdeas("Updating idea in memory fallback", {
+        action: "update",
+        ideaId: idea.id,
+      });
       commitValue(lastPersistedValueRef.current.map((current) => (current.id === idea.id ? idea : current)));
       return idea;
     }
@@ -259,6 +309,10 @@ export function useSupabaseIdeasState(fallback: Idea[]) {
 
   const deleteIdea = useCallback(async (ideaId: number) => {
     if (!isSupabaseConfigured() || !supabase) {
+      logIdeas("Deleting idea in memory fallback", {
+        action: "delete",
+        ideaId,
+      });
       commitValue(lastPersistedValueRef.current.filter((idea) => idea.id !== ideaId));
       return;
     }

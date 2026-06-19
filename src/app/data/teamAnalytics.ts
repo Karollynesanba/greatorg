@@ -136,6 +136,7 @@ export function deriveTeamProfiles<T extends TeamProfileBase>(
         goalsCompleted,
         performance,
         punctuality: Math.round(punctuality),
+        monthlyViews: member.stats.monthlyViews ?? 0,
       },
       radar: buildRadarPoints({
         postsCreated,

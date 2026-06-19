@@ -142,6 +142,7 @@ export function TeamPage() {
             <DetailGrid
               items={[
                 { label: "Posts Criados", value: String(selectedMember.stats.postsCreated) },
+                { label: "Visualizacoes do mes", value: new Intl.NumberFormat("pt-BR").format(selectedMember.stats.monthlyViews ?? 0) },
                 { label: "Engajamento Medio", value: `${selectedMember.stats.avgEngagement}%` },
                 { label: "Metas Completadas", value: String(selectedMember.stats.goalsCompleted) },
                 { label: "Pontualidade", value: `${selectedMember.stats.punctuality}%` },

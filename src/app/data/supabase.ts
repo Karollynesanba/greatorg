@@ -82,6 +82,8 @@ const supabaseStorage = {
   },
 };
 
+export const supabaseProjectHost = getSupabaseHost(supabaseUrl);
+
 export const supabase = hasSupabaseConfig
   ? (() => {
       const url = supabaseUrl as string;
@@ -117,6 +119,6 @@ export function getSupabaseDiagnostics() {
     configured: hasSupabaseConfig,
     urlPresent: Boolean(supabaseUrl),
     anonKeyPresent: Boolean(supabaseAnonKey),
-    projectHost: getSupabaseHost(supabaseUrl),
+    projectHost: supabaseProjectHost,
   };
 }

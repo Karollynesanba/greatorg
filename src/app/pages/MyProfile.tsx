@@ -1,9 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PencilLine, Save, Upload, Users, X } from "lucide-react";
 import { toast } from "sonner";
-import { Avatar, ActionButton, GlassPanel, PageHeader, PageTransition, SectionTitle, cn } from "../components/ui";
+import { Avatar, ActionButton, GlassPanel, PageHeader, PageTransition, SectionTitle, cn, formatLongNumber } from "../components/ui";
 import { updateDemoAccountPassword } from "../auth";
+import { sumMonthViews, useCalendarDayMetrics } from "../data/calendarMetrics";
+import { type CalendarEvent, type Goal, type StoryLog } from "../data/mockData";
+import { usePosts } from "../data/posts";
 import { useCurrentTeamMember, useTeamProfiles, type EditableTeamMember } from "../data/profiles";
+import { useSupabaseSyncedListState } from "../data/supabaseSync";
+import { deriveTeamProfiles } from "../data/teamAnalytics";
 import { useThemeMode } from "../theme";
 
 type ProfileEditForm = Omit<EditableTeamMember, "password"> & {
@@ -23,6 +28,11 @@ function readFileAsDataUrl(file: File) {
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
   });
+}
+
+function currentMonthKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function Field({
@@ -59,10 +69,32 @@ export function MyProfilePage() {
   const { isDark } = useThemeMode();
   const { member, updateMember } = useCurrentTeamMember();
   const [profiles] = useTeamProfiles();
+  const [posts] = usePosts();
+  const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
+  const [calendarEvents] = useSupabaseSyncedListState<CalendarEvent>({ key: "calendar-events", table: "calendar_events", fallback: [] });
+  const [storyLogs] = useSupabaseSyncedListState<StoryLog>({ key: "story-logs", table: "story_logs", fallback: [] });
+  const [dayViewsByDate] = useCalendarDayMetrics();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [editForm, setEditForm] = useState<ProfileEditForm | null>(null);
+  const monthViews = useMemo(() => sumMonthViews(dayViewsByDate, currentMonthKey()), [dayViewsByDate]);
+  const derivedMember = useMemo(() => {
+    if (!member) {
+      return null;
+    }
+
+    const [nextMember] = deriveTeamProfiles([member], posts, goals, calendarEvents, storyLogs);
+    return nextMember
+      ? {
+          ...nextMember,
+          stats: {
+            ...nextMember.stats,
+            monthlyViews: monthViews,
+          },
+        }
+      : null;
+  }, [calendarEvents, goals, member, monthViews, posts, storyLogs]);
 
   useEffect(() => {
     if (!isEditOpen || !member) {
@@ -104,6 +136,27 @@ export function MyProfilePage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isPreviewOpen]);
+
+  useEffect(() => {
+    if (!member || !derivedMember) {
+      return;
+    }
+
+    const statsChanged = JSON.stringify(member.stats) !== JSON.stringify(derivedMember.stats);
+    const radarChanged = JSON.stringify(member.radar) !== JSON.stringify(derivedMember.radar);
+    const monthlyPostsChanged = JSON.stringify(member.monthlyPosts) !== JSON.stringify(derivedMember.monthlyPosts);
+
+    if (!statsChanged && !radarChanged && !monthlyPostsChanged) {
+      return;
+    }
+
+    updateMember(member.id, (current) => ({
+      ...current,
+      stats: derivedMember.stats,
+      radar: derivedMember.radar,
+      monthlyPosts: derivedMember.monthlyPosts,
+    }));
+  }, [derivedMember, member, updateMember]);
 
   const memberCount = profiles.length;
   const color = member?.color ?? "rgb(var(--primary) / 1)";
@@ -162,6 +215,7 @@ export function MyProfilePage() {
     { label: "Senha", value: "" },
     { label: "Função", value: member.role },
     { label: "Especialidade", value: member.specialty },
+    { label: "VisualizaÃ§Ãµes do mÃªs", value: formatLongNumber(member.stats.monthlyViews ?? 0) },
     { label: "Cor", value: member.color },
     { label: "Equipe", value: `${memberCount} perfis` },
   ];

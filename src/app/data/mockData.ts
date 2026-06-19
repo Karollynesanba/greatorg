@@ -27,6 +27,7 @@ export type TeamMember = {
     goalsCompleted: number;
     performance: number;
     punctuality: number;
+    monthlyViews?: number;
   };
   radar: {
     subject: string;
@@ -308,10 +309,10 @@ export const insights = {
 };
 
 export const contentDistribution = [
-  { name: "Reels", value: 0, color: "#D10000" },
-  { name: "Stories", value: 0, color: "#FF9500" },
-  { name: "Carrossel", value: 0, color: "#34C759" },
-  { name: "Feed", value: 0, color: "#007AFF" },
+  { name: "Reels", value: 0, color: "#E30613" },
+  { name: "Stories", value: 0, color: "#C40010" },
+  { name: "Carrossel", value: 0, color: "#F26B74" },
+  { name: "Feed", value: 0, color: "#8F1D25" },
 ];
 
 export const evolutionData: Array<{ date: string; reach: number; engagement: number; followers: number }> = [];
@@ -333,23 +334,23 @@ export const dashboardSummary = {
 export const weekLabel = "Sem dados";
 
 export const typeColors: Record<ContentType, string> = {
-  Reels: "#D10000",
-  Stories: "#FF9500",
-  Carrossel: "#34C759",
-  Feed: "#007AFF",
+  Reels: "#E30613",
+  Stories: "#C40010",
+  Carrossel: "#F26B74",
+  Feed: "#8F1D25",
 };
 
 export const statusColors: Record<PostStatus, string> = {
-  Agendado: "#FF9500",
-  "Em produção": "#007AFF",
-  Aprovado: "#34C759",
-  Publicado: "#8B5CF6",
+  Agendado: "#E30613",
+  "Em produção": "#C40010",
+  Aprovado: "#F26B74",
+  Publicado: "#8F1D25",
 };
 
 export const timelineTypeColors: Record<TimelineType, string> = {
-  post: "#D10000",
-  goal: "#34C759",
-  schedule: "#007AFF",
+  post: "#E30613",
+  goal: "#C40010",
+  schedule: "#8F1D25",
   idea: "#F59E0B",
 };
 

@@ -35,6 +35,8 @@ describe("Dashboard", () => {
 
     cy.contains("Entrar na plataforma").should("be.visible");
     cy.get('[data-cy="login-admin-quick-access"]').click();
+    cy.get('[data-cy="login-password"]').clear().type("Great2026!");
+    cy.get('[data-cy="login-submit"]').click();
 
     cy.get('[data-cy="dashboard-summary"]').should("be.visible");
     cy.get('[data-cy="dashboard-metric-reach"]').should("be.visible");

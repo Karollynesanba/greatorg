@@ -34,7 +34,7 @@ export const getProgressTone = (progress: number) => {
   }
 
   if (progress >= 70) {
-    return "bg-warning text-[#5c4700]";
+    return "bg-primary text-white";
   }
 
   return "bg-destructive";
@@ -159,7 +159,7 @@ export function ActionButton({
   const { isDark } = useThemeMode();
   const variants = {
     primary:
-      "bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90 dark:bg-[#ff3b4e] dark:shadow-[0_14px_34px_rgba(255,59,78,0.22)] dark:hover:bg-[#ff5161]",
+      "bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:bg-[#C40010] dark:bg-primary dark:shadow-[0_14px_34px_rgba(227,6,19,0.28)] dark:hover:bg-[#C40010]",
     secondary:
       "border border-border/70 text-foreground shadow-sm",
     ghost: "bg-transparent text-foreground hover:bg-muted/70 dark:hover:bg-card/98",
@@ -789,7 +789,7 @@ export function IconActionButton({
     neutral:
       "border-border/70 text-muted-foreground shadow-sm hover:border-primary/25 hover:text-foreground hover:shadow-md dark:border-white/8 dark:hover:bg-[#1f2631]",
     danger:
-      "border-rose-200 text-rose-500 shadow-sm hover:border-rose-300 hover:text-rose-600 hover:shadow-md dark:border-[#ff8da5]/20 dark:bg-[#1d171a] dark:text-[#ff8da5] dark:hover:bg-[#2a171b]",
+      "border-[rgb(243,209,209)] text-primary shadow-sm hover:border-primary hover:text-[#C40010] hover:shadow-md dark:border-[#6b3136] dark:bg-[#26181a] dark:text-[#ffb3b8] dark:hover:bg-[#311a1d]",
   };
 
   const toneStyle =
@@ -861,7 +861,7 @@ export function ConfirmDialog({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start gap-4">
-          <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 dark:bg-[#2a171b] dark:text-[#ff8da5]">
+          <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[rgb(255,234,234)] text-primary dark:bg-[#26181a] dark:text-[#ffb3b8]">
             <AlertTriangle className="h-5 w-5" />
           </div>
           <div className="space-y-2">
@@ -877,7 +877,7 @@ export function ConfirmDialog({
           <ActionButton
             onClick={onConfirm}
             dataCy={confirmDataCy}
-            className="bg-rose-600 text-white shadow-lg shadow-rose-600/20 hover:bg-rose-700"
+            className="bg-primary text-white shadow-lg shadow-primary/20 hover:bg-[#C40010]"
           >
             {confirmLabel}
           </ActionButton>
@@ -977,9 +977,9 @@ export function MemberChip({
 
 export function StatusBadge({ value }: { value: PostStatus | string }) {
   const extraColors: Record<string, string> = {
-    Atenção: "#FF3B30",
-    Ideia: "#8E8E93",
-    Pronto: "#34C759",
+    Atenção: "#C40010",
+    Ideia: "#8F1D25",
+    Pronto: "#E30613",
   };
   const color = statusColors[value as PostStatus] ?? extraColors[value] ?? "#6E6E73";
 
@@ -1112,7 +1112,7 @@ export function ProgressBar({
           initial={{ width: 0 }}
           animate={{ width: `${Math.min(progress, 100)}%` }}
           transition={{ duration: 0.7, ease: "easeOut" }}
-          className={cn("h-full rounded-full", getProgressTone(progress), "shadow-[0_0_20px_rgba(139,92,246,0.22)]")}
+          className={cn("h-full rounded-full", getProgressTone(progress), "shadow-[0_0_20px_rgba(227,6,19,0.22)]")}
         />
       </div>
     </div>

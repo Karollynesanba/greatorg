@@ -403,14 +403,14 @@ export function HistoryPage() {
             return (
               <GlassPanel key={card.label} className="border border-border/60 bg-white/96 p-5 shadow-[0_16px_38px_rgba(15,23,42,0.05)]">
                 <div className="flex items-start gap-4">
-                  <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 ring-1 ring-rose-100">
+                  <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgb(255,234,234)] text-primary ring-1 ring-[rgb(243,209,209)]">
                     <Icon className="h-5 w-5" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{card.label}</p>
                     <p className="mt-2 truncate text-[clamp(1.45rem,1.8vw,2rem)] font-semibold tracking-tight text-foreground">{card.value}</p>
                     <div className="mt-3 flex items-center gap-2 text-sm">
-                      {card.delta ? <span className="font-semibold text-rose-600">{card.delta}</span> : null}
+                      {card.delta ? <span className="font-semibold text-primary">{card.delta}</span> : null}
                       <span className="text-muted-foreground">{card.detail}</span>
                     </div>
                   </div>
@@ -444,13 +444,13 @@ export function HistoryPage() {
               <div className="mt-6 space-y-8">
                 {groupedTimeline.map((group) => (
                   <div key={group.date} className="relative pl-7">
-                    <div className="absolute left-[8px] top-9 bottom-0 w-px bg-gradient-to-b from-rose-300 via-rose-200 to-transparent" />
+                    <div className="absolute left-[8px] top-9 bottom-0 w-px bg-gradient-to-b from-[rgb(227,6,19,0.45)] via-[rgb(243,209,209)] to-transparent" />
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex items-center gap-3">
-                        <span className="h-4 w-4 rounded-full border-4 border-white bg-rose-500 shadow-[0_0_0_1px_rgba(244,63,94,0.18)]" />
+                        <span className="h-4 w-4 rounded-full border-4 border-white bg-primary shadow-[0_0_0_1px_rgba(227,6,19,0.18)]" />
                         <h3 className="text-base font-semibold text-foreground">{formatHistoryDateLabel(group.date)}</h3>
                       </div>
-                      <span className="inline-flex h-9 min-w-9 items-center justify-center rounded-full border border-rose-200 bg-rose-50 px-3 text-sm font-semibold text-rose-600">
+                      <span className="inline-flex h-9 min-w-9 items-center justify-center rounded-full border border-[rgb(243,209,209)] bg-[rgb(255,234,234)] px-3 text-sm font-semibold text-primary">
                         {group.entries.length}
                       </span>
                     </div>
@@ -466,13 +466,13 @@ export function HistoryPage() {
                             <div className="flex-1 rounded-[1.7rem] border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(249,249,251,0.97))] p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition hover:shadow-[0_16px_28px_rgba(15,23,42,0.06)]">
                               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                                 <div className="flex min-w-0 gap-4">
-                                  <div className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 ring-1 ring-rose-100">
+                                  <div className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[rgb(255,234,234)] text-primary ring-1 ring-[rgb(243,209,209)]">
                                     <Icon className="h-4.5 w-4.5" />
                                   </div>
                                   <div className="min-w-0">
                                     <div className="flex flex-wrap items-center gap-2">
                                       <h4 className="text-base font-semibold text-foreground">{item.title}</h4>
-                                      <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-600">{typeLabels[item.type]}</span>
+                                      <span className="rounded-full bg-[rgb(255,234,234)] px-3 py-1 text-xs font-semibold text-primary">{typeLabels[item.type]}</span>
                                     </div>
                                     <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.description}</p>
                                     <div className="mt-3 flex flex-wrap items-center gap-3 text-xs font-medium text-muted-foreground">
@@ -544,7 +544,7 @@ export function HistoryPage() {
                             <div className="mt-1 text-xs">{extractHistoryTime(item.description)}</div>
                           </td>
                           <td className="px-5 py-4">
-                            <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 ring-1 ring-rose-100">
+                            <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-[rgb(255,234,234)] text-primary ring-1 ring-[rgb(243,209,209)]">
                               <Icon className="h-4 w-4" />
                             </div>
                           </td>
@@ -556,7 +556,7 @@ export function HistoryPage() {
                             <MemberChip name={member.name} role={member.role} color={member.color} src={member.avatarUrl} />
                           </td>
                           <td className="px-5 py-4">
-                            <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-600">{typeLabels[item.type]}</span>
+                            <span className="rounded-full bg-[rgb(255,234,234)] px-3 py-1 text-xs font-semibold text-primary">{typeLabels[item.type]}</span>
                           </td>
                           <td className="px-5 py-4 text-right">
                             <div className="flex justify-end">
@@ -582,7 +582,7 @@ export function HistoryPage() {
                       type="button"
                       className={cn(
                         "inline-flex h-10 w-10 items-center justify-center rounded-xl border text-sm font-semibold transition",
-                        page === 1 ? "border-rose-600 bg-rose-600 text-white" : "border-border/70 bg-white text-foreground hover:border-rose-200 hover:text-rose-600",
+                        page === 1 ? "border-primary bg-primary text-white" : "border-border/70 bg-white text-foreground hover:border-[rgb(243,209,209)] hover:text-primary",
                       )}
                     >
                       {page}

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { CalendarDays, ChartColumnBig, Eye, EyeOff, LockKeyhole, Mail, PieChart, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "../components/ui";
-import { signInOrBootstrapDemoAccount, signInWithProfile } from "../auth";
+import { signInOrBootstrapDemoAccount } from "../auth";
 
 const quickAccessMembers = [
   { id: 1, name: "Brenda", role: "Video Maker", email: "brendarayssa2706@gmail.com", color: "#833AB4" },
@@ -90,23 +90,10 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
   const handleQuickAccessLogin = async (memberEmail: string) => {
     setActiveProfileEmail(memberEmail);
     setEmail(memberEmail);
-    setLoading(true);
     setErrorMessage(null);
-
-    try {
-      await signInWithProfile(memberEmail);
-      onLogin?.();
-      navigate("/dashboard", { replace: true });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Não foi possível iniciar a sessão.";
-      setErrorMessage(message);
-      toast.error(message);
-      window.requestAnimationFrame(() => {
-        passwordInputRef.current?.focus();
-      });
-    } finally {
-      setLoading(false);
-    }
+    window.requestAnimationFrame(() => {
+      passwordInputRef.current?.focus();
+    });
   };
 
   return (
@@ -197,7 +184,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                           <span className="block text-xs text-[#7a7f87]">{member.role}</span>
                         </span>
                         <span className="text-xs font-medium text-[#e50914]">
-                          {loading && activeProfileEmail === member.email ? "Entrando..." : "Entrar com 1 clique"}
+                          {activeProfileEmail === member.email ? "Perfil selecionado" : "Selecionar perfil"}
                         </span>
                       </button>
                     ))}
@@ -266,7 +253,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                       <div>
                         <p className="text-sm font-semibold text-[#141414]">Acesso simplificado</p>
                         <p className="mt-1 text-sm leading-6 text-[#7a7f87]">
-                          Os perfis acima tentam entrar automaticamente com as credenciais vinculadas a cada conta da equipe.
+                          Os perfis acima apenas preenchem o email da conta. A senha continua obrigatoria para entrar.
                         </p>
                       </div>
                     </div>

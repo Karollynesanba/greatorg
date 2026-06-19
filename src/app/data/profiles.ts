@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getAuthenticatedMemberId, getDemoAccountUserId, useAuthSession } from "../auth";
-import { createStorageKey, useSharedState } from "./sharedState";
 import { isSupabaseConfigured, supabase } from "./supabase";
+import { subscribeSharedChannel } from "./supabaseRealtime";
 import { teamMembers as baseTeamMembers, type TeamMember } from "./mockData";
 
 export type EditableTeamMember = TeamMember & {
@@ -61,14 +61,20 @@ const seedAccounts: EditableTeamMember[] = baseTeamMembers.map((member, index) =
 });
 
 export function useTeamProfiles() {
-  const sharedState = useSharedState(createStorageKey("team-profiles"), seedAccounts);
-  const [profiles, setProfiles] = sharedState;
+  const [profiles, setProfiles] = useState<EditableTeamMember[]>(seedAccounts);
   const hydratedRef = useRef(false);
+  const lastSavedSnapshotRef = useRef<string | null>(null);
   const supabaseClient = supabase;
+
+  const commitProfiles = useCallback((nextProfiles: EditableTeamMember[]) => {
+    setProfiles(nextProfiles);
+    lastSavedSnapshotRef.current = JSON.stringify(nextProfiles);
+    hydratedRef.current = true;
+  }, []);
 
   const refreshTeamData = async () => {
     if (!isSupabaseConfigured() || !supabaseClient) {
-      setProfiles((current) => [...current]);
+      commitProfiles(seedAccounts);
       return;
     }
 
@@ -81,12 +87,13 @@ export function useTeamProfiles() {
 
     const remoteProfiles = (data ?? []).map((row) => normalizeProfileRow(row as TeamProfileRow));
     if (remoteProfiles.length > 0) {
-      setProfiles(remoteProfiles);
+      commitProfiles(remoteProfiles);
     }
   };
 
   useEffect(() => {
     if (!isSupabaseConfigured() || !supabaseClient) {
+      commitProfiles(seedAccounts);
       return;
     }
 
@@ -108,14 +115,16 @@ export function useTeamProfiles() {
       const remoteProfiles = (data ?? []).map((row) => normalizeProfileRow(row as TeamProfileRow));
 
       if (remoteProfiles.length > 0) {
-        setProfiles(remoteProfiles);
-        hydratedRef.current = true;
+        commitProfiles(remoteProfiles);
         return;
       }
 
-      const { error: seedError } = await supabaseClient.from(teamProfilesTable).upsert(seedAccounts, {
-        onConflict: "id",
-      });
+      const { error: seedError } = await supabaseClient.from(teamProfilesTable).upsert(
+        seedAccounts.map((profile) => toTeamProfileDbRow(profile)),
+        {
+          onConflict: "id",
+        },
+      );
 
       if (cancelled) {
         return;
@@ -127,16 +136,36 @@ export function useTeamProfiles() {
         return;
       }
 
-      setProfiles(seedAccounts);
-      hydratedRef.current = true;
+      commitProfiles(seedAccounts);
     };
 
     void syncTeamProfiles();
 
+    const unsubscribe = subscribeSharedChannel(
+      "great-organico:team-profiles",
+      (channel, dispatch) => {
+        channel.on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: teamProfilesTable,
+          },
+          () => {
+            dispatch();
+          },
+        );
+      },
+      () => {
+        void syncTeamProfiles();
+      },
+    );
+
     return () => {
       cancelled = true;
+      unsubscribe();
     };
-  }, [setProfiles, supabaseClient]);
+  }, [commitProfiles, supabaseClient]);
 
   useEffect(() => {
     setProfiles((previous) => {
@@ -158,6 +187,11 @@ export function useTeamProfiles() {
       return;
     }
 
+    const snapshot = JSON.stringify(profiles);
+    if (snapshot === lastSavedSnapshotRef.current) {
+      return;
+    }
+
     let cancelled = false;
 
     const persistTeamProfiles = async () => {
@@ -172,7 +206,10 @@ export function useTeamProfiles() {
 
       if (error) {
         console.warn("Supabase team_profiles save failed:", error.message);
+        return;
       }
+
+      lastSavedSnapshotRef.current = snapshot;
     };
 
     void persistTeamProfiles();
@@ -233,6 +270,7 @@ function normalizeProfileRow(row: TeamProfileRow) {
     goalsCompleted: 0,
     performance: 0,
     punctuality: 0,
+    monthlyViews: 0,
   };
 
   return {

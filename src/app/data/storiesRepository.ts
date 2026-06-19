@@ -7,7 +7,6 @@ type StoryMetricKey = "views" | "reach";
 
 type StoryListRow<T> = {
   id: number;
-  user_id: string;
   sort_order: number;
   data: T;
 };
@@ -98,7 +97,6 @@ function toStoryRow(data: StoryPostPayload, sortOrder: number): StoryListRow<Sto
 
   return {
     id,
-    user_id: data.userId,
     sort_order: sortOrder,
     data: {
       id,
@@ -124,7 +122,7 @@ export async function fetchStoryPosts(_userId: string) {
   const client = getClient();
   const { data, error } = await client
     .from("story_logs")
-    .select("id, user_id, sort_order, data")
+    .select("id, sort_order, data")
     .order("sort_order", { ascending: false });
 
   if (error) {
@@ -377,16 +375,14 @@ export async function updateGoalMetric(
   }
 }
 
-async function upsertStoryHistory(userId: string, story: StoryLog, actorName: string, action: "created" | "updated") {
+async function upsertStoryHistory(_userId: string, story: StoryLog, actorName: string, action: "created" | "updated") {
   const client = getClient();
   const historyEvent = buildStoryHistoryEvent(story, actorName, action);
   const { error } = await client.from("history_events").upsert(
     {
       id: historyEvent.id,
-      user_id: userId,
       sort_order: Date.now(),
       data: historyEvent,
-      updated_at: new Date().toISOString(),
     },
     { onConflict: "id" },
   );
@@ -396,12 +392,11 @@ async function upsertStoryHistory(userId: string, story: StoryLog, actorName: st
   }
 }
 
-async function deleteStoryHistory(userId: string, storyId: number) {
+async function deleteStoryHistory(_userId: string, storyId: number) {
   const client = getClient();
   const { error } = await client
     .from("history_events")
     .delete()
-    .eq("user_id", userId)
     .eq("id", getStoryHistoryId(storyId));
 
   if (error) {
@@ -412,13 +407,7 @@ async function deleteStoryHistory(userId: string, storyId: number) {
 export async function createStoryPost(data: StoryPostPayload & { actorName: string }) {
   const client = getClient();
   const row = toStoryRow(data, Date.now());
-  const { error } = await client.from("story_logs").upsert(
-    {
-      ...row,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "id" },
-  );
+  const { error } = await client.from("story_logs").upsert(row, { onConflict: "id" });
 
   if (error) {
     throw new Error(error.message);
@@ -431,13 +420,7 @@ export async function createStoryPost(data: StoryPostPayload & { actorName: stri
 export async function updateStoryPost(id: number, data: StoryPostPayload & { actorName: string }) {
   const client = getClient();
   const row = toStoryRow({ ...data, id }, Date.now());
-  const { error } = await client.from("story_logs").upsert(
-    {
-      ...row,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "id" },
-  );
+  const { error } = await client.from("story_logs").upsert(row, { onConflict: "id" });
 
   if (error) {
     throw new Error(error.message);

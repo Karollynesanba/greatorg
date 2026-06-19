@@ -270,6 +270,7 @@ export function MemberProfilePage() {
           <DetailGrid
             items={[
               { label: "Posts Criados", value: String(member.stats.postsCreated) },
+              { label: "Visualizacoes do mes", value: new Intl.NumberFormat("pt-BR").format(member.stats.monthlyViews ?? 0) },
               { label: "Engajamento Medio", value: `${member.stats.avgEngagement}%` },
               { label: "Metas Completadas", value: String(member.stats.goalsCompleted) },
               { label: "Pontualidade", value: `${member.stats.punctuality}%` },

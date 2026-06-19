@@ -141,31 +141,31 @@ function buildSvgAreaPoints(values: number[], width: number, height: number, pad
   return `${firstX},${baselineY} ${linePoints} ${lastX},${baselineY}`;
 }
 
-const instagramThemeLight = {
-  ["--primary" as never]: "131 58 180",
+const greatThemeLight = {
+  ["--primary" as never]: "227 6 19",
   ["--primary-foreground" as never]: "255 255 255",
-  ["--background" as never]: "249 249 251",
-  ["--foreground" as never]: "28 28 32",
+  ["--background" as never]: "255 245 245",
+  ["--foreground" as never]: "31 41 55",
   ["--card" as never]: "255 255 255",
-  ["--card-foreground" as never]: "28 28 32",
-  ["--muted" as never]: "245 246 249",
+  ["--card-foreground" as never]: "31 41 55",
+  ["--muted" as never]: "255 245 245",
   ["--muted-foreground" as never]: "111 114 126",
-  ["--border" as never]: "229 231 238",
-  ["--ring" as never]: "131 58 180",
-  ["--shadow" as never]: "131 58 180",
+  ["--border" as never]: "243 209 209",
+  ["--ring" as never]: "227 6 19",
+  ["--shadow" as never]: "227 6 19",
 } as CSSProperties;
 
-const instagramThemeDark = {
-  ["--primary" as never]: "255 99 132",
+const greatThemeDark = {
+  ["--primary" as never]: "227 6 19",
   ["--primary-foreground" as never]: "255 255 255",
-  ["--background" as never]: "8 10 14",
+  ["--background" as never]: "15 12 14",
   ["--foreground" as never]: "244 246 250",
-  ["--card" as never]: "18 21 28",
+  ["--card" as never]: "26 20 22",
   ["--card-foreground" as never]: "244 246 250",
-  ["--muted" as never]: "28 33 42",
+  ["--muted" as never]: "41 28 31",
   ["--muted-foreground" as never]: "168 175 190",
-  ["--border" as never]: "40 46 59",
-  ["--ring" as never]: "255 99 132",
+  ["--border" as never]: "79 49 53",
+  ["--ring" as never]: "227 6 19",
   ["--shadow" as never]: "2 6 23",
 } as CSSProperties;
 
@@ -178,10 +178,10 @@ function InstagramHealthScoreRing({ score }: { score: number }) {
     <div className="relative flex h-56 w-56 items-center justify-center">
       <svg className="-rotate-90 h-56 w-56" viewBox="0 0 180 180">
         <defs>
-          <linearGradient id="instagramRingGradient" x1="0%" x2="100%" y1="0%" y2="100%">
-            <stop offset="0%" stopColor="#833AB4" />
-            <stop offset="52%" stopColor="#E1306C" />
-            <stop offset="100%" stopColor="#F56040" />
+          <linearGradient id="greatRingGradient" x1="0%" x2="100%" y1="0%" y2="100%">
+            <stop offset="0%" stopColor="#8F1D25" />
+            <stop offset="52%" stopColor="#E30613" />
+            <stop offset="100%" stopColor="#F26B74" />
           </linearGradient>
         </defs>
         <circle cx="90" cy="90" r={radius} fill="none" stroke="rgba(255,255,255,0.26)" strokeWidth="12" />
@@ -190,7 +190,7 @@ function InstagramHealthScoreRing({ score }: { score: number }) {
           cy="90"
           r={radius}
           fill="none"
-          stroke="url(#instagramRingGradient)"
+          stroke="url(#greatRingGradient)"
           strokeLinecap="round"
           strokeWidth="12"
           style={{
@@ -245,16 +245,16 @@ function DashboardMetricCard({
     >
       <div className="flex items-start justify-between gap-4">
         <div
-          className="inline-flex h-12 w-12 items-center justify-center rounded-2xl text-[#8A2FB1] ring-1 ring-[#833AB4]/10"
+          className="inline-flex h-12 w-12 items-center justify-center rounded-2xl text-primary ring-1 ring-[rgb(243,209,209)]"
           style={
             darkMode
               ? {
                   background:
-                    "linear-gradient(135deg,rgba(131,58,180,0.14),rgba(225,48,108,0.14),rgba(245,96,64,0.12))",
+                    "linear-gradient(135deg,rgba(143,29,37,0.22),rgba(227,6,19,0.18),rgba(242,107,116,0.14))",
                 }
               : {
-                  background: "rgba(131,58,180,0.08)",
-                  boxShadow: "inset 0 0 0 1px rgba(131,58,180,0.08)",
+                  background: "rgba(255,234,234,1)",
+                  boxShadow: "inset 0 0 0 1px rgba(243,209,209,1)",
                 }
           }
         >
@@ -265,11 +265,11 @@ function DashboardMetricCard({
             "inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold",
             positive
               ? darkMode
-                ? "bg-[#833AB4]/10 text-[#6C2CA1]"
-                : "bg-[#7C3AED]/10 text-[#7C3AED]"
+                ? "bg-[#4d1b20] text-[#ffb3b8]"
+                : "bg-[rgb(255,234,234)] text-primary"
               : darkMode
-                ? "bg-[#F56040]/10 text-[#B94A2D]"
-                : "bg-[#F97316]/10 text-[#C2410C]",
+                ? "bg-[#321518] text-[#ffb3b8]"
+                : "bg-[rgb(255,245,245)] text-[#8F1D25]",
           ].join(" ")}
         >
           <Sparkles className="h-3.5 w-3.5" />
@@ -284,7 +284,7 @@ function DashboardMetricCard({
       </div>
       <div className={darkMode ? "mt-6 h-2 overflow-hidden rounded-full bg-muted" : "mt-6 h-2 overflow-hidden rounded-full bg-slate-100"}>
         <div
-          className="h-full rounded-full bg-[linear-gradient(90deg,#833AB4_0%,#E1306C_50%,#F56040_100%)] transition-[width] duration-500"
+          className="h-full rounded-full bg-[linear-gradient(90deg,#8F1D25_0%,#E30613_55%,#F26B74_100%)] transition-[width] duration-500"
           style={{ width: `${Math.min(Math.abs(change) * 6, 100)}%` }}
         />
       </div>
@@ -305,7 +305,7 @@ function DashboardProgressBar({ value, max, label }: { value: number; max: numbe
       ) : null}
       <div className="h-2.5 overflow-hidden rounded-full bg-muted">
         <div
-          className="h-full rounded-full bg-[linear-gradient(90deg,#833AB4_0%,#E1306C_50%,#F56040_100%)] transition-[width] duration-700 ease-out"
+          className="h-full rounded-full bg-[linear-gradient(90deg,#8F1D25_0%,#E30613_55%,#F26B74_100%)] transition-[width] duration-700 ease-out"
           style={{ width: `${Math.min(progress, 100)}%` }}
         />
       </div>
@@ -392,7 +392,7 @@ export function DashboardPage() {
   const { isDark } = useThemeMode();
   const { session } = useAuthSession();
   const [teamMembers] = useTeamProfiles();
-  const fallbackMember = teamMembers[0] ?? { id: 0, name: "Equipe Great", color: "#833AB4" };
+  const fallbackMember = teamMembers[0] ?? { id: 0, name: "Equipe Great", color: "#E30613" };
   const [posts] = usePosts();
   const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
   const [calendarItems] = useSupabaseSyncedListState<CalendarEvent>({ key: "calendar-events", table: "calendar_events", fallback: [] });
@@ -628,7 +628,7 @@ export function DashboardPage() {
 
   return (
     <PageTransition>
-      <div style={isDark ? instagramThemeDark : instagramThemeLight} className="space-y-6">
+      <div style={isDark ? greatThemeDark : greatThemeLight} className="space-y-6">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-end">
           <div className="flex flex-col gap-3 sm:flex-row">
             <div className="inline-flex items-center gap-3 rounded-2xl border border-border/70 bg-white/90 px-4 py-3 text-sm text-foreground shadow-[0_10px_28px_rgba(15,23,42,0.05)] dark:bg-white/5">
@@ -649,13 +649,13 @@ export function DashboardPage() {
           {showOverallGoalCard ? (
             <DashboardSectionBoundary title="Resumo do dashboard">
               <GlassPanel
-                className="sticky top-4 flex flex-col items-center justify-center overflow-hidden p-6 text-white shadow-[0_28px_60px_rgba(131,58,180,0.18)]"
+                className="sticky top-4 flex flex-col items-center justify-center overflow-hidden p-6 text-white shadow-[0_28px_60px_rgba(227,6,19,0.18)]"
                 index={1}
                 dataCy="dashboard-summary"
                 style={{
                   background: isDark
-                    ? "linear-gradient(145deg, rgba(131,58,180,0.95) 0%, rgba(225,48,108,0.92) 52%, rgba(245,96,64,0.9) 100%)"
-                    : "linear-gradient(145deg, #833AB4 0%, #E1306C 52%, #F56040 100%)",
+                    ? "linear-gradient(145deg, rgba(143,29,37,0.95) 0%, rgba(196,0,16,0.92) 48%, rgba(227,6,19,0.9) 100%)"
+                    : "linear-gradient(145deg, #8F1D25 0%, #C40010 45%, #E30613 100%)",
                   borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.10)",
                 }}
               >
@@ -727,11 +727,11 @@ export function DashboardPage() {
                       />
                       <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                         <span className="inline-flex items-center gap-2">
-                          <span className="h-2.5 w-2.5 rounded-full bg-[#E1306C]" />
+                          <span className="h-2.5 w-2.5 rounded-full bg-[#E30613]" />
                           Visualizações reais
                         </span>
                         <span className="inline-flex items-center gap-2">
-                          <span className="h-2.5 w-2.5 rounded-full bg-[#833AB4]" />
+                          <span className="h-2.5 w-2.5 rounded-full bg-[#8F1D25]" />
                           Alcance real
                         </span>
                         <span className="inline-flex items-center gap-2">
@@ -752,12 +752,12 @@ export function DashboardPage() {
                         <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="h-full w-full" role="img" aria-label="Gráfico de evolução do dashboard">
                           <defs>
                             <linearGradient id="viewsFill" x1="0" x2="0" y1="0" y2="1">
-                              <stop offset="0%" stopColor="rgba(225,48,108,0.24)" />
-                              <stop offset="100%" stopColor="rgba(225,48,108,0.02)" />
+                              <stop offset="0%" stopColor="rgba(227,6,19,0.24)" />
+                              <stop offset="100%" stopColor="rgba(227,6,19,0.02)" />
                             </linearGradient>
                             <linearGradient id="reachFill" x1="0" x2="0" y1="0" y2="1">
-                              <stop offset="0%" stopColor="rgba(131,58,180,0.18)" />
-                              <stop offset="100%" stopColor="rgba(131,58,180,0.02)" />
+                              <stop offset="0%" stopColor="rgba(143,29,37,0.18)" />
+                              <stop offset="100%" stopColor="rgba(143,29,37,0.02)" />
                             </linearGradient>
                           </defs>
                           {chartTicks.map((tick) => (
@@ -769,8 +769,8 @@ export function DashboardPage() {
                           <polygon fill="url(#reachFill)" points={reachArea} />
                           <polygon fill="url(#viewsFill)" points={viewsArea} />
                           <polyline fill="none" stroke="#94A3B8" strokeWidth="2.5" strokeDasharray="8 8" points={projectedPolyline} />
-                          <polyline fill="none" stroke="#833AB4" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" points={reachPolyline} />
-                          <polyline fill="none" stroke="#E1306C" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" points={viewsPolyline} />
+                          <polyline fill="none" stroke="#8F1D25" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" points={reachPolyline} />
+                          <polyline fill="none" stroke="#E30613" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" points={viewsPolyline} />
                           {(() => {
                             const lastIndex = evolutionData.length - 1;
                             const lastX = chartPadding + (lastIndex <= 0 ? (chartWidth - chartPadding * 2) / 2 : (lastIndex / lastIndex) * (chartWidth - chartPadding * 2));
@@ -779,8 +779,8 @@ export function DashboardPage() {
                             const lastReachY = chartHeight - chartPadding - (Math.max(0, lastEvolutionPoint.reach) / chartMaxValue) * usableHeight;
                             return (
                               <>
-                                <circle cx={lastX} cy={lastViewsY} r="5" fill="#E1306C" />
-                                <circle cx={lastX} cy={lastReachY} r="5" fill="#833AB4" />
+                                <circle cx={lastX} cy={lastViewsY} r="5" fill="#E30613" />
+                                <circle cx={lastX} cy={lastReachY} r="5" fill="#8F1D25" />
                               </>
                             );
                           })()}
@@ -798,13 +798,13 @@ export function DashboardPage() {
                       <div className="rounded-[1.6rem] border border-border/60 bg-white/72 px-4 py-4 dark:bg-white/5">
                         <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Visualizações atuais</p>
                         <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{formatLongNumber(lastEvolutionPoint.views)}</p>
-                        <p className="mt-1 text-sm text-[#E1306C]">Faltam {formatLongNumber(remainingViews)} para a meta</p>
+                        <p className="mt-1 text-sm text-primary">Faltam {formatLongNumber(remainingViews)} para a meta</p>
                       </div>
                       <div className="rounded-[1.6rem] border border-border/60 bg-white/72 px-4 py-4 dark:bg-white/5">
                         <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Meta do mês</p>
                         <p className="mt-2 text-2xl font-semibold text-foreground">{formatLongNumber(monthlyViewsGoal)}</p>
                         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
-                          <div className="h-full rounded-full bg-[linear-gradient(90deg,#833AB4_0%,#E1306C_60%,#F56040_100%)]" style={{ width: `${Math.min((monthViews / Math.max(monthlyViewsGoal, 1)) * 100, 100)}%` }} />
+                          <div className="h-full rounded-full bg-[linear-gradient(90deg,#8F1D25_0%,#C40010_45%,#E30613_100%)]" style={{ width: `${Math.min((monthViews / Math.max(monthlyViewsGoal, 1)) * 100, 100)}%` }} />
                         </div>
                       </div>
                       <div className="rounded-[1.6rem] border border-border/60 bg-white/72 px-4 py-4 dark:bg-white/5">
@@ -851,7 +851,7 @@ export function DashboardPage() {
               />
               <Link
                 to="/content"
-                className="text-sm font-semibold text-[#833AB4] transition hover:text-[#6C2CA1] dark:text-[#ff9db2] dark:hover:text-[#ffc0cd]"
+                className="text-sm font-semibold text-primary transition hover:text-[#C40010] dark:text-[#ffb3b8] dark:hover:text-white"
               >
                 Ver aba conteúdo
               </Link>
@@ -863,7 +863,7 @@ export function DashboardPage() {
                     <p className="text-sm font-semibold text-foreground">Top conteúdos</p>
                     <p className="text-xs text-muted-foreground">Os posts com melhor desempenho no recorte atual.</p>
                   </div>
-                  <span className="rounded-full bg-[#833AB4]/8 px-3 py-1 text-xs font-semibold text-[#6C2CA1] dark:bg-white/5 dark:text-[#ff9db2]">
+                  <span className="rounded-full bg-[rgb(255,234,234)] px-3 py-1 text-xs font-semibold text-primary dark:bg-white/5 dark:text-[#ffb3b8]">
                     Melhor resultado
                   </span>
                 </div>
@@ -875,9 +875,9 @@ export function DashboardPage() {
                       <Link
                         key={post.id}
                         to={`/post/${post.id}`}
-                        className="grid grid-cols-[34px_minmax(0,1fr)_78px_82px] items-center gap-3 rounded-2xl border border-border/60 bg-white/78 px-3 py-3 transition hover:-translate-y-0.5 hover:border-[#833AB4]/16 hover:shadow-[0_12px_24px_rgba(131,58,180,0.07)] dark:border-white/8 dark:bg-white/5"
+                        className="grid grid-cols-[34px_minmax(0,1fr)_78px_82px] items-center gap-3 rounded-2xl border border-border/60 bg-white/78 px-3 py-3 transition hover:-translate-y-0.5 hover:border-[rgb(243,209,209)] hover:shadow-[0_12px_24px_rgba(227,6,19,0.08)] dark:border-white/8 dark:bg-white/5"
                       >
-                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[linear-gradient(135deg,rgba(131,58,180,0.12),rgba(225,48,108,0.12),rgba(245,96,64,0.1))] text-xs font-semibold text-[#833AB4]">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[linear-gradient(135deg,rgba(255,234,234,1),rgba(255,245,245,1),rgba(243,209,209,0.9))] text-xs font-semibold text-primary">
                           {index + 1}
                         </div>
                         <div className="min-w-0">
@@ -909,7 +909,7 @@ export function DashboardPage() {
                     <p className="text-sm font-semibold text-foreground">Conteúdos com baixa performance</p>
                     <p className="text-xs text-muted-foreground">Peças que pedem ajuste de gancho, CTA ou formato.</p>
                   </div>
-                  <span className="rounded-full bg-[#F56040]/8 px-3 py-1 text-xs font-semibold text-[#B94A2D] dark:bg-[#251913] dark:text-[#ffab8c]">
+                  <span className="rounded-full bg-[rgb(255,245,245)] px-3 py-1 text-xs font-semibold text-[#8F1D25] dark:bg-[#251913] dark:text-[#ffb3b8]">
                     Atenção
                   </span>
                 </div>
@@ -921,7 +921,7 @@ export function DashboardPage() {
                       <Link
                         key={post.id}
                         to={`/post/${post.id}`}
-                        className="grid grid-cols-[minmax(0,1fr)_78px_82px] items-center gap-3 rounded-2xl border border-[#F56040]/10 bg-[linear-gradient(135deg,rgba(255,248,250,0.92),rgba(255,245,240,0.94))] px-3 py-3 transition hover:-translate-y-0.5 hover:shadow-[0_12px_24px_rgba(245,96,64,0.08)] dark:border-[#F56040]/16 dark:bg-[linear-gradient(180deg,rgba(29,23,25,0.98),rgba(22,18,19,0.98))]"
+                        className="grid grid-cols-[minmax(0,1fr)_78px_82px] items-center gap-3 rounded-2xl border border-[rgb(243,209,209)] bg-[linear-gradient(135deg,rgba(255,245,245,0.96),rgba(255,234,234,0.92))] px-3 py-3 transition hover:-translate-y-0.5 hover:shadow-[0_12px_24px_rgba(227,6,19,0.08)] dark:border-[#6b3136] dark:bg-[linear-gradient(180deg,rgba(29,23,25,0.98),rgba(22,18,19,0.98))]"
                       >
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold text-foreground">{post.title}</p>
@@ -986,7 +986,7 @@ export function DashboardPage() {
                         <div className="space-y-2">
                           <div className="flex items-center justify-between gap-3">
                             <h3 className="text-base font-semibold text-foreground">{metric.label}</h3>
-                            <span className="text-sm font-semibold text-[#833AB4]">{formatPercent(metric.percent, 0)}</span>
+                            <span className="text-sm font-semibold text-primary">{formatPercent(metric.percent, 0)}</span>
                           </div>
                           <div className="grid grid-cols-2 gap-3 text-sm text-muted-foreground">
                             <p>Resultado<br /><span className="font-semibold text-foreground">{formatLongNumber(metric.actual)}</span></p>

@@ -462,18 +462,12 @@ export async function signInWithProfile(email: string, password?: string) {
     throw new Error("Perfil indisponivel.");
   }
 
-  const nextPassword = password?.trim() || getStoredPassword(account.email) || account.password;
-  try {
-    return await signInWithPassword(account.email, nextPassword);
-  } catch (error) {
-    const localSession = createLocalSession(account);
-    saveSession(localSession);
-    console.warn("[Auth] Falling back to local demo session", {
-      email: account.email,
-      reason: error instanceof Error ? error.message : String(error),
-    });
-    return localSession;
+  const nextPassword = password?.trim();
+  if (!nextPassword) {
+    throw new Error("Informe a senha para entrar com este perfil.");
   }
+
+  return signInWithPassword(account.email, nextPassword);
 }
 
 export async function updateDemoAccountPassword(userId: string, nextPassword: string) {
