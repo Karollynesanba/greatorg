@@ -47,6 +47,7 @@ const SESSION_KEY = "great-organico:auth-session";
 const PASSWORDS_KEY = "great-organico:demo-passwords";
 export const authStorageKey = "great-organico-authenticated";
 export const authMemberIdKey = "great-organico-authenticated-member-id";
+const SESSION_RECOVERY_GRACE_MS = 5000;
 
 const demoAccounts: DemoAccount[] = [
   {
@@ -193,28 +194,51 @@ async function clearSupabaseSession() {
   }
 }
 
+function readLegacyDemoSession() {
+  const legacyAuth = typeof window !== "undefined" ? window.localStorage.getItem(authStorageKey) : null;
+  if (legacyAuth !== "true") {
+    return null;
+  }
+
+  const legacyMemberId = typeof window !== "undefined" ? window.localStorage.getItem(authMemberIdKey) : null;
+  const parsedLegacyMemberId = legacyMemberId ? Number(legacyMemberId) : null;
+  const legacyAccount =
+    Number.isFinite(parsedLegacyMemberId) && parsedLegacyMemberId && parsedLegacyMemberId > 0
+      ? demoAccounts[parsedLegacyMemberId - 1] ?? demoAccounts[0]
+      : demoAccounts.find((account) => normalizeEmail(account.email) === normalizeEmail(legacyMemberId ?? "")) ?? demoAccounts[0];
+  return createLocalSession(legacyAccount);
+}
+
 function readLocalSession() {
   const session = readStoredSession();
   if (session) {
     return session;
   }
 
-  if (!session) {
-    const legacyAuth = typeof window !== "undefined" ? window.localStorage.getItem(authStorageKey) : null;
-    if (legacyAuth !== "true") {
-      return null;
-    }
-
-    const legacyMemberId = typeof window !== "undefined" ? window.localStorage.getItem(authMemberIdKey) : null;
-    const parsedLegacyMemberId = legacyMemberId ? Number(legacyMemberId) : null;
-    const legacyAccount =
-      Number.isFinite(parsedLegacyMemberId) && parsedLegacyMemberId && parsedLegacyMemberId > 0
-        ? demoAccounts[parsedLegacyMemberId - 1] ?? demoAccounts[0]
-        : demoAccounts.find((account) => normalizeEmail(account.email) === normalizeEmail(legacyMemberId ?? "")) ?? demoAccounts[0];
-    return createLocalSession(legacyAccount);
+  if (!isSupabaseConfigured() || !supabase) {
+    return readLegacyDemoSession();
   }
 
   return null;
+}
+
+async function recoverSupabaseSession() {
+  if (!isSupabaseConfigured() || !supabase) {
+    return null;
+  }
+
+  const client = supabase;
+  const currentSession = await client.auth.getSession();
+  if (currentSession.data.session) {
+    return currentSession.data.session;
+  }
+
+  const refreshedSession = await client.auth.refreshSession();
+  if (refreshedSession.error) {
+    throw refreshedSession.error;
+  }
+
+  return refreshedSession.data.session ?? null;
 }
 
 function buildAuthErrorMessage(message: string, email?: string) {
@@ -307,31 +331,83 @@ export function useAuthSession() {
 
     let cancelled = false;
     const client = supabase;
+    let recoveryTimeoutId: number | null = null;
 
-    const applySupabaseSession = (session: Session | null) => {
-    const nextSession = session ? toStoredSession(session) : null;
-      if (nextSession) {
-        saveSession(nextSession);
-      } else {
-        const previousSession = readStoredSession();
-        if (previousSession && !isSessionExpired(previousSession)) {
-          console.warn("[Init] Supabase session missing; keeping last known local session", {
-            userId: previousSession.user.id,
-            email: previousSession.user.email,
-          });
-          setState({ session: previousSession, ready: true });
+    const clearRecoveryTimeout = () => {
+      if (recoveryTimeoutId !== null) {
+        window.clearTimeout(recoveryTimeoutId);
+        recoveryTimeoutId = null;
+      }
+    };
+
+    const clearPersistedSession = () => {
+      saveSession(null);
+      console.info("[Init] User session updated", {
+        authenticated: false,
+        userId: null,
+        email: null,
+        source: "supabase",
+      });
+      setState({ session: null, ready: true });
+    };
+
+    const tryRecoverPersistedSession = async () => {
+      try {
+        const recoveredSession = await recoverSupabaseSession();
+        if (cancelled) {
           return;
         }
 
-        saveSession(null);
+        if (recoveredSession) {
+          const nextSession = toStoredSession(recoveredSession);
+          saveSession(nextSession);
+          console.info("[Init] Supabase session recovered from persisted credentials", {
+            userId: nextSession.user.id,
+            email: nextSession.user.email,
+          });
+          setState({ session: nextSession, ready: true });
+          return;
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.warn("[Init] Supabase session recovery failed", error);
+        }
       }
-      console.info("[Init] User session updated", {
-        authenticated: Boolean(nextSession),
-        userId: nextSession?.user.id ?? null,
-        email: nextSession?.user.email ?? null,
-        source: "supabase",
-      });
-      setState({ session: nextSession, ready: true });
+
+      if (!cancelled) {
+        clearPersistedSession();
+      }
+    };
+
+    const applySupabaseSession = (session: Session | null) => {
+      clearRecoveryTimeout();
+      const nextSession = session ? toStoredSession(session) : null;
+      if (nextSession) {
+        saveSession(nextSession);
+        console.info("[Init] User session updated", {
+          authenticated: true,
+          userId: nextSession.user.id,
+          email: nextSession.user.email,
+          source: "supabase",
+        });
+        setState({ session: nextSession, ready: true });
+        return;
+      }
+
+      const previousSession = readStoredSession();
+      if (previousSession && !isSessionExpired(previousSession)) {
+        console.warn("[Init] Supabase session temporarily unavailable; keeping last known session during recovery window", {
+          userId: previousSession.user.id,
+          email: previousSession.user.email,
+        });
+        setState({ session: previousSession, ready: true });
+        recoveryTimeoutId = window.setTimeout(() => {
+          void tryRecoverPersistedSession();
+        }, SESSION_RECOVERY_GRACE_MS);
+        return;
+      }
+
+      clearPersistedSession();
     };
 
     const initialize = async () => {
@@ -344,7 +420,23 @@ export function useAuthSession() {
         console.error("Failed to read Supabase auth session", error);
       }
 
-      applySupabaseSession(data.session ?? null);
+      if (data.session) {
+        applySupabaseSession(data.session);
+        return;
+      }
+
+      const previousSession = readStoredSession();
+      if (previousSession && !isSessionExpired(previousSession)) {
+        console.warn("[Init] No session returned on first read; attempting Supabase recovery before logout", {
+          userId: previousSession.user.id,
+          email: previousSession.user.email,
+        });
+        setState({ session: previousSession, ready: true });
+        void tryRecoverPersistedSession();
+        return;
+      }
+
+      applySupabaseSession(null);
     };
 
     void initialize();
@@ -359,6 +451,7 @@ export function useAuthSession() {
 
     return () => {
       cancelled = true;
+      clearRecoveryTimeout();
       authListener.subscription.unsubscribe();
     };
   }, []);
@@ -443,17 +536,11 @@ export async function signInOrBootstrapDemoAccount(email: string, password: stri
     writePasswordMap(currentPasswords);
   }
 
-  try {
-    return await signInWithPassword(account.email, password);
-  } catch (error) {
-    const localSession = createLocalSession(account);
-    saveSession(localSession);
-    console.warn("[Auth] Falling back to local demo session", {
-      email: account.email,
-      reason: error instanceof Error ? error.message : String(error),
-    });
-    return localSession;
+  if (isSupabaseConfigured() && supabase) {
+    return signInWithPassword(account.email, password);
   }
+
+  return signInWithPassword(account.email, password);
 }
 
 export async function signInWithProfile(email: string, password?: string) {

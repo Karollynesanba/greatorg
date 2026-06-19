@@ -4,6 +4,7 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
 const SUPABASE_STORAGE_KEY = "great-organico:supabase-auth";
 const memoryStorage = new Map<string, string>();
+const storageProbeKey = `${SUPABASE_STORAGE_KEY}:probe`;
 
 const hasSupabaseConfig =
   Boolean(supabaseUrl) &&
@@ -34,9 +35,15 @@ if (!hasSupabaseConfig) {
   console.error("[Init] Supabase environment is incomplete. Expected VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
 }
 
-function canUseLocalStorage() {
+function canUseStorage(storage: "localStorage" | "sessionStorage") {
   try {
-    return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+    if (typeof window === "undefined" || typeof window[storage] === "undefined") {
+      return false;
+    }
+
+    window[storage].setItem(storageProbeKey, "1");
+    window[storage].removeItem(storageProbeKey);
+    return true;
   } catch {
     return false;
   }
@@ -44,9 +51,23 @@ function canUseLocalStorage() {
 
 const supabaseStorage = {
   getItem(key: string) {
-    if (canUseLocalStorage()) {
+    if (canUseStorage("localStorage")) {
       try {
-        return window.localStorage.getItem(key);
+        const value = window.localStorage.getItem(key);
+        if (value !== null) {
+          return value;
+        }
+      } catch {
+        return memoryStorage.get(key) ?? null;
+      }
+    }
+
+    if (canUseStorage("sessionStorage")) {
+      try {
+        const value = window.sessionStorage.getItem(key);
+        if (value !== null) {
+          return value;
+        }
       } catch {
         return memoryStorage.get(key) ?? null;
       }
@@ -55,29 +76,48 @@ const supabaseStorage = {
     return memoryStorage.get(key) ?? null;
   },
   setItem(key: string, value: string) {
-    if (canUseLocalStorage()) {
+    let persisted = false;
+
+    if (canUseStorage("localStorage")) {
       try {
         window.localStorage.setItem(key, value);
-        return;
+        persisted = true;
       } catch {
-        memoryStorage.set(key, value);
-        return;
+        persisted = false;
+      }
+    }
+
+    if (canUseStorage("sessionStorage")) {
+      try {
+        window.sessionStorage.setItem(key, value);
+        persisted = true;
+      } catch {
+        persisted = persisted || false;
       }
     }
 
     memoryStorage.set(key, value);
+    if (!persisted) {
+      console.warn("[Init] Supabase auth is using in-memory storage fallback only for this tab.");
+    }
   },
   removeItem(key: string) {
     memoryStorage.delete(key);
 
-    if (!canUseLocalStorage()) {
-      return;
+    if (canUseStorage("localStorage")) {
+      try {
+        window.localStorage.removeItem(key);
+      } catch {
+        // Ignore storage cleanup failures.
+      }
     }
 
-    try {
-      window.localStorage.removeItem(key);
-    } catch {
-      return;
+    if (canUseStorage("sessionStorage")) {
+      try {
+        window.sessionStorage.removeItem(key);
+      } catch {
+        // Ignore storage cleanup failures.
+      }
     }
   },
 };
