@@ -301,6 +301,7 @@ type SharedStateRow<T> = {
   key: string;
   value: T;
   updated_at?: string;
+  user_id?: string | null;
 };
 
 function getErrorMessage(error: unknown) {
@@ -311,12 +312,48 @@ function isMissingSharedStateConstraint(error: unknown) {
   return /no unique or exclusion constraint matching the on conflict specification/i.test(getErrorMessage(error));
 }
 
-async function fetchSharedStateRow<T>(key: string) {
+function isMissingColumnError(error: unknown, column: string) {
+  const escapedColumn = column.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`column\\s+.*${escapedColumn}.*does not exist`, "i").test(getErrorMessage(error));
+}
+
+function isUserScopedSharedStateRequired(error: unknown) {
+  return /(null value in column "user_id"|violates row-level security policy|new row violates row-level security policy)/i.test(
+    getErrorMessage(error),
+  );
+}
+
+async function fetchSharedStateRow<T>(key: string, currentUserId: string | null) {
   if (!supabase) {
-    return { row: null as SharedStateRow<T> | null, error: null as { message: string } | null };
+    return { row: null as SharedStateRow<T> | null, error: null as { message: string } | null, mode: null as string | null };
   }
 
-  const { data, error } = await supabase
+  const errors: string[] = [];
+
+  if (currentUserId) {
+    const scopedResult = await supabase
+      .from("shared_state")
+      .select("key, value, updated_at, user_id")
+      .eq("key", key)
+      .eq("user_id", currentUserId)
+      .order("updated_at", { ascending: false })
+      .limit(1);
+
+    if (!scopedResult.error) {
+      const scopedRow = (scopedResult.data?.[0] as SharedStateRow<T> | undefined) ?? null;
+      if (scopedRow) {
+        return {
+          row: scopedRow,
+          error: null,
+          mode: "user-scoped",
+        };
+      }
+    } else if (!isMissingColumnError(scopedResult.error, "user_id")) {
+      errors.push(`user-scoped load failed: ${scopedResult.error.message}`);
+    }
+  }
+
+  const globalResult = await supabase
     .from("shared_state")
     .select("key, value, updated_at")
     .eq("key", key)
@@ -324,35 +361,73 @@ async function fetchSharedStateRow<T>(key: string) {
     .limit(1);
 
   return {
-    row: (data?.[0] as SharedStateRow<T> | undefined) ?? null,
-    error,
+    row: (globalResult.data?.[0] as SharedStateRow<T> | undefined) ?? null,
+    error:
+      globalResult.error ??
+      (errors.length > 0
+        ? {
+            message: errors.join(" | "),
+          }
+        : null),
+    mode: globalResult.error ? null : "global",
   };
 }
 
-async function persistSharedStateValue<T>(key: string, value: T) {
+async function persistSharedStateValue<T>(key: string, value: T, currentUserId: string | null) {
   if (!supabase) {
-    return;
+    return { mode: "memory" as const };
   }
 
-  const row = {
+  const updatedAt = new Date().toISOString();
+  const errors: string[] = [];
+
+  if (currentUserId) {
+    const scopedRow = {
+      user_id: currentUserId,
+      key,
+      value,
+      updated_at: updatedAt,
+    };
+    const scopedResult = await supabase.from("shared_state").upsert(scopedRow, { onConflict: "user_id,key" });
+
+    if (!scopedResult.error) {
+      return { mode: "user-scoped" as const };
+    }
+
+    errors.push(`user-scoped save failed: ${scopedResult.error.message}`);
+
+    if (!isMissingSharedStateConstraint(scopedResult.error) && !isMissingColumnError(scopedResult.error, "user_id")) {
+      if (!isUserScopedSharedStateRequired(scopedResult.error)) {
+        throw scopedResult.error;
+      }
+    }
+  }
+
+  const globalRow = {
     key,
     value,
-    updated_at: new Date().toISOString(),
+    updated_at: updatedAt,
   };
-  const { error } = await supabase.from("shared_state").upsert(row, { onConflict: "key" });
+  const globalResult = await supabase.from("shared_state").upsert(globalRow, { onConflict: "key" });
 
-  if (!error) {
-    return;
+  if (!globalResult.error) {
+    return { mode: "global" as const };
   }
 
-  if (!isMissingSharedStateConstraint(error)) {
-    throw error;
+  errors.push(`global save failed: ${globalResult.error.message}`);
+
+  if (!isMissingSharedStateConstraint(globalResult.error)) {
+    throw new Error(errors.join(" | "));
   }
 
-  const { error: insertError } = await supabase.from("shared_state").insert(row);
+  const fallbackRow = currentUserId ? { ...globalRow, user_id: currentUserId } : globalRow;
+  const { error: insertError } = await supabase.from("shared_state").insert(fallbackRow);
   if (insertError) {
-    throw insertError;
+    errors.push(`insert fallback failed: ${insertError.message}`);
+    throw new Error(errors.join(" | "));
   }
+
+  return { mode: currentUserId ? "user-scoped-insert" as const : "global-insert" as const };
 }
 
 export function useSupabaseSharedState<T>(options: {
@@ -365,9 +440,14 @@ export function useSupabaseSharedState<T>(options: {
   const hydratedRef = useRef(false);
   const lastRemoteSnapshotRef = useRef<string | null>(null);
   const supabaseClient = supabase;
+  const currentUserId = session?.user.id ?? null;
 
   useEffect(() => {
-    if (!authReady || !isSupabaseConfigured() || !supabaseClient || !session || isDemoSession(session)) {
+    if (!authReady) {
+      return;
+    }
+
+    if (!isSupabaseConfigured() || !supabaseClient || !session || isDemoSession(session)) {
       hydratedRef.current = true;
       setHydrated(true);
       return;
@@ -376,14 +456,18 @@ export function useSupabaseSharedState<T>(options: {
     let cancelled = false;
 
     const loadRemote = async () => {
-      const { row, error } = await fetchSharedStateRow<T>(options.key);
+      const { row, error, mode } = await fetchSharedStateRow<T>(options.key, currentUserId);
 
       if (cancelled) {
         return;
       }
 
       if (error) {
-        console.warn("Supabase shared_state load failed:", error.message);
+        console.warn("Supabase shared_state load failed:", {
+          key: options.key,
+          userId: currentUserId,
+          error: error.message,
+        });
         hydratedRef.current = true;
         setHydrated(true);
         return;
@@ -391,6 +475,11 @@ export function useSupabaseSharedState<T>(options: {
 
       const remoteValue = row?.value;
       if (typeof remoteValue !== "undefined") {
+        console.info("[SharedState] Loaded remote value", {
+          key: options.key,
+          mode,
+          userId: currentUserId,
+        });
         lastRemoteSnapshotRef.current = JSON.stringify(remoteValue);
         setValue(remoteValue);
         hydratedRef.current = true;
@@ -400,7 +489,7 @@ export function useSupabaseSharedState<T>(options: {
 
       let seedError: { message: string } | null = null;
       try {
-        await persistSharedStateValue(options.key, options.fallback);
+        await persistSharedStateValue(options.key, options.fallback, currentUserId);
       } catch (error) {
         seedError = {
           message: getErrorMessage(error),
@@ -412,7 +501,11 @@ export function useSupabaseSharedState<T>(options: {
       }
 
       if (seedError) {
-        console.warn("Supabase shared_state seed failed:", seedError.message);
+        console.warn("Supabase shared_state seed failed:", {
+          key: options.key,
+          userId: currentUserId,
+          error: seedError.message,
+        });
       }
 
       lastRemoteSnapshotRef.current = JSON.stringify(options.fallback);
@@ -426,7 +519,7 @@ export function useSupabaseSharedState<T>(options: {
     return () => {
       cancelled = true;
     };
-  }, [authReady, options.fallback, options.key, session, supabaseClient]);
+  }, [authReady, currentUserId, options.fallback, options.key, session, supabaseClient]);
 
   useEffect(() => {
     if (
@@ -449,18 +542,42 @@ export function useSupabaseSharedState<T>(options: {
 
     const persistRemote = async () => {
       try {
-        await persistSharedStateValue(options.key, value);
+        const result = await persistSharedStateValue(options.key, value, currentUserId);
         if (cancelled) {
           return;
         }
 
+        console.info("[SharedState] Saved remote value", {
+          key: options.key,
+          mode: result.mode,
+          userId: currentUserId,
+        });
         lastRemoteSnapshotRef.current = snapshot;
       } catch (error) {
         if (cancelled) {
           return;
         }
 
-        console.warn("Supabase shared_state save failed:", getErrorMessage(error));
+        console.error("Supabase shared_state save failed:", {
+          key: options.key,
+          userId: currentUserId,
+          error: getErrorMessage(error),
+        });
+
+        const { row } = await fetchSharedStateRow<T>(options.key, currentUserId);
+        if (cancelled) {
+          return;
+        }
+
+        if (typeof row?.value !== "undefined") {
+          const remoteSnapshot = JSON.stringify(row.value);
+          lastRemoteSnapshotRef.current = remoteSnapshot;
+          setValue(row.value);
+          return;
+        }
+
+        lastRemoteSnapshotRef.current = JSON.stringify(options.fallback);
+        setValue(options.fallback);
       }
     };
 
@@ -469,7 +586,7 @@ export function useSupabaseSharedState<T>(options: {
     return () => {
       cancelled = true;
     };
-  }, [authReady, options.key, session, supabaseClient, value]);
+  }, [authReady, currentUserId, options.fallback, options.key, session, supabaseClient, value]);
 
   useEffect(() => {
     if (!isSupabaseConfigured() || !supabaseClient || !session || isDemoSession(session)) {
@@ -484,13 +601,17 @@ export function useSupabaseSharedState<T>(options: {
         "postgres_changes",
         { event: "*", schema: "public", table: "shared_state", filter: `key=eq.${options.key}` },
         () => {
-          void fetchSharedStateRow<T>(options.key).then(({ row, error }) => {
+          void fetchSharedStateRow<T>(options.key, currentUserId).then(({ row, error, mode }) => {
             if (cancelled) {
               return;
             }
 
             if (error) {
-              console.warn("Supabase shared_state realtime refresh failed:", error.message);
+              console.warn("Supabase shared_state realtime refresh failed:", {
+                key: options.key,
+                userId: currentUserId,
+                error: error.message,
+              });
               return;
             }
 
@@ -504,6 +625,11 @@ export function useSupabaseSharedState<T>(options: {
               return;
             }
 
+            console.info("[SharedState] Realtime refresh applied", {
+              key: options.key,
+              mode,
+              userId: currentUserId,
+            });
             lastRemoteSnapshotRef.current = snapshot;
             setValue(nextValue);
           }).catch((error) => {
@@ -511,7 +637,11 @@ export function useSupabaseSharedState<T>(options: {
               return;
             }
 
-            console.warn("Supabase shared_state realtime refresh failed:", getErrorMessage(error));
+            console.warn("Supabase shared_state realtime refresh failed:", {
+              key: options.key,
+              userId: currentUserId,
+              error: getErrorMessage(error),
+            });
           });
         },
       )
@@ -521,7 +651,7 @@ export function useSupabaseSharedState<T>(options: {
       cancelled = true;
       void supabaseClient.removeChannel(channel);
     };
-  }, [options.key, session, supabaseClient]);
+  }, [currentUserId, options.key, session, supabaseClient]);
 
   return [value, setValue, hydrated] as const;
 }

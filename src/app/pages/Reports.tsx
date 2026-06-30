@@ -2214,6 +2214,7 @@ export function ReportsPage() {
                       <button
                         type="button"
                         onClick={openOverviewEditor}
+                        data-cy="reports-overview-edit"
                         className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border/70 bg-white text-foreground shadow-[0_10px_22px_rgba(15,23,42,0.08)] transition hover:border-primary/25 hover:text-primary hover:shadow-md"
                         aria-label="Editar visão geral"
                       >
@@ -2297,7 +2298,7 @@ export function ReportsPage() {
 
         <div className="space-y-6">
               {reportRows.map((row, rowIndex) => (
-                <section key={row.title} className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.05)]">
+                <section key={row.title} data-cy={`reports-row-${rowIndex}`} className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.05)]">
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <h2 className="text-lg font-semibold tracking-tight text-foreground">{row.title}</h2>
@@ -2315,6 +2316,7 @@ export function ReportsPage() {
                       <button
                         type="button"
                         onClick={() => openAddReportCard(rowIndex)}
+                        data-cy={`reports-row-${rowIndex}-add-card`}
                         className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-white px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/25 hover:shadow-md"
                       >
                     <Plus className="h-4 w-4" />
@@ -2360,6 +2362,7 @@ export function ReportsPage() {
                       <button
                         type="button"
                         onClick={() => openEditReportCard(rowIndex, itemIndex)}
+                        data-cy={`reports-row-${rowIndex}-card-${itemIndex}-edit`}
                         className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/92 text-foreground shadow-md transition hover:bg-white hover:text-primary"
                         aria-label={`Editar ${item.title}`}
                       >
@@ -2368,6 +2371,7 @@ export function ReportsPage() {
                       <button
                         type="button"
                         onClick={() => handleDeleteReportCard(rowIndex, itemIndex)}
+                        data-cy={`reports-row-${rowIndex}-card-${itemIndex}-delete`}
                         className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/92 text-destructive shadow-md transition hover:bg-white"
                         aria-label={`Apagar ${item.title}`}
                       >
@@ -2439,6 +2443,7 @@ export function ReportsPage() {
               <label className="grid gap-2">
                 <span className="text-sm font-medium text-foreground">Faixa superior</span>
                 <input
+                  data-cy="reports-overview-badge"
                   value={overviewForm.badge}
                   onChange={(event) => setOverviewForm((previous) => ({ ...previous, badge: event.target.value }))}
                   className="rounded-2xl border border-border/60 bg-white px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary/30"
@@ -2447,6 +2452,7 @@ export function ReportsPage() {
               <label className="grid gap-2">
                 <span className="text-sm font-medium text-foreground">Título</span>
                 <input
+                  data-cy="reports-overview-title"
                   value={overviewForm.title}
                   onChange={(event) => setOverviewForm((previous) => ({ ...previous, title: event.target.value }))}
                   className="rounded-2xl border border-border/60 bg-white px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary/30"
@@ -2455,6 +2461,7 @@ export function ReportsPage() {
               <label className="grid gap-2">
                 <span className="text-sm font-medium text-foreground">Descrição</span>
                 <textarea
+                  data-cy="reports-overview-description"
                   value={overviewForm.description}
                   onChange={(event) => setOverviewForm((previous) => ({ ...previous, description: event.target.value }))}
                   rows={4}
@@ -2464,6 +2471,7 @@ export function ReportsPage() {
               <label className="grid gap-2">
                 <span className="text-sm font-medium text-foreground">Selo inferior</span>
                 <input
+                  data-cy="reports-overview-note"
                   value={overviewForm.note}
                   onChange={(event) => setOverviewForm((previous) => ({ ...previous, note: event.target.value }))}
                   className="rounded-2xl border border-border/60 bg-white px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary/30"
@@ -2480,6 +2488,7 @@ export function ReportsPage() {
                 Cancelar
               </button>
               <ActionButton
+                dataCy="reports-overview-save"
                 onClick={() => {
                   setOverviewDraft(overviewForm);
                   setIsOverviewModalOpen(false);
@@ -2599,6 +2608,7 @@ export function ReportsPage() {
                 <label className="grid gap-2">
                   <span className="text-sm font-medium text-foreground">Título</span>
                   <input
+                    data-cy="reports-card-title"
                     value={cardDraft.title}
                     onChange={(event) => setCardDraft((previous) => (previous ? { ...previous, title: event.target.value } : previous))}
                     className="rounded-2xl border border-border/60 bg-white px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary/30"
@@ -2609,6 +2619,7 @@ export function ReportsPage() {
                 <label className="grid gap-2">
                   <span className="text-sm font-medium text-foreground">Métrica</span>
                   <input
+                    data-cy="reports-card-metric"
                     value={cardDraft.metric}
                     onChange={(event) => setCardDraft((previous) => (previous ? { ...previous, metric: event.target.value } : previous))}
                     className="rounded-2xl border border-border/60 bg-white px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary/30"
@@ -2619,6 +2630,7 @@ export function ReportsPage() {
                 <label className="grid gap-2">
                   <span className="text-sm font-medium text-foreground">Cor de destaque</span>
                   <input
+                    data-cy="reports-card-accent"
                     value={cardDraft.accent}
                     onChange={(event) => setCardDraft((previous) => (previous ? { ...previous, accent: event.target.value } : previous))}
                     className="rounded-2xl border border-border/60 bg-white px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary/30"
@@ -2687,7 +2699,7 @@ export function ReportsPage() {
               >
                 Cancelar
               </button>
-              <ActionButton onClick={saveCardDraft}>{cardDraft.itemIndex === null ? "Adicionar card" : "Salvar card"}</ActionButton>
+              <ActionButton dataCy="reports-card-save" onClick={saveCardDraft}>{cardDraft.itemIndex === null ? "Adicionar card" : "Salvar card"}</ActionButton>
             </div>
           </div>
         </div>

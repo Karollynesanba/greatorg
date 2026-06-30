@@ -6,7 +6,16 @@ const SUPABASE_STORAGE_KEY = "great-organico:supabase-auth";
 const memoryStorage = new Map<string, string>();
 const storageProbeKey = `${SUPABASE_STORAGE_KEY}:probe`;
 
+function isCypressRuntime() {
+  return typeof window !== "undefined" && Boolean((window as Window & { Cypress?: unknown }).Cypress);
+}
+
+function shouldDisableSupabaseInCypress() {
+  return import.meta.env.VITE_ENABLE_SUPABASE_IN_CYPRESS !== "true";
+}
+
 const hasSupabaseConfig =
+  (!isCypressRuntime() || !shouldDisableSupabaseInCypress()) &&
   Boolean(supabaseUrl) &&
   Boolean(supabaseAnonKey) &&
   !supabaseUrl!.includes("YOUR-PROJECT-REF") &&
