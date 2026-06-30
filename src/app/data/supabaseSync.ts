@@ -426,10 +426,17 @@ export function useSupabaseSharedState<T>(options: {
     return () => {
       cancelled = true;
     };
-  }, [authReady, options.fallback, options.key, supabaseClient]);
+  }, [authReady, options.fallback, options.key, session, supabaseClient]);
 
   useEffect(() => {
-    if (!hydratedRef.current || !isSupabaseConfigured() || !supabaseClient) {
+    if (
+      !hydratedRef.current ||
+      !authReady ||
+      !isSupabaseConfigured() ||
+      !supabaseClient ||
+      !session ||
+      isDemoSession(session)
+    ) {
       return;
     }
 
@@ -462,43 +469,59 @@ export function useSupabaseSharedState<T>(options: {
     return () => {
       cancelled = true;
     };
-  }, [options.key, supabaseClient, value]);
+  }, [authReady, options.key, session, supabaseClient, value]);
 
   useEffect(() => {
     if (!isSupabaseConfigured() || !supabaseClient || !session || isDemoSession(session)) {
       return;
     }
 
+    let cancelled = false;
+
     const channel = supabaseClient
       .channel(`shared_state:${options.key}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "shared_state", filter: `key=eq.${options.key}` },
-        (payload) => {
-          const nextValue = (payload.new as SharedStateRow<T> | null)?.value;
-          const nextKey = (payload.new as SharedStateRow<T> | null)?.key;
-          if (nextKey !== options.key) {
-            return;
-          }
-          if (typeof nextValue === "undefined") {
-            return;
-          }
+        () => {
+          void fetchSharedStateRow<T>(options.key).then(({ row, error }) => {
+            if (cancelled) {
+              return;
+            }
 
-          const snapshot = JSON.stringify(nextValue);
-          if (snapshot === lastRemoteSnapshotRef.current) {
-            return;
-          }
+            if (error) {
+              console.warn("Supabase shared_state realtime refresh failed:", error.message);
+              return;
+            }
 
-          lastRemoteSnapshotRef.current = snapshot;
-          setValue(nextValue);
+            const nextValue = row?.value;
+            if (typeof nextValue === "undefined") {
+              return;
+            }
+
+            const snapshot = JSON.stringify(nextValue);
+            if (snapshot === lastRemoteSnapshotRef.current) {
+              return;
+            }
+
+            lastRemoteSnapshotRef.current = snapshot;
+            setValue(nextValue);
+          }).catch((error) => {
+            if (cancelled) {
+              return;
+            }
+
+            console.warn("Supabase shared_state realtime refresh failed:", getErrorMessage(error));
+          });
         },
       )
       .subscribe();
 
     return () => {
+      cancelled = true;
       void supabaseClient.removeChannel(channel);
     };
-  }, [options.key, supabaseClient]);
+  }, [options.key, session, supabaseClient]);
 
   return [value, setValue, hydrated] as const;
 }

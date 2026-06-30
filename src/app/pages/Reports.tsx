@@ -799,60 +799,20 @@ function DateRangePicker({
 export function ReportsPage() {
   const { isDark } = useThemeMode();
   const anchorDate = useMemo(() => new Date(), []);
-  const [period, setPeriod] = useState<ReportPeriod>("30");
-  const [customPeriodMode, setCustomPeriodMode] = useState<CustomPeriodMode>("month");
-  const [customMonth, setCustomMonth] = useState(anchorDate.getMonth());
-  const [customYear, setCustomYear] = useState(anchorDate.getFullYear());
-  const [customStartDate, setCustomStartDate] = useState(formatDateKey(addDays(anchorDate, -29)));
-  const [customEndDate, setCustomEndDate] = useState(formatDateKey(anchorDate));
-  const [customPastMonths, setCustomPastMonths] = useState(3);
-  const [typeFilter, setTypeFilter] = useState<ContentType | "todos">("todos");
-  const [responsibleFilter, setResponsibleFilter] = useState<number | "todos">("todos");
-  const [teamMembers] = useTeamProfiles();
-  const [posts] = usePosts();
-  const [calendarItems] = useSupabaseSyncedListState<CalendarEvent>({
-    key: "calendar-events",
-    table: "calendar_events",
-    fallback: calendarEvents,
-  });
-  const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
-  const [monthlyArchive] = useSupabaseSharedState<MonthlyArchiveSnapshot>({
-    key: createStorageKey("monthly-archive"),
-    fallback: createEmptyMonthlyArchive(),
-  });
-  const [teamScope] = useTeamScope();
-  const [monthlyPerformance] = useMonthlyPerformanceSnapshot();
-  const [savedReports, setSavedReports, savedReportsHydrated] = useSupabaseSharedState<SavedReport[]>({
-    key: createStorageKey("reports-history"),
-    fallback: [],
-  });
-  const [selectedMetric, setSelectedMetric] = useState<MetricKey>("reach");
-  const [overviewDraft, setOverviewDraft, overviewHydrated] = useSupabaseSharedState<ReportOverview>({
-    key: createStorageKey("reports-overview"),
-    fallback: {
+  const monthlyArchiveFallback = useMemo(() => createEmptyMonthlyArchive(), []);
+  const savedReportsFallback = useMemo<SavedReport[]>(() => [], []);
+  const reportsOverviewFallback = useMemo<ReportOverview>(
+    () => ({
       badge: "Visão geral",
       title: "Resumo executivo",
       description:
         "O perfil mantém saúde alta, acelera o crescimento de alcance e encontra mais eficiência quando combina peças de autoridade, prova social e materiais prontos para publicação.",
       note: "Pré-visualização local",
-    },
-  });
-  const [overviewForm, setOverviewForm] = useState(overviewDraft);
-  const [isOverviewModalOpen, setIsOverviewModalOpen] = useState(false);
-  const [editingSection, setEditingSection] = useState<ReportSectionEditor>(null);
-  const [sectionForm, setSectionForm] = useState<{ title: string; description: string; action: string } | null>(null);
-  const [cardDraft, setCardDraft] = useState<{
-    rowIndex: number;
-    itemIndex: number | null;
-    title: string;
-    metric: string;
-    accent: string;
-    image: string;
-    imageName: string;
-  } | null>(null);
-  const [reportRows, setReportRows, reportRowsHydrated] = useSupabaseSharedState<ReportCardRow[]>({
-    key: createStorageKey("reports-rows"),
-    fallback: [
+    }),
+    [],
+  );
+  const reportRowsFallback = useMemo<ReportCardRow[]>(
+    () => [
       {
         title: "Capas em destaque",
         description: "Visual forte para escalar o clique no feed e nos destaques.",
@@ -994,6 +954,56 @@ export function ReportsPage() {
         ],
       },
     ],
+    [],
+  );
+  const [period, setPeriod] = useState<ReportPeriod>("30");
+  const [customPeriodMode, setCustomPeriodMode] = useState<CustomPeriodMode>("month");
+  const [customMonth, setCustomMonth] = useState(anchorDate.getMonth());
+  const [customYear, setCustomYear] = useState(anchorDate.getFullYear());
+  const [customStartDate, setCustomStartDate] = useState(formatDateKey(addDays(anchorDate, -29)));
+  const [customEndDate, setCustomEndDate] = useState(formatDateKey(anchorDate));
+  const [customPastMonths, setCustomPastMonths] = useState(3);
+  const [typeFilter, setTypeFilter] = useState<ContentType | "todos">("todos");
+  const [responsibleFilter, setResponsibleFilter] = useState<number | "todos">("todos");
+  const [teamMembers] = useTeamProfiles();
+  const [posts] = usePosts();
+  const [calendarItems] = useSupabaseSyncedListState<CalendarEvent>({
+    key: "calendar-events",
+    table: "calendar_events",
+    fallback: calendarEvents,
+  });
+  const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
+  const [monthlyArchive] = useSupabaseSharedState<MonthlyArchiveSnapshot>({
+    key: createStorageKey("monthly-archive"),
+    fallback: monthlyArchiveFallback,
+  });
+  const [teamScope] = useTeamScope();
+  const [monthlyPerformance] = useMonthlyPerformanceSnapshot();
+  const [savedReports, setSavedReports, savedReportsHydrated] = useSupabaseSharedState<SavedReport[]>({
+    key: createStorageKey("reports-history"),
+    fallback: savedReportsFallback,
+  });
+  const [selectedMetric, setSelectedMetric] = useState<MetricKey>("reach");
+  const [overviewDraft, setOverviewDraft, overviewHydrated] = useSupabaseSharedState<ReportOverview>({
+    key: createStorageKey("reports-overview"),
+    fallback: reportsOverviewFallback,
+  });
+  const [overviewForm, setOverviewForm] = useState(overviewDraft);
+  const [isOverviewModalOpen, setIsOverviewModalOpen] = useState(false);
+  const [editingSection, setEditingSection] = useState<ReportSectionEditor>(null);
+  const [sectionForm, setSectionForm] = useState<{ title: string; description: string; action: string } | null>(null);
+  const [cardDraft, setCardDraft] = useState<{
+    rowIndex: number;
+    itemIndex: number | null;
+    title: string;
+    metric: string;
+    accent: string;
+    image: string;
+    imageName: string;
+  } | null>(null);
+  const [reportRows, setReportRows, reportRowsHydrated] = useSupabaseSharedState<ReportCardRow[]>({
+    key: createStorageKey("reports-rows"),
+    fallback: reportRowsFallback,
   });
   const reportSharedReady = savedReportsHydrated && overviewHydrated && reportRowsHydrated;
 
