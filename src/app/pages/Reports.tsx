@@ -115,6 +115,44 @@ type ReportSectionEditor = {
   rowIndex?: number;
 } | null;
 
+const legacyReportExamplesBySection: Record<string, Set<string>> = {
+  "Capas em destaque": new Set([
+    "Dra. Alessandra",
+    "Dra. Raquel Castro",
+    "Dra. Camila Prado",
+    "Dr. Felipe Souza",
+    "Dr. Mauro Lima",
+  ]),
+  "20 depoimentos": new Set([
+    "Larissa M.",
+    "Equipe Great",
+    "Depoimento 03",
+    "Depoimento 04",
+    "Depoimento 05",
+    "Depoimento 06",
+  ]),
+  "10 entregas de material": new Set([
+    "Material 01",
+    "Material 02",
+    "Material 03",
+    "Material 04",
+    "Material 05",
+    "Material 06",
+  ]),
+};
+
+function stripLegacyReportExamples(rows: ReportCardRow[]) {
+  return rows.map((row) => {
+    const legacyTitles = legacyReportExamplesBySection[row.title];
+    if (!legacyTitles || row.items.length === 0) {
+      return row;
+    }
+
+    const items = row.items.filter((item) => !legacyTitles.has(item.title));
+    return items.length === row.items.length ? row : { ...row, items };
+  });
+}
+
 const monthlyContentTarget = 120;
 const finalContentStatuses = new Set<PostStatus | "Concluído" | "Finalizado">(["Aprovado", "Publicado", "Concluído", "Finalizado"]);
 
@@ -817,141 +855,19 @@ export function ReportsPage() {
         title: "Capas em destaque",
         description: "Visual forte para escalar o clique no feed e nos destaques.",
         action: "Ver todas",
-        items: [
-          {
-            title: "Dra. Alessandra",
-            metric: "2,4k",
-            accent: "#D10000",
-            image:
-              "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=900&q=80",
-          },
-          {
-            title: "Dra. Raquel Castro",
-            metric: "2,1k",
-            accent: "#991B1B",
-            image:
-              "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=900&q=80",
-          },
-          {
-            title: "Dra. Camila Prado",
-            metric: "1,8k",
-            accent: "#7F1D1D",
-            image:
-              "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80",
-          },
-          {
-            title: "Dr. Felipe Souza",
-            metric: "1,7k",
-            accent: "#5B1414",
-            image:
-              "https://images.unsplash.com/photo-1516321497487-e288fb19713f?auto=format&fit=crop&w=900&q=80",
-          },
-          {
-            title: "Dr. Mauro Lima",
-            metric: "1,6k",
-            accent: "#8B1531",
-            image:
-              "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80",
-          },
-        ],
+        items: [],
       },
       {
         title: "20 depoimentos",
         description: "Prova social com rostos, frases curtas e leitura rápida.",
         action: "Ver todas",
-        items: [
-          {
-            title: "Larissa M.",
-            metric: "947",
-            accent: "#D10000",
-            image:
-              "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=900&q=80",
-          },
-          {
-            title: "Equipe Great",
-            metric: "921",
-            accent: "#991B1B",
-            image:
-              "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=900&q=80",
-          },
-          {
-            title: "Depoimento 03",
-            metric: "867",
-            accent: "#991B1B",
-            image:
-              "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=900&q=80",
-          },
-          {
-            title: "Depoimento 04",
-            metric: "842",
-            accent: "#5B1414",
-            image:
-              "https://images.unsplash.com/photo-1489424731084-a5d8b219a5bb?auto=format&fit=crop&w=900&q=80",
-          },
-          {
-            title: "Depoimento 05",
-            metric: "764",
-            accent: "#8B1531",
-            image:
-              "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=900&q=80",
-          },
-          {
-            title: "Depoimento 06",
-            metric: "721",
-            accent: "#D10000",
-            image:
-              "https://images.unsplash.com/photo-1504593811423-6dd665756598?auto=format&fit=crop&w=900&q=80",
-          },
-        ],
+        items: [],
       },
       {
         title: "10 entregas de material",
         description: "Peças finais, capas, cortes e materiais prontos para publicação.",
         action: "Ver todas",
-        items: [
-          {
-            title: "Material 01",
-            metric: "1,2k",
-            accent: "#991B1B",
-            image:
-              "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80",
-          },
-          {
-            title: "Material 02",
-            metric: "1,0k",
-            accent: "#7F1D1D",
-            image:
-              "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80",
-          },
-          {
-            title: "Material 03",
-            metric: "987",
-            accent: "#991B1B",
-            image:
-              "https://images.unsplash.com/photo-1554774853-719586f82d77?auto=format&fit=crop&w=900&q=80",
-          },
-          {
-            title: "Material 04",
-            metric: "947",
-            accent: "#5B1414",
-            image:
-              "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80",
-          },
-          {
-            title: "Material 05",
-            metric: "912",
-            accent: "#8B1531",
-            image:
-              "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=900&q=80",
-          },
-          {
-            title: "Material 06",
-            metric: "876",
-            accent: "#D10000",
-            image:
-              "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80",
-          },
-        ],
+        items: [],
       },
     ],
     [],
@@ -1006,6 +922,20 @@ export function ReportsPage() {
     fallback: reportRowsFallback,
   });
   const reportSharedReady = savedReportsHydrated && overviewHydrated && reportRowsHydrated;
+
+  useEffect(() => {
+    if (!reportSharedReady) {
+      return;
+    }
+
+    const sanitizedRows = stripLegacyReportExamples(reportRows);
+    if (JSON.stringify(sanitizedRows) === JSON.stringify(reportRows)) {
+      return;
+    }
+
+    setReportRows(sanitizedRows);
+    toast.success("Exemplos antigos dos cards foram removidos.");
+  }, [reportRows, reportSharedReady, setReportRows]);
 
   const heroSurfaceClass = isDark
     ? "overflow-hidden bg-[linear-gradient(135deg,rgba(131,58,180,0.96),rgba(180,97,214,0.9),rgba(225,48,108,0.82))] text-white"
@@ -1559,7 +1489,7 @@ export function ReportsPage() {
     sectionConfigs.forEach((section) => {
       const row = posterRows[section.rowIndex];
       const images = rowImages[section.rowIndex] ?? [];
-      if (!row) {
+      if (!row || row.items.length === 0) {
         return;
       }
 
