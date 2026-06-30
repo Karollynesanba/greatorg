@@ -822,12 +822,12 @@ export function ReportsPage() {
   });
   const [teamScope] = useTeamScope();
   const [monthlyPerformance] = useMonthlyPerformanceSnapshot();
-  const [savedReports, setSavedReports] = useSupabaseSharedState<SavedReport[]>({
+  const [savedReports, setSavedReports, savedReportsHydrated] = useSupabaseSharedState<SavedReport[]>({
     key: createStorageKey("reports-history"),
     fallback: [],
   });
   const [selectedMetric, setSelectedMetric] = useState<MetricKey>("reach");
-  const [overviewDraft, setOverviewDraft] = useSupabaseSharedState<ReportOverview>({
+  const [overviewDraft, setOverviewDraft, overviewHydrated] = useSupabaseSharedState<ReportOverview>({
     key: createStorageKey("reports-overview"),
     fallback: {
       badge: "Visão geral",
@@ -850,7 +850,7 @@ export function ReportsPage() {
     image: string;
     imageName: string;
   } | null>(null);
-  const [reportRows, setReportRows] = useSupabaseSharedState<ReportCardRow[]>({
+  const [reportRows, setReportRows, reportRowsHydrated] = useSupabaseSharedState<ReportCardRow[]>({
     key: createStorageKey("reports-rows"),
     fallback: [
       {
@@ -995,6 +995,7 @@ export function ReportsPage() {
       },
     ],
   });
+  const reportSharedReady = savedReportsHydrated && overviewHydrated && reportRowsHydrated;
 
   const heroSurfaceClass = isDark
     ? "overflow-hidden bg-[linear-gradient(135deg,rgba(131,58,180,0.96),rgba(180,97,214,0.9),rgba(225,48,108,0.82))] text-white"
@@ -1727,6 +1728,11 @@ export function ReportsPage() {
     },
   ];
   const openAddReportCard = (rowIndex: number) => {
+    if (!reportSharedReady) {
+      toast.loading("Carregando relatório compartilhado...");
+      return;
+    }
+
     const accent = reportRows[rowIndex]?.items[0]?.accent ?? "#D10000";
     setCardDraft({
       rowIndex,
@@ -1739,6 +1745,11 @@ export function ReportsPage() {
     });
   };
   const openEditReportCard = (rowIndex: number, itemIndex: number) => {
+    if (!reportSharedReady) {
+      toast.loading("Carregando relatório compartilhado...");
+      return;
+    }
+
     const target = reportRows[rowIndex]?.items[itemIndex];
     if (!target) {
       return;
@@ -1755,6 +1766,11 @@ export function ReportsPage() {
     });
   };
   const saveCardDraft = () => {
+    if (!reportSharedReady) {
+      toast.error("Aguarde carregar o relatório compartilhado antes de salvar.");
+      return;
+    }
+
     if (!cardDraft?.title.trim()) {
       toast.error("Informe o título do card.");
       return;
@@ -1801,6 +1817,11 @@ export function ReportsPage() {
     toast.success(cardDraft.itemIndex === null ? "Card adicionado." : "Card atualizado.");
   };
   const handleDeleteReportCard = (rowIndex: number, itemIndex: number) => {
+    if (!reportSharedReady) {
+      toast.error("Aguarde carregar o relatório compartilhado antes de apagar.");
+      return;
+    }
+
     const target = reportRows[rowIndex]?.items[itemIndex];
     if (!target) {
       return;
@@ -1824,10 +1845,20 @@ export function ReportsPage() {
     toast.success("Card apagado.");
   };
   const openOverviewEditor = () => {
+    if (!reportSharedReady) {
+      toast.loading("Carregando relatório compartilhado...");
+      return;
+    }
+
     setOverviewForm(overviewDraft);
     setIsOverviewModalOpen(true);
   };
   const openRowSectionEditor = (rowIndex: number) => {
+    if (!reportSharedReady) {
+      toast.loading("Carregando relatório compartilhado...");
+      return;
+    }
+
     const target = reportRows[rowIndex];
     if (!target) {
       return;
@@ -1841,6 +1872,11 @@ export function ReportsPage() {
     });
   };
   const saveSectionForm = () => {
+    if (!reportSharedReady) {
+      toast.error("Aguarde carregar o relatório compartilhado antes de salvar.");
+      return;
+    }
+
     if (!editingSection || !sectionForm) {
       return;
     }
@@ -1865,6 +1901,11 @@ export function ReportsPage() {
     setSectionForm(null);
   };
   const restoreSectionDefaults = () => {
+    if (!reportSharedReady) {
+      toast.error("Aguarde carregar o relatório compartilhado antes de restaurar.");
+      return;
+    }
+
     if (!editingSection || typeof editingSection.rowIndex !== "number") {
       return;
     }

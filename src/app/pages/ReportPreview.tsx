@@ -21,8 +21,8 @@ import { createEmptyMonthlyArchive, type MonthlyArchiveSnapshot } from "../data/
 import { shouldUseMonthlyPerformanceSnapshot, useMonthlyPerformanceSnapshot } from "../data/monthlyPerformance";
 import { useTeamProfiles } from "../data/profiles";
 import { usePosts, type Post } from "../data/posts";
+import { createStorageKey } from "../data/sharedState";
 import { useSupabaseSharedState, useSupabaseSyncedListState } from "../data/supabaseSync";
-import { useSupabasePreference } from "../data/userPreferences";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import {
   ActionButton,
@@ -705,9 +705,16 @@ export function ReportPreviewPage() {
   });
   const [monthlyPerformance] = useMonthlyPerformanceSnapshot();
   const [teamScope] = useTeamScope();
-  const [state, setState] = useSupabasePreference<PreviewState>("report-preview-state", defaultPreviewState);
+  const [state, setState, stateHydrated] = useSupabaseSharedState<PreviewState>({
+    key: createStorageKey("report-preview-state"),
+    fallback: defaultPreviewState,
+  });
   const emptyManualBlocks = useMemo<ManualBlock[]>(() => [], []);
-  const [manualBlocks, setManualBlocks] = useSupabasePreference<ManualBlock[]>("report-preview-blocks", emptyManualBlocks);
+  const [manualBlocks, setManualBlocks, manualBlocksHydrated] = useSupabaseSharedState<ManualBlock[]>({
+    key: createStorageKey("report-preview-blocks"),
+    fallback: emptyManualBlocks,
+  });
+  const reportPreviewSharedReady = stateHydrated && manualBlocksHydrated;
   const [draft, setDraft] = useState<ManualBlock>(emptyManualBlock(state.selectedPage));
   const [imageCaptionDraft, setImageCaptionDraft] = useState("");
   const appliedQueryRef = useRef(false);
@@ -725,14 +732,22 @@ export function ReportPreviewPage() {
   const totalReportPages = 4;
 
   useEffect(() => {
+    if (!manualBlocksHydrated) {
+      return;
+    }
+
     if (!manualBlocks.some((block) => block.kind === "image" && (block.imageUrls?.length ?? 0) === 0 && Boolean(block.imageUrl))) {
       return;
     }
 
     setManualBlocks((previous) => normalizeBlocks(previous.map(normalizeManualBlock)));
-  }, [manualBlocks, setManualBlocks]);
+  }, [manualBlocks, manualBlocksHydrated, setManualBlocks]);
 
   useEffect(() => {
+    if (!stateHydrated) {
+      return;
+    }
+
     if (appliedQueryRef.current) {
       return;
     }
@@ -757,7 +772,7 @@ export function ReportPreviewPage() {
       customStartDate: query.get("start") ?? previous.customStartDate,
       customEndDate: query.get("end") ?? previous.customEndDate,
     }));
-  }, [query, setState, appliedQueryRef]);
+  }, [query, setState, appliedQueryRef, stateHydrated]);
 
   const currentRange = useMemo(() => {
     if (state.period === "custom") {
@@ -923,7 +938,30 @@ export function ReportPreviewPage() {
   void reportBlocks;
   void pageSubtitle;
 
+  const updatePreviewState = (updater: PreviewState | ((previous: PreviewState) => PreviewState)) => {
+    if (!reportPreviewSharedReady) {
+      toast.error("Aguarde carregar o relatório compartilhado antes de editar.");
+      return;
+    }
+
+    setState(updater);
+  };
+
+  const resetPreviewState = () => {
+    if (!reportPreviewSharedReady) {
+      toast.error("Aguarde carregar o relatório compartilhado antes de restaurar.");
+      return;
+    }
+
+    setState(createDefaultPreviewState(anchorDate));
+  };
+
   const addManualBlock = () => {
+    if (!reportPreviewSharedReady) {
+      toast.error("Aguarde carregar o relatório compartilhado antes de adicionar.");
+      return;
+    }
+
     const nextBlock: ManualBlock = {
       ...draft,
       ...normalizeManualBlock(draft),
@@ -939,6 +977,11 @@ export function ReportPreviewPage() {
   };
 
   const updateBlock = (blockId: string, patch: Partial<ManualBlock>) => {
+    if (!reportPreviewSharedReady) {
+      toast.error("Aguarde carregar o relatório compartilhado antes de editar.");
+      return;
+    }
+
     setManualBlocks((previous) =>
       normalizeBlocks(
         previous.map((block) => (block.id === blockId ? { ...block, ...patch } : block)),
@@ -947,10 +990,20 @@ export function ReportPreviewPage() {
   };
 
   const removeBlock = (blockId: string) => {
+    if (!reportPreviewSharedReady) {
+      toast.error("Aguarde carregar o relatório compartilhado antes de apagar.");
+      return;
+    }
+
     setManualBlocks((previous) => normalizeBlocks(previous.filter((block) => block.id !== blockId)));
   };
 
   const moveBlock = (blockId: string, direction: -1 | 1) => {
+    if (!reportPreviewSharedReady) {
+      toast.error("Aguarde carregar o relatório compartilhado antes de mover.");
+      return;
+    }
+
     setManualBlocks((previous) => {
       const pageBlocks = previous.filter((block) => block.pageId === reportState.selectedPage).sort((a, b) => a.order - b.order);
       const currentIndex = pageBlocks.findIndex((block) => block.id === blockId);
@@ -974,6 +1027,11 @@ export function ReportPreviewPage() {
   };
 
   const changeBlockPage = (blockId: string, nextPage: ReportPageId) => {
+    if (!reportPreviewSharedReady) {
+      toast.error("Aguarde carregar o relatório compartilhado antes de mover.");
+      return;
+    }
+
     setManualBlocks((previous) =>
       normalizeBlocks(
         previous.map((block) =>
@@ -1053,32 +1111,32 @@ export function ReportPreviewPage() {
               <SectionToggle
                 label="Métricas"
                 checked={reportState.sections.metrics}
-                onChange={(checked) => setState((previous) => ({ ...previous, sections: { ...previous.sections, metrics: checked } }))}
+                onChange={(checked) => updatePreviewState((previous) => ({ ...previous, sections: { ...previous.sections, metrics: checked } }))}
               />
               <SectionToggle
                 label="Comparação"
                 checked={reportState.sections.comparison}
-                onChange={(checked) => setState((previous) => ({ ...previous, sections: { ...previous.sections, comparison: checked } }))}
+                onChange={(checked) => updatePreviewState((previous) => ({ ...previous, sections: { ...previous.sections, comparison: checked } }))}
               />
               <SectionToggle
                 label="Top conteúdos"
                 checked={reportState.sections.topPosts}
-                onChange={(checked) => setState((previous) => ({ ...previous, sections: { ...previous.sections, topPosts: checked } }))}
+                onChange={(checked) => updatePreviewState((previous) => ({ ...previous, sections: { ...previous.sections, topPosts: checked } }))}
               />
               <SectionToggle
                 label="Metas"
                 checked={reportState.sections.goals}
-                onChange={(checked) => setState((previous) => ({ ...previous, sections: { ...previous.sections, goals: checked } }))}
+                onChange={(checked) => updatePreviewState((previous) => ({ ...previous, sections: { ...previous.sections, goals: checked } }))}
               />
               <SectionToggle
                 label="Pessoas"
                 checked={reportState.sections.members}
-                onChange={(checked) => setState((previous) => ({ ...previous, sections: { ...previous.sections, members: checked } }))}
+                onChange={(checked) => updatePreviewState((previous) => ({ ...previous, sections: { ...previous.sections, members: checked } }))}
               />
               <SectionToggle
                 label="Insights"
                 checked={reportState.sections.insights}
-                onChange={(checked) => setState((previous) => ({ ...previous, sections: { ...previous.sections, insights: checked } }))}
+                onChange={(checked) => updatePreviewState((previous) => ({ ...previous, sections: { ...previous.sections, insights: checked } }))}
               />
             </div>
           </GlassPanel>
@@ -1267,7 +1325,7 @@ export function ReportPreviewPage() {
                 <button
                   key={page.id}
                   type="button"
-                  onClick={() => setState((previous) => ({ ...previous, selectedPage: page.id }))}
+                  onClick={() => updatePreviewState((previous) => ({ ...previous, selectedPage: page.id }))}
                   className={cn(
                     "flex items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm transition",
                     reportState.selectedPage === page.id
@@ -1296,7 +1354,7 @@ export function ReportPreviewPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <ActionButton variant="secondary" onClick={() => setState(createDefaultPreviewState(anchorDate))}>
+                <ActionButton variant="secondary" onClick={resetPreviewState}>
                   Resetar
                 </ActionButton>
                 <ActionButton variant="secondary" onClick={() => window.print()}>

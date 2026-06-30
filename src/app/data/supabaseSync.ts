@@ -300,7 +300,6 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
 type SharedStateRow<T> = {
   key: string;
   value: T;
-  user_id?: string | null;
   updated_at?: string;
 };
 
@@ -312,10 +311,6 @@ function isMissingSharedStateConstraint(error: unknown) {
   return /no unique or exclusion constraint matching the on conflict specification/i.test(getErrorMessage(error));
 }
 
-function isMissingSharedStateUserColumn(error: unknown) {
-  return /column .*user_id.* does not exist/i.test(getErrorMessage(error));
-}
-
 async function fetchSharedStateRow<T>(key: string) {
   if (!supabase) {
     return { row: null as SharedStateRow<T> | null, error: null as { message: string } | null };
@@ -323,7 +318,7 @@ async function fetchSharedStateRow<T>(key: string) {
 
   const { data, error } = await supabase
     .from("shared_state")
-    .select("key, value, user_id, updated_at")
+    .select("key, value, updated_at")
     .eq("key", key)
     .order("updated_at", { ascending: false })
     .limit(1);
@@ -334,57 +329,27 @@ async function fetchSharedStateRow<T>(key: string) {
   };
 }
 
-async function persistSharedStateValue<T>(key: string, value: T, currentUserId: string | null) {
+async function persistSharedStateValue<T>(key: string, value: T) {
   if (!supabase) {
     return;
   }
 
-  const client = supabase;
-  const updatedAt = new Date().toISOString();
-  const baseRow = {
+  const row = {
     key,
     value,
-    updated_at: updatedAt,
+    updated_at: new Date().toISOString(),
   };
-  const userScopedRow = {
-    ...baseRow,
-    user_id: currentUserId,
-  };
+  const { error } = await supabase.from("shared_state").upsert(row, { onConflict: "key" });
 
-  if (currentUserId) {
-    const { error } = await client.from("shared_state").upsert(userScopedRow, { onConflict: "user_id,key" });
-    if (!error) {
-      return;
-    }
-
-    if (!isMissingSharedStateConstraint(error) && !isMissingSharedStateUserColumn(error)) {
-      throw error;
-    }
+  if (!error) {
+    return;
   }
 
-  {
-    const { error } = await client.from("shared_state").upsert(baseRow, { onConflict: "key" });
-    if (!error) {
-      return;
-    }
-
-    if (!isMissingSharedStateConstraint(error)) {
-      throw error;
-    }
+  if (!isMissingSharedStateConstraint(error)) {
+    throw error;
   }
 
-  if (currentUserId) {
-    const { error } = await client.from("shared_state").insert(userScopedRow);
-    if (!error) {
-      return;
-    }
-
-    if (!isMissingSharedStateUserColumn(error)) {
-      throw error;
-    }
-  }
-
-  const { error: insertError } = await client.from("shared_state").insert(baseRow);
+  const { error: insertError } = await supabase.from("shared_state").insert(row);
   if (insertError) {
     throw insertError;
   }
@@ -435,7 +400,7 @@ export function useSupabaseSharedState<T>(options: {
 
       let seedError: { message: string } | null = null;
       try {
-        await persistSharedStateValue(options.key, options.fallback, session.user.id);
+        await persistSharedStateValue(options.key, options.fallback);
       } catch (error) {
         seedError = {
           message: getErrorMessage(error),
@@ -477,7 +442,7 @@ export function useSupabaseSharedState<T>(options: {
 
     const persistRemote = async () => {
       try {
-        await persistSharedStateValue(options.key, value, session?.user.id ?? null);
+        await persistSharedStateValue(options.key, value);
         if (cancelled) {
           return;
         }
