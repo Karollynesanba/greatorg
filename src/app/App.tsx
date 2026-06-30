@@ -1,7 +1,7 @@
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { useEffect, useRef } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Toaster } from "sonner";
 import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
@@ -16,6 +16,7 @@ import { MyProfilePage } from "./pages/MyProfile";
 import { LoginPage } from "./pages/Login";
 import { PostDetailPage } from "./pages/PostDetail";
 import { ReportsPage } from "./pages/Reports";
+import { ReportPreviewPage } from "./pages/ReportPreview";
 import { SettingsPage } from "./pages/Settings";
 import { StoriesPage } from "./pages/Stories";
 import { signOut, useAuthSession } from "./auth";
@@ -86,6 +87,7 @@ export default function App() {
 
 function AppShell({ onLogout }: { onLogout: () => void }) {
   const { isDark } = useThemeMode();
+  const location = useLocation();
 
   useEffect(() => {
     console.info("[Init] App shell rendered");
@@ -115,7 +117,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
         >
           <TopBar />
           <main className="relative min-h-0 flex-1 p-4 sm:p-6 xl:p-7" tabIndex={0}>
-            <Routes>
+            <Routes location={location} key={location.pathname}>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/login" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
@@ -128,6 +130,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
               <Route path="/ideas" element={<IdeasPage />} />
               <Route path="/history" element={<HistoryPage />} />
               <Route path="/reports" element={<ReportsPage />} />
+              <Route path="/reports/preview" element={<ReportPreviewPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/profile" element={<MyProfilePage />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />

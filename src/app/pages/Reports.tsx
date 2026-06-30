@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   BarChart3,
@@ -533,16 +534,6 @@ function groupPostsByDate(items: Array<Pick<Post, "date" | "reach" | "engagement
   return buckets;
 }
 
-function downloadText(filename: string, content: string, mimeType: string) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
 function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -835,6 +826,7 @@ function DateRangePicker({
 }
 
 export function ReportsPage() {
+  const navigate = useNavigate();
   const { isDark } = useThemeMode();
   const anchorDate = useMemo(() => new Date(), []);
   const monthlyArchiveFallback = useMemo(() => createEmptyMonthlyArchive(), []);
@@ -1375,29 +1367,20 @@ export function ReportsPage() {
     toast.success("Relatório antigo carregado.");
   };
 
-  const handleExportCsv = () => {
-    const rows = [
-      ["Data", "Título", "Tipo", "Responsável", "Alcance", "Engajamento", "Likes", "Comentários", "Salvos", "Compartilhamentos"],
-      ...filteredPosts.map((post) => {
-        const member = teamMembers.find((item) => item.id === post.authorId)!;
-        return [
-          post.date,
-          post.title,
-          post.type,
-          member.name,
-          String(post.reach),
-          String(post.engagement),
-          String(post.metrics.likes),
-          String(post.metrics.comments),
-          String(post.metrics.saves),
-          String(post.metrics.shares),
-        ];
-      }),
-    ];
+  const openReportPreview = (autoPrint = false) => {
+    const query = new URLSearchParams({
+      period,
+      type: typeFilter,
+      responsible: String(responsibleFilter),
+      start: formatDateKey(currentRange.start),
+      end: formatDateKey(currentRange.end),
+    });
 
-    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
-    downloadText(`relatorio-${formatDateKey(currentRange.start)}-${formatDateKey(currentRange.end)}.csv`, csv, "text/csv;charset=utf-8");
-    toast.success("CSV exportado com sucesso.");
+    if (autoPrint) {
+      query.set("autoprint", "1");
+    }
+
+    navigate(`/reports/preview?${query.toString()}`);
   };
 
   const handleExportImage = async () => {
@@ -2076,9 +2059,9 @@ export function ReportsPage() {
                   <CheckCircle2 className="h-4 w-4" />
                   Salvar relatório
                 </ActionButton>
-                <ActionButton dataCy="reports-export-csv" variant="secondary" onClick={handleExportCsv}>
+                <ActionButton dataCy="reports-export-pdf" variant="secondary" onClick={() => openReportPreview(true)}>
                   <Download className="h-4 w-4" />
-                  Exportar
+                  Baixar PDF
                 </ActionButton>
                 <ActionButton dataCy="reports-export-image" variant="secondary" onClick={handleExportImage}>
                   <Share2 className="h-4 w-4" />
@@ -2324,7 +2307,7 @@ export function ReportsPage() {
                 Uma visão curta do que a equipe entregou neste recorte, com números que ajudam a tomar decisão sem sair da página.
               </p>
             </div>
-            <ActionButton dataCy="reports-export-pdf" variant="secondary" onClick={() => window.print()}>
+            <ActionButton dataCy="reports-open-preview" variant="secondary" onClick={() => openReportPreview()}>
               <Printer className="h-4 w-4" />
               Ver análise completa
             </ActionButton>

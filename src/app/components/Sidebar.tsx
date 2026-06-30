@@ -44,7 +44,7 @@ export function Sidebar({ onLogout }: { onLogout?: () => void }) {
         type="button"
         onClick={() => setOpen(true)}
         className={cn(
-          "fixed left-4 top-4 z-40 inline-flex h-11 w-11 items-center justify-center rounded-2xl backdrop-blur-xl xl:hidden",
+          "fixed left-4 top-4 z-40 inline-flex h-11 w-11 items-center justify-center rounded-2xl backdrop-blur-xl print:hidden xl:hidden",
           isDark
             ? "border border-white/8 bg-white/5 text-foreground shadow-[0_10px_30px_rgba(0,0,0,0.18)]"
             : "border border-black/5 bg-white text-foreground shadow-[0_12px_32px_rgba(15,23,42,0.08)]",
@@ -57,14 +57,14 @@ export function Sidebar({ onLogout }: { onLogout?: () => void }) {
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="fixed inset-0 z-30 bg-black/45 backdrop-blur-sm xl:hidden"
+          className="fixed inset-0 z-30 bg-black/45 backdrop-blur-sm print:hidden xl:hidden"
           aria-label="Fechar menu"
         />
       ) : null}
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-[300px] -translate-x-full flex-col px-5 py-6 transition-transform duration-300 xl:left-0 xl:top-0 xl:bottom-0 xl:flex xl:w-[286px] xl:translate-x-0 xl:rounded-none",
+          "fixed inset-y-0 left-0 z-40 flex w-[300px] -translate-x-full flex-col px-5 py-6 transition-transform duration-300 print:hidden xl:left-0 xl:top-0 xl:bottom-0 xl:flex xl:w-[286px] xl:translate-x-0 xl:rounded-none",
           "border-r-0 bg-[linear-gradient(180deg,#E30613_0%,#C40010_100%)] shadow-[18px_0_42px_rgba(227,6,19,0.18)] backdrop-blur-0",
           open ? "translate-x-0" : "-translate-x-full",
         )}

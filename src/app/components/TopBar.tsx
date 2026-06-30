@@ -9,7 +9,7 @@ export function TopBar() {
   const { isDark, setTheme } = useThemeMode();
 
   return (
-    <header className="sticky top-0 z-40 bg-transparent">
+    <header className="sticky top-0 z-40 bg-transparent print:hidden">
       <div className="flex w-full items-center justify-end gap-3 px-4 pb-2 pt-4 sm:px-6 xl:px-7">
         <div className="flex shrink-0 items-center gap-2.5">
           <button

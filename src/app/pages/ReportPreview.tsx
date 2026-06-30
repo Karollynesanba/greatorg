@@ -694,6 +694,7 @@ export function ReportPreviewPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const shouldAutoPrint = query.get("autoprint") === "1";
   const anchorDate = useMemo(() => new Date(), []);
   const defaultPreviewState = useMemo(() => createDefaultPreviewState(anchorDate), [anchorDate]);
   const [teamMembers] = useTeamProfiles();
@@ -718,6 +719,7 @@ export function ReportPreviewPage() {
   const [draft, setDraft] = useState<ManualBlock>(emptyManualBlock(state.selectedPage));
   const [imageCaptionDraft, setImageCaptionDraft] = useState("");
   const appliedQueryRef = useRef(false);
+  const autoPrintTriggeredRef = useRef(false);
   const generatedAtLabel = useMemo(
     () =>
       new Intl.DateTimeFormat("pt-BR", {
@@ -773,6 +775,16 @@ export function ReportPreviewPage() {
       customEndDate: query.get("end") ?? previous.customEndDate,
     }));
   }, [query, setState, appliedQueryRef, stateHydrated]);
+
+  useEffect(() => {
+    if (!shouldAutoPrint || !reportPreviewSharedReady || autoPrintTriggeredRef.current) {
+      return;
+    }
+
+    autoPrintTriggeredRef.current = true;
+    const timeoutId = window.setTimeout(() => window.print(), 250);
+    return () => window.clearTimeout(timeoutId);
+  }, [reportPreviewSharedReady, shouldAutoPrint]);
 
   const currentRange = useMemo(() => {
     if (state.period === "custom") {
