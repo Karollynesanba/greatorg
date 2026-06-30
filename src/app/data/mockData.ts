@@ -268,7 +268,7 @@ function extractStoryTime(description: string) {
   return match?.[2] ?? "09:00";
 }
 
-export const storyLogs: StoryLog[] = seedHistoryTimeline
+const derivedJuneStoryLogs: StoryLog[] = seedHistoryTimeline
   .filter((entry) => entry.id >= 100006 && entry.id <= 100017)
   .map((entry) => ({
     id: entry.id - 100000,
@@ -280,6 +280,56 @@ export const storyLogs: StoryLog[] = seedHistoryTimeline
     postedById: juneStoryMediaByHistoryId[entry.id] === "video" ? 2 : 3,
     notes: entry.description,
   }));
+
+export const canonicalJuneStoryLogs: StoryLog[] = [
+  { id: 2001, date: "2026-06-01", time: "09:00", quantity: 5, mediaType: "video", madeById: 1, postedById: 2, notes: "fofoca Vanessa" },
+  { id: 2002, date: "2026-06-01", time: "09:00", quantity: 4, mediaType: "photo", madeById: 1, postedById: 3, notes: "fofoca Vanessa" },
+  { id: 2003, date: "2026-06-02", time: "09:00", quantity: 5, mediaType: "video", madeById: 1, postedById: 2, notes: "audio Wanma novo" },
+  { id: 2004, date: "2026-06-02", time: "09:00", quantity: 3, mediaType: "photo", madeById: 1, postedById: 3, notes: "audio Wanma novo" },
+  { id: 2005, date: "2026-06-03", time: "09:00", quantity: 5, mediaType: "video", madeById: 1, postedById: 2, notes: "excluido" },
+  { id: 2006, date: "2026-06-03", time: "09:00", quantity: 3, mediaType: "photo", madeById: 1, postedById: 3, notes: "excluido" },
+  { id: 2007, date: "2026-06-05", time: "09:00", quantity: 5, mediaType: "video", madeById: 1, postedById: 2, notes: "relato do Victor" },
+  { id: 2008, date: "2026-06-05", time: "09:00", quantity: 4, mediaType: "photo", madeById: 1, postedById: 3, notes: "relato do Victor" },
+  { id: 2009, date: "2026-06-08", time: "09:00", quantity: 5, mediaType: "video", madeById: 1, postedById: 2, notes: "audio Raquel" },
+  { id: 2010, date: "2026-06-08", time: "09:00", quantity: 3, mediaType: "photo", madeById: 1, postedById: 3, notes: "audio Raquel" },
+  { id: 2011, date: "2026-06-09", time: "09:00", quantity: 5, mediaType: "video", madeById: 1, postedById: 2, notes: "relato Claudio" },
+  { id: 2012, date: "2026-06-09", time: "09:00", quantity: 3, mediaType: "photo", madeById: 1, postedById: 3, notes: "relato Claudio" },
+  { id: 2013, date: "2026-06-10", time: "09:00", quantity: 5, mediaType: "video", madeById: 1, postedById: 2, notes: "historia Louise novo" },
+  { id: 2014, date: "2026-06-10", time: "09:00", quantity: 3, mediaType: "photo", madeById: 1, postedById: 3, notes: "historia Louise novo" },
+  { id: 2015, date: "2026-06-11", time: "09:00", quantity: 5, mediaType: "video", madeById: 1, postedById: 2, notes: "depoimento Amanda novo" },
+  { id: 2016, date: "2026-06-11", time: "09:00", quantity: 5, mediaType: "photo", madeById: 1, postedById: 3, notes: "depoimento Amanda novo" },
+  { id: 2017, date: "2026-06-12", time: "09:00", quantity: 6, mediaType: "video", madeById: 1, postedById: 2, notes: "fofoca Louise" },
+  { id: 2018, date: "2026-06-12", time: "09:00", quantity: 3, mediaType: "photo", madeById: 1, postedById: 3, notes: "fofoca Louise" },
+  { id: 2019, date: "2026-06-15", time: "09:00", quantity: 5, mediaType: "video", madeById: 1, postedById: 2, notes: "audio Gabriel novo" },
+  { id: 2020, date: "2026-06-15", time: "09:00", quantity: 3, mediaType: "photo", madeById: 1, postedById: 3, notes: "audio Gabriel novo" },
+  { id: 2021, date: "2026-06-16", time: "09:00", quantity: 5, mediaType: "video", madeById: 1, postedById: 2, notes: "relato Victor" },
+  { id: 2022, date: "2026-06-16", time: "09:00", quantity: 4, mediaType: "photo", madeById: 1, postedById: 3, notes: "relato Victor" },
+  { id: 2023, date: "2026-06-17", time: "09:00", quantity: 5, mediaType: "video", madeById: 1, postedById: 2, notes: "audio Rosalia novo" },
+  { id: 2024, date: "2026-06-17", time: "09:00", quantity: 4, mediaType: "photo", madeById: 1, postedById: 3, notes: "audio Rosalia novo" },
+  { id: 2025, date: "2026-06-18", time: "09:00", quantity: 6, mediaType: "video", madeById: 1, postedById: 2, notes: "depoimento Ricardo" },
+  { id: 2026, date: "2026-06-18", time: "09:00", quantity: 2, mediaType: "photo", madeById: 1, postedById: 3, notes: "depoimento Ricardo" },
+  { id: 2027, date: "2026-06-19", time: "09:00", quantity: 4, mediaType: "video", madeById: 1, postedById: 2, notes: "audio Andrea" },
+  { id: 2028, date: "2026-06-19", time: "09:00", quantity: 4, mediaType: "photo", madeById: 1, postedById: 3, notes: "audio Andrea" },
+  { id: 2029, date: "2026-06-22", time: "09:00", quantity: 5, mediaType: "video", madeById: 1, postedById: 2, notes: "fofoca Lucas" },
+  { id: 2030, date: "2026-06-22", time: "09:00", quantity: 3, mediaType: "photo", madeById: 1, postedById: 3, notes: "fofoca Lucas" },
+  { id: 2031, date: "2026-06-23", time: "09:00", quantity: 5, mediaType: "video", madeById: 1, postedById: 2, notes: "fofoca Amanda" },
+  { id: 2032, date: "2026-06-23", time: "09:00", quantity: 5, mediaType: "photo", madeById: 1, postedById: 3, notes: "fofoca Amanda" },
+  { id: 2033, date: "2026-06-25", time: "09:00", quantity: 5, mediaType: "video", madeById: 1, postedById: 2, notes: "historia Vanessa" },
+  { id: 2034, date: "2026-06-25", time: "09:00", quantity: 3, mediaType: "photo", madeById: 1, postedById: 3, notes: "historia Vanessa" },
+  { id: 2035, date: "2026-06-26", time: "09:00", quantity: 5, mediaType: "video", madeById: 1, postedById: 2, notes: "historia Ricardo" },
+  { id: 2036, date: "2026-06-26", time: "09:00", quantity: 3, mediaType: "photo", madeById: 1, postedById: 3, notes: "historia Ricardo" },
+  { id: 2037, date: "2026-06-29", time: "09:00", quantity: 5, mediaType: "video", madeById: 1, postedById: 2, notes: "historia Amanda" },
+  { id: 2038, date: "2026-06-29", time: "09:00", quantity: 3, mediaType: "photo", madeById: 1, postedById: 3, notes: "historia Amanda" },
+  { id: 2039, date: "2026-06-30", time: "09:00", quantity: 5, mediaType: "video", madeById: 1, postedById: 2, notes: "historia Gabriel • depoimento Alanne" },
+  { id: 2040, date: "2026-06-30", time: "09:00", quantity: 3, mediaType: "photo", madeById: 1, postedById: 3, notes: "historia Gabriel • depoimento Alanne" },
+];
+
+function mergeCanonicalStoryLogs(baseLogs: StoryLog[], overrideLogs: StoryLog[]) {
+  const overrideKeys = new Set(overrideLogs.map((item) => `${item.date}:${item.mediaType}`));
+  return [...baseLogs.filter((item) => !overrideKeys.has(`${item.date}:${item.mediaType}`)), ...overrideLogs];
+}
+
+export const storyLogs: StoryLog[] = mergeCanonicalStoryLogs(derivedJuneStoryLogs, canonicalJuneStoryLogs);
 
 export const ideas: Idea[] = seedIdeas;
 export const historyTimeline: HistoryEvent[] = seedHistoryTimeline;

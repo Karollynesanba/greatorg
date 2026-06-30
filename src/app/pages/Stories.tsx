@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Film, PencilLine, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthSession } from "../auth";
-import { historyTimeline, storyLogs, type HistoryEvent, type StoryLog } from "../data/mockData";
+import { canonicalJuneStoryLogs, historyTimeline, storyLogs, type HistoryEvent, type StoryLog } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
 import { createStoryPost, deleteStoryPost, fetchStoriesDashboard, updateGoalMetric, updateStoriesMonthlyData, updateStoryPost } from "../data/storiesRepository";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
@@ -160,6 +160,11 @@ function getLatestMonthKey(items: Array<{ date: string }>) {
     .at(-1) ?? null;
 }
 
+function mergeCanonicalStoryLogs(baseLogs: StoryLog[], overrideLogs: StoryLog[]) {
+  const overrideKeys = new Set(overrideLogs.map((item) => `${item.date}:${item.mediaType}`));
+  return [...baseLogs.filter((item) => !overrideKeys.has(`${item.date}:${item.mediaType}`)), ...overrideLogs];
+}
+
 export function StoriesPage() {
   const { isDark } = useThemeMode();
   const { session } = useAuthSession();
@@ -169,6 +174,7 @@ export function StoriesPage() {
     key: "story-logs",
     table: "story_logs",
     fallback: storyLogs,
+    mergeFallback: true,
     seedOnEmpty: true,
   });
   const [, , , reloadHistoryEvents] = useSupabaseSyncedListState<HistoryEvent>({
@@ -219,11 +225,13 @@ export function StoriesPage() {
     [computedMonthlyGoalTotal, monthlyGoalPhoto, monthlyGoalVideo],
   );
 
+  const normalizedItems = useMemo(() => mergeCanonicalStoryLogs(items, canonicalJuneStoryLogs), [items]);
+
   const visibleItems = useMemo(
     () => {
       const currentMonthKey = formatMonthKey(currentMonthAnchor);
       const monthKey = formatMonthKey(monthCursor);
-      return items.filter((item) => {
+      return normalizedItems.filter((item) => {
         const matchesMadeBy = matchesTeamScope(item.madeById, teamScope);
         const matchesPostedBy = matchesTeamScope(item.postedById, teamScope);
         const matchesScope = (matchesMadeBy || matchesPostedBy) && !isCypressRecord(item);
@@ -243,7 +251,7 @@ export function StoriesPage() {
         return isDateInRange(item.date, customRange.start, customRange.end);
       });
     },
-    [customRange.end, customRange.start, currentMonthAnchor, items, monthCursor, periodMode, teamScope],
+    [customRange.end, customRange.start, currentMonthAnchor, monthCursor, normalizedItems, periodMode, teamScope],
   );
 
   useEffect(() => {
@@ -252,7 +260,7 @@ export function StoriesPage() {
     }
 
     const currentMonthKey = formatMonthKey(currentMonthAnchor);
-    const scopedItems = items.filter((item) => {
+    const scopedItems = normalizedItems.filter((item) => {
       const matchesMadeBy = matchesTeamScope(item.madeById, teamScope);
       const matchesPostedBy = matchesTeamScope(item.postedById, teamScope);
       return (matchesMadeBy || matchesPostedBy) && !isCypressRecord(item);
@@ -276,7 +284,7 @@ export function StoriesPage() {
     setMonthCursor(new Date(year, month - 1, 1));
     setPeriodMode("month");
     autoSelectedMonthRef.current = true;
-  }, [currentMonthAnchor, items, periodMode, teamScope]);
+  }, [currentMonthAnchor, normalizedItems, periodMode, teamScope]);
 
   const stats = useMemo(() => {
     const total = monthlyCurrentVideo + monthlyCurrentPhoto;
