@@ -38,6 +38,64 @@ import { useThemeMode } from "../theme";
 
 type LoadStatus = "loading" | "ready" | "error";
 
+const manualMonthTotals = {
+  monthLabel: "Junho",
+  reach: 428_118,
+  views: 920_285,
+} as const;
+
+function normalizePayload(payload: Partial<MetaInsightsPayload> | null | undefined): MetaInsightsPayload {
+  if (!payload) {
+    return emptyMetaInsightsPayload;
+  }
+
+  return {
+    ...emptyMetaInsightsPayload,
+    ...payload,
+    source: {
+      ...emptyMetaInsightsPayload.source,
+      ...(payload.source ?? {}),
+    },
+    summary: {
+      ...emptyMetaInsightsPayload.summary,
+      ...(payload.summary ?? {}),
+    },
+    breakdown: {
+      instagram: {
+        ...emptyMetaInsightsPayload.breakdown.instagram,
+        ...(payload.breakdown?.instagram ?? {}),
+        summary: {
+          ...emptyMetaInsightsPayload.breakdown.instagram.summary,
+          ...(payload.breakdown?.instagram?.summary ?? {}),
+        },
+        audience: {
+          ...emptyMetaInsightsPayload.breakdown.instagram.audience,
+          ...(payload.breakdown?.instagram?.audience ?? {}),
+        },
+      },
+      facebook: {
+        ...emptyMetaInsightsPayload.breakdown.facebook,
+        ...(payload.breakdown?.facebook ?? {}),
+        summary: {
+          ...emptyMetaInsightsPayload.breakdown.facebook.summary,
+          ...(payload.breakdown?.facebook?.summary ?? {}),
+        },
+        audience: {
+          ...emptyMetaInsightsPayload.breakdown.facebook.audience,
+          ...(payload.breakdown?.facebook?.audience ?? {}),
+        },
+      },
+    },
+    audience: {
+      ...emptyMetaInsightsPayload.audience,
+      ...(payload.audience ?? {}),
+    },
+    trend: payload.trend ?? emptyMetaInsightsPayload.trend,
+    media: payload.media ?? emptyMetaInsightsPayload.media,
+    notes: payload.notes ?? emptyMetaInsightsPayload.notes,
+  };
+}
+
 function formatDateTime(value: string) {
   if (!value) {
     return "Sem atualização";
@@ -124,7 +182,7 @@ export function MetaInsightsPage() {
       return;
     }
 
-    setData(cachedPayload);
+    setData(normalizePayload(cachedPayload));
   }, [cachedPayload, cachedReady]);
 
   const loadMetaInsights = useCallback(async () => {
@@ -164,8 +222,9 @@ export function MetaInsightsPage() {
         throw new Error("A rota /api/meta-insights nao retornou um payload valido.");
       }
 
-      setData(payload);
-      setCachedPayload(payload);
+      const normalizedPayload = normalizePayload(payload);
+      setData(normalizedPayload);
+      setCachedPayload(normalizedPayload);
       setStatus("ready");
     } catch (error_) {
       const message = error_ instanceof Error ? error_.message : "Falha ao conectar com a Meta.";
@@ -176,7 +235,7 @@ export function MetaInsightsPage() {
         cachedPayload.updatedAt.length > 0;
 
       if (hasCachedSnapshot) {
-        setData(cachedPayload);
+        setData(normalizePayload(cachedPayload));
         setStatus("ready");
         setError(null);
         toast.warning(message);
@@ -221,25 +280,27 @@ export function MetaInsightsPage() {
       label: "Views",
       value: formatCompactNumber(data.summary.views),
       change: percentChange(latest?.views, previous?.views),
-      detail: "Visualizações da conta no período",
+      detail: "Visualizações somadas das contas no período",
     },
     {
       icon: BarChart3,
       label: "Perfil",
       value: formatCompactNumber(data.summary.profileViews),
       change: percentChange(latest?.profileViews, previous?.profileViews),
-      detail: "Visitas ao perfil",
+      detail: "Visitas de perfil disponíveis no Instagram",
     },
     {
       icon: Users,
       label: "Seguidores",
       value: formatCompactNumber(data.summary.followers),
       change: percentChange(latest?.followers, previous?.followers),
-      detail: "Seguidores atuais da conta",
+      detail: "Seguidores somados de Instagram e Facebook",
     },
   ];
 
   const engagementRate = formatPercent(data.summary.engagementRate, 1);
+  const instagramSummary = data.breakdown.instagram.summary;
+  const facebookSummary = data.breakdown.facebook.summary;
   const topCountries = sortDescending(data.audience.countries).slice(0, 5);
   const topCities = sortDescending(data.audience.cities).slice(0, 5);
   const topGenderAge = sortDescending(data.audience.genderAge).slice(0, 5);
@@ -269,13 +330,16 @@ export function MetaInsightsPage() {
   const mediaTileClass = isDark
     ? "rounded-2xl bg-muted/45 p-3"
     : "rounded-2xl border border-amber-100/80 bg-white p-3 shadow-[0_10px_24px_rgba(79,70,229,0.04)]";
+  const monthTotalTileClass = isDark
+    ? "rounded-[1.75rem] border border-white/10 bg-muted/35 p-4"
+    : "rounded-[1.75rem] border border-rose-100/80 bg-white/96 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.05)]";
 
   return (
     <PageTransition>
       <PageHeader
         eyebrow="META INSIGHTS"
-        title="Insights reais do Instagram"
-        description="Conectamos a conta profissional do Instagram via token da Meta e exibimos aqui os dados reais de alcance, views, perfil, audiência e conteúdos recentes."
+        title="Insights reais de Instagram e Facebook"
+        description="Conectamos a conta profissional do Instagram e a Página do Facebook via token da Meta e exibimos aqui os dados combinados e o resumo por canal."
         actions={
           <div className="flex flex-wrap gap-2">
             {metaPeriods.map((item) => (
@@ -397,7 +461,7 @@ export function MetaInsightsPage() {
                   </p>
                 </div>
                 <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-                  Os números abaixo vêm diretamente da API oficial do Instagram Graph e refletem o recorte de{" "}
+                  Os números abaixo vêm diretamente da API oficial da Meta. Os cards principais somam Instagram e Facebook dentro do recorte de{" "}
                   <span data-cy="meta-range-label">{rangeLabel.toLowerCase()}</span>.
                 </p>
               </div>
@@ -434,6 +498,23 @@ export function MetaInsightsPage() {
                 ))}
               </div>
             ) : null}
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className={monthTotalTileClass}>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Alcance total de {manualMonthTotals.monthLabel}
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{formatCompactNumber(manualMonthTotals.reach)}</p>
+                <p className="mt-1 text-sm text-muted-foreground">Valor informado manualmente para o fechamento do mês.</p>
+              </div>
+              <div className={monthTotalTileClass}>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Visualizações totais de {manualMonthTotals.monthLabel}
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{formatCompactNumber(manualMonthTotals.views)}</p>
+                <p className="mt-1 text-sm text-muted-foreground">Valor informado manualmente para o fechamento do mês.</p>
+              </div>
+            </div>
           </GlassPanel>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -453,7 +534,7 @@ export function MetaInsightsPage() {
             <GlassPanel className={isDark ? "h-[420px] p-6" : "h-[420px] p-6 bg-white/96 border border-border/60 shadow-[0_18px_48px_rgba(15,23,42,0.06)]"} dataCy="meta-chart-shell">
               <SectionTitle
                 title="Evolução do período"
-                description="Acompanhamento diário de alcance, views e visitas ao perfil."
+                description="Acompanhamento agregado de alcance, views e visitas ao perfil no período."
               />
               <div className="mt-6 h-[330px]">
                 {trendChartData.length > 0 ? (
@@ -505,15 +586,17 @@ export function MetaInsightsPage() {
 
             <GlassPanel className={shellClass} dataCy="meta-summary-details">
               <SectionTitle
-                title="Resumo da conta"
-                description="Últimas leituras agregadas pela Meta."
+                title="Resumo por canal"
+                description="Leituras separadas de Instagram e Facebook dentro do mesmo token."
               />
               <div className="grid gap-3">
                 {[
-                  { label: "Contas engajadas", value: data.summary.accountsEngaged },
-                  { label: "Seguidores", value: data.summary.followers },
-                  { label: "Views", value: data.summary.views },
-                  { label: "Alcance", value: data.summary.reach },
+                  { label: "Instagram alcance", value: instagramSummary.reach },
+                  { label: "Instagram views", value: instagramSummary.views },
+                  { label: "Facebook alcance", value: facebookSummary.reach },
+                  { label: "Facebook views", value: facebookSummary.views },
+                  { label: "Instagram seguidores", value: instagramSummary.followers },
+                  { label: "Facebook seguidores", value: facebookSummary.followers },
                 ].map((item) => (
                   <div key={item.label} className={summaryTileClass}>
                     <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{item.label}</p>
@@ -586,7 +669,7 @@ export function MetaInsightsPage() {
           <GlassPanel className={shellClass} dataCy="meta-media-shell">
             <SectionTitle
               title="Conteúdos recentes"
-              description="Os posts mais recentes com engajamento e alcance extraídos da conta."
+              description="Os posts mais recentes com engajamento e alcance extraídos de Instagram e Facebook."
             />
 
             {recentMedia.length > 0 ? (
@@ -618,7 +701,7 @@ export function MetaInsightsPage() {
                         </div>
                       )}
                       <div className="absolute left-4 top-4 rounded-full bg-black/55 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-white backdrop-blur">
-                        {item.mediaType}
+                        {item.source} • {item.mediaType}
                       </div>
                     </div>
 
@@ -632,6 +715,10 @@ export function MetaInsightsPage() {
                         <div className={mediaTileClass}>
                           <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Comentários</p>
                           <p className="mt-2 font-semibold text-foreground">{formatCompactNumber(item.commentsCount)}</p>
+                        </div>
+                        <div className={mediaTileClass}>
+                          <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Compart.</p>
+                          <p className="mt-2 font-semibold text-foreground">{formatCompactNumber(item.shareCount)}</p>
                         </div>
                         <div className={mediaTileClass}>
                           <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Views</p>
@@ -653,7 +740,7 @@ export function MetaInsightsPage() {
             ) : (
               <EmptyState
                 title="Nenhum conteúdo recente"
-                description="Quando a API retornar os posts da conta, eles aparecerão aqui com métricas e links para o Instagram."
+                description="Quando a API retornar os posts das contas conectadas, eles aparecerão aqui com métricas e links para Instagram e Facebook."
               />
             )}
           </GlassPanel>

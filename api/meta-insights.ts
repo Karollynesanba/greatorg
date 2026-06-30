@@ -1,4 +1,11 @@
-import type { MetaAudienceItem, MetaInsightsPayload, MetaMediaInsight } from "../src/app/data/metaInsights.js";
+import type {
+  MetaAudienceItem,
+  MetaChannelInsights,
+  MetaInsightsPayload,
+  MetaMediaInsight,
+  MetaSummary,
+  MetaTrendPoint,
+} from "../src/app/data/metaInsights.js";
 
 type GraphError = {
   message?: string;
@@ -21,6 +28,9 @@ type PageDetails = {
     id: string;
     username?: string | null;
   };
+  name?: string;
+  followers_count?: number;
+  fan_count?: number;
 };
 
 type InsightValue = {
@@ -49,6 +59,23 @@ type MediaInsightResponse = {
   values?: Array<{ value: number | Record<string, number> }>;
 };
 
+type PagePostInsight = {
+  name?: string;
+  values?: Array<{ value: number | Record<string, number> }>;
+};
+
+type PagePostRecord = {
+  id: string;
+  message?: string;
+  created_time?: string;
+  permalink_url?: string;
+  full_picture?: string;
+  shares?: { count?: number };
+  likes?: { summary?: { total_count?: number } };
+  comments?: { summary?: { total_count?: number } };
+  insights?: { data?: PagePostInsight[] };
+};
+
 const DEFAULT_VERSION = "v22.0";
 const DEFAULT_BASE_URL = "https://graph.facebook.com";
 
@@ -61,7 +88,7 @@ function getGraphBaseUrl() {
 }
 
 function getAccessToken() {
-  return process.env.META_IG_ACCESS_TOKEN?.trim() || process.env.META_ACCESS_TOKEN?.trim() || "";
+  return process.env.META_ACCESS_TOKEN?.trim() || "";
 }
 
 function queryValue(value: unknown) {
@@ -192,6 +219,117 @@ function parseAudience(values: Record<string, number> | undefined): MetaAudience
     .sort((left, right) => right.value - left.value);
 }
 
+function emptySummary(): MetaSummary {
+  return {
+    reach: 0,
+    views: 0,
+    profileViews: 0,
+    followers: 0,
+    accountsEngaged: 0,
+    totalInteractions: 0,
+    mediaCount: 0,
+    engagementRate: 0,
+  };
+}
+
+function emptyAudience() {
+  return {
+    countries: [],
+    cities: [],
+    genderAge: [],
+    locales: [],
+  } satisfies MetaChannelInsights["audience"];
+}
+
+function emptyChannel(label: string): MetaChannelInsights {
+  return {
+    connected: false,
+    label,
+    summary: emptySummary(),
+    trend: [],
+    audience: emptyAudience(),
+    media: [],
+  };
+}
+
+function mergeTrendByDate(seriesList: MetaTrendPoint[][]) {
+  const totals = new Map<string, MetaTrendPoint>();
+
+  for (const series of seriesList) {
+    for (const point of series) {
+      if (!point.date) {
+        continue;
+      }
+
+      const current = totals.get(point.date) ?? {
+        date: point.date,
+        reach: 0,
+        views: 0,
+        profileViews: 0,
+        followers: 0,
+      };
+
+      current.reach += point.reach;
+      current.views += point.views;
+      current.profileViews += point.profileViews;
+      current.followers += point.followers;
+      totals.set(point.date, current);
+    }
+  }
+
+  return Array.from(totals.values()).sort((left, right) => left.date.localeCompare(right.date));
+}
+
+function combineSummary(summaries: MetaSummary[]) {
+  const combined = summaries.reduce<MetaSummary>(
+    (acc, summary) => {
+      acc.reach += summary.reach;
+      acc.views += summary.views;
+      acc.profileViews += summary.profileViews;
+      acc.followers += summary.followers;
+      acc.accountsEngaged += summary.accountsEngaged;
+      acc.totalInteractions += summary.totalInteractions;
+      acc.mediaCount += summary.mediaCount;
+      return acc;
+    },
+    emptySummary(),
+  );
+
+  combined.engagementRate = combined.reach > 0 ? (combined.totalInteractions / combined.reach) * 100 : 0;
+  return combined;
+}
+
+function extractInsightMetric(data: PagePostInsight[] | undefined, metricName: string) {
+  const metric = data?.find((item) => item.name === metricName);
+  return toNumber(metric?.values?.[0]?.value);
+}
+
+function summarizeFacebookPosts(posts: MetaMediaInsight[]) {
+  const trendMap = new Map<string, MetaTrendPoint>();
+
+  for (const post of posts) {
+    const date = post.timestamp.slice(0, 10);
+    if (!date) {
+      continue;
+    }
+
+    const current = trendMap.get(date) ?? {
+      date,
+      reach: 0,
+      views: 0,
+      profileViews: 0,
+      followers: 0,
+    };
+
+    current.reach += post.reach;
+    current.views += post.views;
+    current.profileViews += 0;
+    trendMap.set(date, current);
+  }
+
+  return Array.from(trendMap.values()).sort((left, right) => left.date.localeCompare(right.date));
+}
+
 async function safeMetricSeries(
   baseUrl: string,
   version: string,
@@ -282,6 +420,105 @@ async function discoverInstagramAccount(baseUrl: string, version: string, token:
   );
 }
 
+async function fetchFacebookInsights(
+  baseUrl: string,
+  version: string,
+  pageId: string,
+  token: string,
+  since: number,
+  until: number,
+) {
+  if (!pageId) {
+    return {
+      channel: emptyChannel("Facebook"),
+      pageName: "",
+      pageFollowers: 0,
+      pageFans: 0,
+      note: "Sem PÃ¡gina do Facebook definida para agregar a segunda conta.",
+    };
+  }
+
+  try {
+    const pageDetails = await graphGet<PageDetails>(baseUrl, version, `/${pageId}`, token, {
+      fields: "id,name,followers_count,fan_count",
+    });
+
+    const postsResponse = await graphGet<{ data?: PagePostRecord[] }>(baseUrl, version, `/${pageId}/posts`, token, {
+      fields:
+        "id,message,created_time,permalink_url,full_picture,shares,likes.summary(true).limit(0),comments.summary(true).limit(0),insights.metric(post_impressions,post_impressions_unique,post_engaged_users)",
+      limit: 25,
+      since,
+      until,
+    });
+
+    const media = (postsResponse.data ?? []).map((item) => {
+      const likeCount = toNumber(item.likes?.summary?.total_count);
+      const commentsCount = toNumber(item.comments?.summary?.total_count);
+      const shareCount = toNumber(item.shares?.count);
+      const views = extractInsightMetric(item.insights?.data, "post_impressions");
+      const reach = extractInsightMetric(item.insights?.data, "post_impressions_unique");
+      const engagement = extractInsightMetric(item.insights?.data, "post_engaged_users") || likeCount + commentsCount + shareCount;
+
+      return {
+        id: item.id,
+        source: "facebook",
+        caption: item.message?.trim() || "Post do Facebook sem texto",
+        mediaType: "facebook post",
+        permalink: item.permalink_url ?? `https://www.facebook.com/${item.id}`,
+        timestamp: item.created_time ?? "",
+        thumbnailUrl: item.full_picture ?? undefined,
+        likeCount,
+        commentsCount,
+        shareCount,
+        reach,
+        views,
+        engagement,
+        saved: 0,
+      } satisfies MetaMediaInsight;
+    });
+
+    const summary = combineSummary([
+      {
+        ...emptySummary(),
+        reach: media.reduce((acc, item) => acc + item.reach, 0),
+        views: media.reduce((acc, item) => acc + item.views, 0),
+        followers: toNumber(pageDetails.followers_count ?? pageDetails.fan_count),
+        accountsEngaged: media.reduce((acc, item) => acc + item.engagement, 0),
+        totalInteractions: media.reduce((acc, item) => acc + item.likeCount + item.commentsCount + item.shareCount, 0),
+        mediaCount: media.length,
+        engagementRate: 0,
+      },
+    ]);
+
+    return {
+      channel: {
+        connected: true,
+        label: "Facebook",
+        summary,
+        trend: summarizeFacebookPosts(media),
+        audience: emptyAudience(),
+        media,
+      } satisfies MetaChannelInsights,
+      pageName: pageDetails.name ?? "",
+      pageFollowers: toNumber(pageDetails.followers_count),
+      pageFans: toNumber(pageDetails.fan_count),
+      note:
+        media.length > 0
+          ? "Facebook agregado a partir dos posts recentes da PÃ¡gina no perÃ­odo."
+          : "PÃ¡gina do Facebook conectada, mas sem posts recentes no perÃ­odo.",
+    };
+  } catch (error_) {
+    const message = error_ instanceof Error ? error_.message : "Falha ao consultar a PÃ¡gina do Facebook.";
+    return {
+      channel: emptyChannel("Facebook"),
+      pageName: "",
+      pageFollowers: 0,
+      pageFans: 0,
+      note: `Facebook nÃ£o pÃ´de ser carregado: ${message}`,
+    };
+  }
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -292,7 +529,7 @@ export default async function handler(req: any, res: any) {
     return res
       .status(500)
       .setHeader("Cache-Control", "no-store")
-      .json({ error: "Defina META_IG_ACCESS_TOKEN no ambiente para conectar a conta do Instagram." });
+      .json({ error: "Defina META_ACCESS_TOKEN no ambiente para conectar a conta do Instagram." });
   }
 
   const query = (req.query ?? {}) as Record<string, unknown>;
@@ -397,6 +634,7 @@ export default async function handler(req: any, res: any) {
 
         return {
           id: item.id,
+          source: "instagram",
           caption: item.caption ?? "Sem legenda",
           mediaType: item.media_type ?? "media",
           permalink: item.permalink ?? `https://www.instagram.com/p/${item.id}/`,
@@ -404,6 +642,7 @@ export default async function handler(req: any, res: any) {
           thumbnailUrl: item.thumbnail_url ?? undefined,
           likeCount: likes,
           commentsCount: comments,
+          shareCount: 0,
           reach,
           views,
           engagement,
@@ -418,7 +657,32 @@ export default async function handler(req: any, res: any) {
     const summaryFollowers = latestValue(followersSeries.map((item) => ({ value: item.value })));
     const accountsEngaged = latestValue((accountsEngagedRaw?.values ?? []).map((item) => ({ value: toNumber(item.value) })));
     const totalInteractions = latestValue((totalInteractionsRaw?.values ?? []).map((item) => ({ value: toNumber(item.value) })));
-    const engagementRate = summaryReach > 0 ? (totalInteractions / summaryReach) * 100 : 0;
+    const instagramSummary: MetaSummary = {
+      reach: summaryReach,
+      views: summaryViews,
+      profileViews: summaryProfileViews,
+      followers: summaryFollowers,
+      accountsEngaged,
+      totalInteractions,
+      mediaCount: media.length,
+      engagementRate: summaryReach > 0 ? (totalInteractions / summaryReach) * 100 : 0,
+    };
+
+    const instagramChannel: MetaChannelInsights = {
+      connected: true,
+      label: "Instagram",
+      summary: instagramSummary,
+      trend,
+      audience,
+      media,
+    };
+
+    const facebookResult = await fetchFacebookInsights(baseUrl, version, pageId, token, since, until);
+    const combinedSummary = combineSummary([instagramChannel.summary, facebookResult.channel.summary]);
+    const combinedTrend = mergeTrendByDate([instagramChannel.trend, facebookResult.channel.trend]);
+    const combinedMedia = [...instagramChannel.media, ...facebookResult.channel.media]
+      .sort((left, right) => right.timestamp.localeCompare(left.timestamp))
+      .slice(0, 12);
 
     const payload: MetaInsightsPayload = {
       connected: true,
@@ -430,19 +694,18 @@ export default async function handler(req: any, res: any) {
         instagramUserId,
         instagramUsername,
       },
-      summary: {
-        reach: summaryReach,
-        views: summaryViews,
-        profileViews: summaryProfileViews,
-        followers: summaryFollowers,
-        accountsEngaged,
-        totalInteractions,
-        mediaCount: media.length,
-        engagementRate,
+      summary: combinedSummary,
+      breakdown: {
+        instagram: instagramChannel,
+        facebook: {
+          ...facebookResult.channel,
+          pageFollowers: facebookResult.pageFollowers,
+          pageFans: facebookResult.pageFans,
+        },
       },
-      trend,
-      audience,
-      media,
+      trend: combinedTrend,
+      audience: instagramChannel.audience,
+      media: combinedMedia,
       notes: [
         `Última atualização em ${new Intl.DateTimeFormat("pt-BR", {
           dateStyle: "medium",
