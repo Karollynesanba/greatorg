@@ -260,6 +260,11 @@ function getCalendarEventUnitCount(event: CalendarEvent) {
   return Math.max(event.tasks?.length ?? 0, 1);
 }
 
+function isSocialSellingPost(post: Pick<Post, "title" | "description">) {
+  const haystack = `${post.title} ${post.description}`.toLocaleLowerCase("pt-BR");
+  return haystack.includes("social selling");
+}
+
 function getCalendarCompletedUnits(event: CalendarEvent) {
   if (!isCompletedCalendarEvent(event)) {
     return 0;
@@ -698,6 +703,8 @@ export function ContentPage() {
 
   const totalReach = visiblePosts.reduce((sum, post) => sum + post.reach, 0);
   const totalEngagement = visiblePosts.reduce((sum, post) => sum + post.engagement, 0);
+  const socialSellingPosts = useMemo(() => visiblePosts.filter((post) => isSocialSellingPost(post)), [visiblePosts]);
+  const socialSellingReach = socialSellingPosts.reduce((sum, post) => sum + post.reach, 0);
   const completedCalendarUnits = visibleCalendarItems.reduce((sum, event) => sum + getCalendarCompletedUnits(event), 0);
   const overallGoalProgress = computeGoalProgress(visibleGoals);
   const overallStoryProgress = computeStoryProgress(visibleStories);
@@ -907,6 +914,23 @@ export function ContentPage() {
       onEdit: openCreateEditor,
       dataCy: "content-metric-goals",
     },
+    ...(ownerFilter === "all"
+      ? [
+          {
+            id: "social-selling",
+            label: "Social Selling",
+            value: formatLongNumber(socialSellingPosts.length),
+            detail:
+              socialSellingPosts.length > 0
+                ? `${formatLongNumber(socialSellingReach)} visualizações somadas nos conteúdos de social selling.`
+                : "Nenhum conteúdo de social selling encontrado neste mês.",
+            icon: Rocket,
+            delta: 0,
+            onEdit: openCreateEditor,
+            dataCy: "content-metric-social-selling",
+          } satisfies MetricCard,
+        ]
+      : []),
   ];
 
   return (
