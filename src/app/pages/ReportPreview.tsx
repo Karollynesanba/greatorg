@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { type ContentType, type Goal } from "../data/mockData";
 import { createEmptyMonthlyArchive, type MonthlyArchiveSnapshot } from "../data/monthlyArchive";
+import { shouldUseMonthlyPerformanceSnapshot, useMonthlyPerformanceSnapshot } from "../data/monthlyPerformance";
 import { useTeamProfiles } from "../data/profiles";
 import { usePosts, type Post } from "../data/posts";
 import { useSupabaseSharedState, useSupabaseSyncedListState } from "../data/supabaseSync";
@@ -162,6 +163,21 @@ function shiftRange(start: Date, end: Date) {
     start: addDays(start, -days),
     end: addDays(end, -days),
   };
+}
+
+function monthKeyFromDate(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function isExactMonthRange(range: { start: Date; end: Date }, monthKey: string) {
+  const [year, month] = monthKey.split("-").map(Number);
+  if (!Number.isFinite(year) || !Number.isFinite(month)) {
+    return false;
+  }
+
+  const monthStart = new Date(year, month - 1, 1);
+  const monthEnd = new Date(year, month, 0);
+  return formatDateKey(range.start) === formatDateKey(monthStart) && formatDateKey(range.end) === formatDateKey(monthEnd);
 }
 
 function inRange(value: string, start: Date, end: Date) {
@@ -687,6 +703,7 @@ export function ReportPreviewPage() {
     key: "great-organico-monthly-archive",
     fallback: createEmptyMonthlyArchive(),
   });
+  const [monthlyPerformance] = useMonthlyPerformanceSnapshot();
   const [teamScope] = useTeamScope();
   const [state, setState] = useSupabasePreference<PreviewState>("report-preview-state", defaultPreviewState);
   const emptyManualBlocks = useMemo<ManualBlock[]>(() => [], []);
@@ -794,12 +811,20 @@ export function ReportPreviewPage() {
   }, [allGoals, currentRange.end, currentRange.start, state.responsibleFilter, teamScope]);
 
   const currentSummary = useMemo(() => {
+    const currentMonthKey = monthKeyFromDate(currentRange.start);
+    const useSharedMonthlyTotals = shouldUseMonthlyPerformanceSnapshot(
+      monthlyPerformance,
+      currentMonthKey,
+      state.responsibleFilter === "todos" && teamScope === "todos" && isExactMonthRange(currentRange, currentMonthKey),
+    );
+    const computedViews = filteredPosts.reduce((sum, post) => sum + post.reach, 0);
+    const views = useSharedMonthlyTotals ? monthlyPerformance.views : computedViews;
     const reach = filteredPosts.reduce((sum, post) => sum + post.reach, 0);
     const engagement = filteredPosts.reduce((sum, post) => sum + post.engagement, 0);
     const postsCount = filteredPosts.length;
     const avgEngagement = postsCount > 0 ? engagement / postsCount : 0;
-    return { reach, engagement, postsCount, avgEngagement };
-  }, [filteredPosts]);
+    return { views, reach, engagement, postsCount, avgEngagement };
+  }, [currentRange, filteredPosts, monthlyPerformance, state.responsibleFilter, teamScope]);
 
   const previousSummary = useMemo(() => {
     const reach = previousPosts.reduce((sum, post) => sum + post.reach, 0);
@@ -876,6 +901,7 @@ export function ReportPreviewPage() {
     [manualBlocks, reportState.selectedPage],
   );
   const summaryCards: MetricCard[] = [
+    { label: "Visualizações", value: formatLongNumber(currentSummary.views), helper: "Total mensal compartilhado no recorte", delta: 0, icon: Eye },
     { label: "Alcance", value: formatLongNumber(currentSummary.reach), helper: "Somatório do período filtrado", delta: 0, icon: Eye },
     { label: "Engajamento", value: formatLongNumber(currentSummary.engagement), helper: "Interações acumuladas", delta: 0, icon: Sparkles },
     { label: "Posts", value: String(currentSummary.postsCount), helper: "Conteúdos no recorte", delta: 0, icon: FileText },

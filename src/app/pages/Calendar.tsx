@@ -30,6 +30,7 @@ import { formatBrazilDateLabel, getBrazilYesterdayDateKey } from "../data/brazil
 import { useSupabaseCalendarItemsState } from "../data/calendarItemsRepository";
 import { useSupabaseSharedState, useSupabaseSyncedListState } from "../data/supabaseSync";
 import { defaultMonthlyViewsGoal, sumMonthViews, useCalendarDayMetrics } from "../data/calendarMetrics";
+import { shouldUseMonthlyPerformanceSnapshot, useMonthlyPerformanceSnapshot } from "../data/monthlyPerformance";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import { buildCalendarCompletionHistoryEvent, getCalendarCompletionHistoryId } from "../data/calendarWorkflow";
 import { removeHistoryEvent, upsertHistoryEvent } from "../data/historyEvents";
@@ -941,6 +942,7 @@ export function CalendarPage() {
     key: "calendar-monthly-views-goal",
     fallback: defaultMonthlyViewsGoal,
   });
+  const [monthlyPerformance] = useMonthlyPerformanceSnapshot();
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [eventForm, setEventForm] = useState<CalendarEventFormState | null>(null);
   const [pendingDelete, setPendingDelete] = useState<CalendarEvent | null>(null);
@@ -1024,8 +1026,11 @@ export function CalendarPage() {
   const currentDayViews = dayViewsByDate[referenceDateKey] ?? 0;
   const currentDayReach = dayReachByDate[referenceDateKey] ?? 0;
   const currentMonthKey = getMonthKey(currentDate);
-  const currentMonthViews = useMemo(() => sumMonthViews(dayViewsByDate, currentMonthKey), [currentMonthKey, dayViewsByDate]);
-  const currentMonthReach = useMemo(() => sumMonthViews(dayReachByDate, currentMonthKey), [currentMonthKey, dayReachByDate]);
+  const computedCurrentMonthViews = useMemo(() => sumMonthViews(dayViewsByDate, currentMonthKey), [currentMonthKey, dayViewsByDate]);
+  const computedCurrentMonthReach = useMemo(() => sumMonthViews(dayReachByDate, currentMonthKey), [currentMonthKey, dayReachByDate]);
+  const useSharedMonthlyTotals = shouldUseMonthlyPerformanceSnapshot(monthlyPerformance, currentMonthKey, teamScope === "todos");
+  const currentMonthViews = useSharedMonthlyTotals ? monthlyPerformance.views : computedCurrentMonthViews;
+  const currentMonthReach = useSharedMonthlyTotals ? monthlyPerformance.reach : computedCurrentMonthReach;
   const remainingMonthViews = Math.max(monthlyViewsGoal - currentMonthViews, 0);
   const dayCompletedCount = currentDayEvents.filter((event) => event.completed || event.status === "Publicado" || event.status === "Aprovado").length;
   const currentDayPendingCount = Math.max(currentDayEvents.length - dayCompletedCount, 0);

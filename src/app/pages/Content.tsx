@@ -27,6 +27,7 @@ import {
   type StoryLog,
 } from "../data/mockData";
 import { usePosts } from "../data/posts";
+import { getCurrentMonthKey, useMonthlyPerformanceSnapshot } from "../data/monthlyPerformance";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
@@ -79,6 +80,13 @@ type ProgressSummary = {
   score: number;
   detail: string;
   subtitle: string;
+};
+
+type MonthlyMetricsDraft = {
+  views: string;
+  reach: string;
+  socialSellingViews: string;
+  socialSellingCount: string;
 };
 
 const storyGoalTarget = 168;
@@ -351,6 +359,91 @@ function MetricTile({
       <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
       <p className="mt-2 text-[1.9rem] font-semibold tracking-tight text-slate-950">{value}</p>
       <p className="mt-2 text-sm leading-6 text-slate-500">{detail}</p>
+    </div>
+  );
+}
+
+function MonthlyMetricsModal({
+  draft,
+  onChange,
+  onClose,
+  onSave,
+}: {
+  draft: MonthlyMetricsDraft;
+  onChange: (next: MonthlyMetricsDraft) => void;
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="w-full max-w-2xl overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.18)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 sm:px-8">
+          <div>
+            <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Métricas do mês</p>
+            <h3 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Social selling e totais compartilhados</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-500">Os valores salvos aqui ficam disponíveis para toda a equipe nas telas que usam os totais do mês.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:text-slate-800"
+          >
+            <span className="text-lg leading-none">×</span>
+          </button>
+        </div>
+
+        <div className="grid gap-4 px-6 py-6 sm:grid-cols-2 sm:px-8">
+          <label className="grid gap-2">
+            <span className="text-sm font-medium text-slate-800">Visualizações do mês</span>
+            <input
+              value={draft.views}
+              onChange={(event) => onChange({ ...draft, views: event.target.value })}
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
+              inputMode="numeric"
+            />
+          </label>
+          <label className="grid gap-2">
+            <span className="text-sm font-medium text-slate-800">Alcance do mês</span>
+            <input
+              value={draft.reach}
+              onChange={(event) => onChange({ ...draft, reach: event.target.value })}
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
+              inputMode="numeric"
+            />
+          </label>
+          <label className="grid gap-2">
+            <span className="text-sm font-medium text-slate-800">Visualizações de social selling</span>
+            <input
+              value={draft.socialSellingViews}
+              onChange={(event) => onChange({ ...draft, socialSellingViews: event.target.value })}
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
+              inputMode="numeric"
+            />
+          </label>
+          <label className="grid gap-2">
+            <span className="text-sm font-medium text-slate-800">Quantidade de social selling</span>
+            <input
+              value={draft.socialSellingCount}
+              onChange={(event) => onChange({ ...draft, socialSellingCount: event.target.value })}
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
+              inputMode="numeric"
+            />
+          </label>
+        </div>
+
+        <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 px-6 py-5 sm:px-8">
+          <ActionButton variant="secondary" onClick={onClose}>
+            Cancelar
+          </ActionButton>
+          <ActionButton onClick={onSave}>
+            <Rocket className="h-4 w-4" />
+            Salvar métricas
+          </ActionButton>
+        </div>
+      </div>
     </div>
   );
 }
@@ -634,6 +727,7 @@ function ContentEditorModal({
 export function ContentPage() {
   const [teamMembers] = useTeamProfiles();
   const [posts, setPosts] = usePosts();
+  const [monthlyPerformance, setMonthlyPerformance] = useMonthlyPerformanceSnapshot();
   const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
   const [stories] = useSupabaseSyncedListState<StoryLog>({ key: "story-logs", table: "story_logs", fallback: storyLogs });
   const [calendarItems] = useSupabaseSyncedListState<CalendarEvent>({
@@ -646,9 +740,18 @@ export function ContentPage() {
   const [hoveredPostId, setHoveredPostId] = useState<number | null>(null);
   const [editorMode, setEditorMode] = useState<ContentEditorMode>("create");
   const [editorOpen, setEditorOpen] = useState(false);
+  const [monthlyMetricsOpen, setMonthlyMetricsOpen] = useState(false);
   const [editingPostId, setEditingPostId] = useState<number | null>(null);
   const [draft, setDraft] = useState<ContentDraft>(() => emptyDraft(teamMembers[0]?.id ?? 1));
+  const [monthlyMetricsDraft, setMonthlyMetricsDraft] = useState<MonthlyMetricsDraft>({
+    views: "",
+    reach: "",
+    socialSellingViews: "",
+    socialSellingCount: "",
+  });
   const [postToDelete, setPostToDelete] = useState<Post | null>(null);
+  const currentMonthKey = getCurrentMonthKey();
+  const useSharedMonthlyTotals = ownerFilter === "all" && teamScope === "todos" && monthlyPerformance.monthKey === currentMonthKey;
 
   const visiblePosts = useMemo(
     () =>
@@ -704,7 +807,11 @@ export function ContentPage() {
   const totalReach = visiblePosts.reduce((sum, post) => sum + post.reach, 0);
   const totalEngagement = visiblePosts.reduce((sum, post) => sum + post.engagement, 0);
   const socialSellingPosts = useMemo(() => visiblePosts.filter((post) => isSocialSellingPost(post)), [visiblePosts]);
-  const socialSellingReach = socialSellingPosts.reduce((sum, post) => sum + post.reach, 0);
+  const socialSellingReach = useSharedMonthlyTotals
+    ? monthlyPerformance.socialSellingViews
+    : socialSellingPosts.reduce((sum, post) => sum + post.reach, 0);
+  const socialSellingCount = useSharedMonthlyTotals ? monthlyPerformance.socialSellingCount : socialSellingPosts.length;
+  const displayedMonthViews = useSharedMonthlyTotals ? monthlyPerformance.views : totalReach;
   const completedCalendarUnits = visibleCalendarItems.reduce((sum, event) => sum + getCalendarCompletedUnits(event), 0);
   const overallGoalProgress = computeGoalProgress(visibleGoals);
   const overallStoryProgress = computeStoryProgress(visibleStories);
@@ -811,6 +918,16 @@ export function ContentPage() {
     setEditorOpen(true);
   };
 
+  const openMonthlyMetricsEditor = () => {
+    setMonthlyMetricsDraft({
+      views: String(monthlyPerformance.views),
+      reach: String(monthlyPerformance.reach),
+      socialSellingViews: String(monthlyPerformance.socialSellingViews),
+      socialSellingCount: String(monthlyPerformance.socialSellingCount),
+    });
+    setMonthlyMetricsOpen(true);
+  };
+
   const openEditEditor = (post: Post) => {
     setEditorMode("edit");
     setEditingPostId(post.id);
@@ -873,6 +990,24 @@ export function ContentPage() {
     setPostToDelete(null);
   };
 
+  const handleSaveMonthlyMetrics = () => {
+    const toNumber = (value: string) => {
+      const parsed = Number(String(value).replace(/[^\d]/g, ""));
+      return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0;
+    };
+
+    setMonthlyPerformance({
+      monthKey: currentMonthKey,
+      views: toNumber(monthlyMetricsDraft.views),
+      reach: toNumber(monthlyMetricsDraft.reach),
+      socialSellingViews: toNumber(monthlyMetricsDraft.socialSellingViews),
+      socialSellingCount: toNumber(monthlyMetricsDraft.socialSellingCount),
+      updatedAt: new Date().toISOString(),
+    });
+    setMonthlyMetricsOpen(false);
+    toast.success("Métricas mensais compartilhadas atualizadas.");
+  };
+
   const metricCards: MetricCard[] = [
     {
       id: "completed-activities",
@@ -919,14 +1054,14 @@ export function ContentPage() {
           {
             id: "social-selling",
             label: "Social Selling",
-            value: formatLongNumber(socialSellingPosts.length),
+            value: formatLongNumber(socialSellingReach),
             detail:
-              socialSellingPosts.length > 0
-                ? `${formatLongNumber(socialSellingReach)} visualizações somadas nos conteúdos de social selling.`
+              socialSellingCount > 0
+                ? `${formatLongNumber(socialSellingCount)} conteúdos de social selling neste mês.`
                 : "Nenhum conteúdo de social selling encontrado neste mês.",
             icon: Rocket,
             delta: 0,
-            onEdit: openCreateEditor,
+            onEdit: openMonthlyMetricsEditor,
             dataCy: "content-metric-social-selling",
           } satisfies MetricCard,
         ]
@@ -1367,7 +1502,7 @@ export function ContentPage() {
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]">
                 <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Visualizações totais</p>
-                <p className="mt-2 text-xl font-semibold text-slate-950">{formatLongNumber(totalReach)}</p>
+                <p className="mt-2 text-xl font-semibold text-slate-950">{formatLongNumber(displayedMonthViews)}</p>
               </div>
               <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]">
                 <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Engajamento</p>
@@ -1409,6 +1544,15 @@ export function ContentPage() {
           }}
           onSave={handleSaveEditor}
           teamMembers={teamMembers}
+        />
+      ) : null}
+
+      {monthlyMetricsOpen ? (
+        <MonthlyMetricsModal
+          draft={monthlyMetricsDraft}
+          onChange={setMonthlyMetricsDraft}
+          onClose={() => setMonthlyMetricsOpen(false)}
+          onSave={handleSaveMonthlyMetrics}
         />
       ) : null}
 

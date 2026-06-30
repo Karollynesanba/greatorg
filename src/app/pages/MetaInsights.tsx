@@ -34,15 +34,10 @@ import {
   cn,
 } from "../components/ui";
 import { useMetaConfig } from "../data/metaConfig";
+import { useMonthlyPerformanceSnapshot } from "../data/monthlyPerformance";
 import { useThemeMode } from "../theme";
 
 type LoadStatus = "loading" | "ready" | "error";
-
-const manualMonthTotals = {
-  monthLabel: "Junho",
-  reach: 428_118,
-  views: 920_285,
-} as const;
 
 function normalizePayload(payload: Partial<MetaInsightsPayload> | null | undefined): MetaInsightsPayload {
   if (!payload) {
@@ -168,6 +163,7 @@ function LoadingState() {
 export function MetaInsightsPage() {
   const { isDark } = useThemeMode();
   const [metaConfig] = useMetaConfig();
+  const [monthlyPerformance] = useMonthlyPerformanceSnapshot();
   const [cachedPayload, setCachedPayload, cachedReady] = useSupabaseSharedState<MetaInsightsPayload>({
     key: "meta-insights-latest",
     fallback: emptyMetaInsightsPayload,
@@ -502,16 +498,16 @@ export function MetaInsightsPage() {
             <div className="grid gap-3 md:grid-cols-2">
               <div className={monthTotalTileClass}>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  Alcance total de {manualMonthTotals.monthLabel}
+                  Alcance total de {new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(new Date(`${monthlyPerformance.monthKey}-01T12:00:00`))}
                 </p>
-                <p className="mt-2 text-2xl font-semibold text-foreground">{formatCompactNumber(manualMonthTotals.reach)}</p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{formatCompactNumber(monthlyPerformance.reach)}</p>
                 <p className="mt-1 text-sm text-muted-foreground">Valor informado manualmente para o fechamento do mês.</p>
               </div>
               <div className={monthTotalTileClass}>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  Visualizações totais de {manualMonthTotals.monthLabel}
+                  Visualizações totais de {new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(new Date(`${monthlyPerformance.monthKey}-01T12:00:00`))}
                 </p>
-                <p className="mt-2 text-2xl font-semibold text-foreground">{formatCompactNumber(manualMonthTotals.views)}</p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{formatCompactNumber(monthlyPerformance.views)}</p>
                 <p className="mt-1 text-sm text-muted-foreground">Valor informado manualmente para o fechamento do mês.</p>
               </div>
             </div>

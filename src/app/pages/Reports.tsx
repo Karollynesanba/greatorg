@@ -44,6 +44,7 @@ import {
 import { createStorageKey } from "../data/sharedState";
 import { useTeamProfiles } from "../data/profiles";
 import { usePosts, type Post } from "../data/posts";
+import { shouldUseMonthlyPerformanceSnapshot, useMonthlyPerformanceSnapshot } from "../data/monthlyPerformance";
 import { useSupabaseSharedState, useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import {
@@ -85,6 +86,7 @@ type SavedReport = {
   responsibleId: number | "todos";
   startDate: string;
   endDate: string;
+  views: number;
   reach: number;
   engagement: number;
   postsCount: number;
@@ -381,6 +383,14 @@ function rangeFromMonth(month: number, year: number) {
     start,
     end: endOfMonth(start),
   };
+}
+
+function monthKeyFromDate(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function isExactMonthRange(range: { start: Date; end: Date }, monthKey: string) {
+  return monthKeyFromDate(range.start) === monthKey && monthKeyFromDate(range.end) === monthKey && range.start.getDate() === 1 && range.end.getDate() === endOfMonth(range.start).getDate();
 }
 
 function normalizeRange(startValue: string, endValue: string, fallback: Date) {
@@ -811,6 +821,7 @@ export function ReportsPage() {
     fallback: createEmptyMonthlyArchive(),
   });
   const [teamScope] = useTeamScope();
+  const [monthlyPerformance] = useMonthlyPerformanceSnapshot();
   const [savedReports, setSavedReports] = useSupabaseSharedState<SavedReport[]>({
     key: createStorageKey("reports-history"),
     fallback: [],
@@ -1112,7 +1123,17 @@ export function ReportsPage() {
   }, [allGoals, currentRange.end, currentRange.start, responsibleFilter, teamScope]);
 
   const currentSummary = useMemo(() => {
-    const reach = filteredPosts.reduce((sum, post) => sum + post.reach, 0);
+    const currentMonthKey = monthKeyFromDate(currentRange.start);
+    const useSharedMonthlyTotals = shouldUseMonthlyPerformanceSnapshot(
+      monthlyPerformance,
+      currentMonthKey,
+      responsibleFilter === "todos" && teamScope === "todos" && isExactMonthRange(currentRange, currentMonthKey),
+    );
+    const computedViews = filteredPosts.reduce((sum, post) => sum + post.reach, 0);
+    const computedReach = filteredPosts.reduce((sum, post) => sum + post.reach, 0);
+    const views = useSharedMonthlyTotals ? monthlyPerformance.views : computedViews;
+    const reach =
+      useSharedMonthlyTotals ? monthlyPerformance.reach : computedReach;
     const engagement = filteredPosts.reduce((sum, post) => sum + post.engagement, 0);
     const saves = filteredPosts.reduce((sum, post) => sum + post.metrics.saves, 0);
     const shares = filteredPosts.reduce((sum, post) => sum + post.metrics.shares, 0);
@@ -1124,10 +1145,11 @@ export function ReportsPage() {
     const postsCount = finalizedPosts + finalizedCalendarItems;
     const monthlyProgress = Math.min(100, Math.round((postsCount / monthlyContentTarget) * 100));
 
-    return { reach, engagement, saves, shares, likes, comments, avgEngagement, postsCount, finalizedPosts, finalizedCalendarItems, monthlyProgress };
-  }, [filteredCalendarItems, filteredPosts]);
+    return { views, reach, engagement, saves, shares, likes, comments, avgEngagement, postsCount, finalizedPosts, finalizedCalendarItems, monthlyProgress };
+  }, [currentRange, filteredCalendarItems, filteredPosts, monthlyPerformance, responsibleFilter, teamScope]);
 
   const previousSummary = useMemo(() => {
+    const views = previousPosts.reduce((sum, post) => sum + post.reach, 0);
     const reach = previousPosts.reduce((sum, post) => sum + post.reach, 0);
     const engagement = previousPosts.reduce((sum, post) => sum + post.engagement, 0);
     const avgEngagement = previousPosts.length > 0 ? engagement / previousPosts.length : 0;
@@ -1135,7 +1157,7 @@ export function ReportsPage() {
     const finalizedCalendarItems = previousCalendarItems.filter((event) => isCompletedCalendarEvent(event)).length;
     const postsCount = finalizedPosts + finalizedCalendarItems;
 
-    return { reach, engagement, avgEngagement, postsCount };
+    return { views, reach, engagement, avgEngagement, postsCount };
   }, [previousCalendarItems, previousPosts]);
 
   const comparison = {
@@ -1390,6 +1412,7 @@ export function ReportsPage() {
       responsibleId: responsibleFilter,
       startDate: formatDateKey(currentRange.start),
       endDate: formatDateKey(currentRange.end),
+      views: currentSummary.views,
       reach: currentSummary.reach,
       engagement: currentSummary.engagement,
       postsCount: currentSummary.postsCount,
@@ -1556,7 +1579,7 @@ export function ReportsPage() {
     context.fillStyle = "rgba(255,255,255,0.9)";
     context.font = "600 20px Inter, Arial, sans-serif";
     context.fillText(
-      `Alcance ${formatLongNumber(currentSummary.reach)} • Engajamento ${formatLongNumber(currentSummary.engagement)} • Conteúdos ${currentSummary.postsCount}/${monthlyContentTarget}`,
+      `Visualizações ${formatLongNumber(currentSummary.views)} • Alcance ${formatLongNumber(currentSummary.reach)} • Engajamento ${formatLongNumber(currentSummary.engagement)} • Conteúdos ${currentSummary.postsCount}/${monthlyContentTarget}`,
       pageMargin,
       canvas.height - 36,
     );
@@ -1633,6 +1656,7 @@ export function ReportsPage() {
   );
   const displaySummary = {
     health: healthScore,
+    views: currentSummary.views,
     reach: currentSummary.reach,
     engagement: currentSummary.engagement,
     posts: currentSummary.postsCount,
@@ -1645,6 +1669,13 @@ export function ReportsPage() {
       value: `${displaySummary.health}`,
       delta: formatPercent(Math.max(0, comparison.engagement), 1),
       icon: Sparkles,
+      tone: "good" as const,
+    },
+    {
+      label: "Visualizações",
+      value: formatLongNumber(displaySummary.views),
+      delta: formatPercent(comparison.reach, 1),
+      icon: Eye,
       tone: "good" as const,
     },
     {
@@ -1679,6 +1710,7 @@ export function ReportsPage() {
     },
   ];
   const bottomSummary = [
+    { label: "Visualizações totais", value: formatLongNumber(currentSummary.views), icon: Eye, tone: "#B91C1C" },
     { label: "Alcance total", value: formatLongNumber(currentSummary.reach), icon: Eye, tone: "#D10000" },
     { label: "Engajamento total", value: formatLongNumber(currentSummary.engagement), icon: BarChart3, tone: "#E11D48" },
     {

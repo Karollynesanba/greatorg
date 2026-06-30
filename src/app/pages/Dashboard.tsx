@@ -5,6 +5,7 @@ import { BarChart3, Eye, Rocket, Sparkles, type LucideIcon } from "lucide-react"
 import { getGoalResponsibleIds, type CalendarEvent, type Goal, type StoryLog } from "../data/mockData";
 import { usePosts } from "../data/posts";
 import { useTeamProfiles } from "../data/profiles";
+import { shouldUseMonthlyPerformanceSnapshot, useMonthlyPerformanceSnapshot } from "../data/monthlyPerformance";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import { defaultMonthlyViewsGoal, sumMonthViews, useCalendarDayMetrics } from "../data/calendarMetrics";
 import { useSupabasePreference } from "../data/userPreferences";
@@ -404,6 +405,7 @@ export function DashboardPage() {
   } | null>(null);
   const [dayViewsByDate, , dayReachByDate] = useCalendarDayMetrics();
   const [monthlyViewsGoal] = useSupabasePreference<number>("calendar-monthly-views-goal", defaultMonthlyViewsGoal);
+  const [monthlyPerformance] = useMonthlyPerformanceSnapshot();
   const [dashboardMetricGoals] = useSupabasePreference<Record<Exclude<ComparisonMetricId, "views">, number>>("dashboard-metric-goals", {
     reach: 0,
     engagement: 0,
@@ -472,8 +474,11 @@ export function DashboardPage() {
   const topPosts = [...visiblePosts].sort((a, b) => asNumber(b.engagement) - asNumber(a.engagement)).slice(0, 5);
   const worstPosts = [...visiblePosts].sort((a, b) => asNumber(a.engagement) - asNumber(b.engagement)).slice(0, 2);
   const monthKey = dashboardMonthKey;
-  const monthViews = sumMonthViews(safeDayViewsByDate, currentMonthKey());
-  const monthReach = sumMonthViews(safeDayReachByDate, monthKey);
+  const computedMonthViews = sumMonthViews(safeDayViewsByDate, currentMonthKey());
+  const computedMonthReach = sumMonthViews(safeDayReachByDate, monthKey);
+  const useSharedMonthlyTotals = shouldUseMonthlyPerformanceSnapshot(monthlyPerformance, monthKey, teamScope === "todos");
+  const monthViews = useSharedMonthlyTotals ? monthlyPerformance.views : computedMonthViews;
+  const monthReach = useSharedMonthlyTotals ? monthlyPerformance.reach : computedMonthReach;
   const monthFollowers = sumMonthViews(safeDashboardDailyFollowers, monthKey);
   const storyLogMonthTotal = visibleStoryLogs.reduce((sum, story) => sum + asNumber((story as { quantity?: unknown }).quantity), 0);
   const monthStories = Math.max(monthlyStoriesSnapshot?.currentValue ?? 0, storyLogMonthTotal);
@@ -599,6 +604,14 @@ export function DashboardPage() {
       projectedMeta,
     };
   });
+  if (useSharedMonthlyTotals && evolutionData.length > 0) {
+    const lastIndex = evolutionData.length - 1;
+    evolutionData[lastIndex] = {
+      ...evolutionData[lastIndex],
+      views: monthViews,
+      reach: monthReach,
+    };
+  }
   const currentProjectedMeta = evolutionData[evolutionData.length - 1]?.projectedMeta ?? 0;
   const chartWidth = 760;
   const chartHeight = 340;
