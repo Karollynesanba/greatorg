@@ -116,6 +116,29 @@ html:not(.dark) [class*="bg-zinc-800"] {
     display: block !important;
   }
 
+  .print-report-shell {
+    gap: 14px !important;
+  }
+
+  .print-report-shell > * {
+    box-shadow: none !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-avoid-break {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .print-report-shell [class*="shadow-"] {
+    box-shadow: none !important;
+  }
+
+  .print-report-shell [class*="backdrop-blur"] {
+    backdrop-filter: none !important;
+  }
+
   .print-report-scroll {
     background: none !important;
     padding: 0 !important;
@@ -146,5 +169,9 @@ html:not(.dark) [class*="bg-zinc-800"] {
 
   body {
     background: white !important;
+  }
+
+  main {
+    padding: 0 !important;
   }
 }

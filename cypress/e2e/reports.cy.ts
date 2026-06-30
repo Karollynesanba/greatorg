@@ -20,7 +20,6 @@ describe("Relatorios", () => {
     cy.url().should("include", "/reports");
 
     cy.get('[data-cy="reports-export-pdf"]').click();
-    cy.url().should("include", "/reports/preview");
     cy.get("@printWindow").should("have.been.calledOnce");
 
     cy.get('[data-cy="reports-period-7"]').click();

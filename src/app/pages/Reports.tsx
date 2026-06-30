@@ -10,7 +10,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   BarChart3,
@@ -826,7 +825,6 @@ function DateRangePicker({
 }
 
 export function ReportsPage() {
-  const navigate = useNavigate();
   const { isDark } = useThemeMode();
   const anchorDate = useMemo(() => new Date(), []);
   const monthlyArchiveFallback = useMemo(() => createEmptyMonthlyArchive(), []);
@@ -1367,21 +1365,7 @@ export function ReportsPage() {
     toast.success("Relatório antigo carregado.");
   };
 
-  const openReportPreview = (autoPrint = false) => {
-    const query = new URLSearchParams({
-      period,
-      type: typeFilter,
-      responsible: String(responsibleFilter),
-      start: formatDateKey(currentRange.start),
-      end: formatDateKey(currentRange.end),
-    });
-
-    if (autoPrint) {
-      query.set("autoprint", "1");
-    }
-
-    navigate(`/reports/preview?${query.toString()}`);
-  };
+  const handleExportPdf = () => window.print();
 
   const handleExportImage = async () => {
     const canvas = document.createElement("canvas");
@@ -1908,7 +1892,68 @@ export function ReportsPage() {
 
   return (
     <PageTransition>
-      <div className="space-y-6">
+      <div className="space-y-6 print-report-shell">
+        <section className="hidden rounded-[2rem] border border-[#ead7d7] bg-white px-8 py-10 shadow-none print:block">
+          <div className="space-y-6">
+            <div className="flex items-start justify-between gap-6 border-b border-[#ead7d7] pb-6">
+              <div className="space-y-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#8b5e63]">Great Organico</p>
+                <h1 className="text-4xl font-semibold tracking-tight text-[#2b1c1f]">Relatorio executivo</h1>
+                <p className="max-w-2xl text-sm leading-7 text-[#6b5560]">
+                  PDF completo gerado a partir da aba de relatorios, com os mesmos indicadores, cards e destaques exibidos na tela.
+                </p>
+              </div>
+              <div className="rounded-[1.5rem] bg-[#fff5f5] px-5 py-4 text-right">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9a6a71]">Gerado em</p>
+                <p className="mt-2 text-sm font-medium text-[#2b1c1f]">
+                  {new Intl.DateTimeFormat("pt-BR", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }).format(new Date())}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="rounded-[1.4rem] border border-[#f0dede] bg-[#fff8f8] px-5 py-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9a6a71]">Periodo</p>
+                <p className="mt-2 text-base font-semibold text-[#2b1c1f]">
+                  {describeReportPeriod({
+                    period,
+                    customMode: customPeriodMode,
+                    customMonth,
+                    customYear,
+                    customStart: customStartDate,
+                    customEnd: customEndDate,
+                    customPastMonths,
+                    currentRange,
+                  })}
+                </p>
+                <p className="mt-1 text-sm text-[#6b5560]">
+                  {formatDateKey(currentRange.start)} ate {formatDateKey(currentRange.end)}
+                </p>
+              </div>
+              <div className="rounded-[1.4rem] border border-[#f0dede] bg-[#fff8f8] px-5 py-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9a6a71]">Tipo filtrado</p>
+                <p className="mt-2 text-base font-semibold text-[#2b1c1f]">
+                  {contentTypeOptions.find((item) => item.value === typeFilter)?.label ?? "Todos os tipos"}
+                </p>
+              </div>
+              <div className="rounded-[1.4rem] border border-[#f0dede] bg-[#fff8f8] px-5 py-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9a6a71]">Responsavel</p>
+                <p className="mt-2 text-base font-semibold text-[#2b1c1f]">
+                  {responsibleFilter === "todos"
+                    ? "Todos os responsaveis"
+                    : teamMembers.find((member) => member.id === responsibleFilter)?.name ?? "Responsavel"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section className="rounded-[2.4rem] border border-border/70 bg-white/96 p-6 shadow-[0_20px_55px_rgba(15,23,42,0.07)] backdrop-blur-xl">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl space-y-2">
@@ -1919,7 +1964,7 @@ export function ReportsPage() {
               </p>
             </div>
 
-            <div className="flex flex-col gap-3 xl:items-end">
+            <div className="flex flex-col gap-3 print:hidden xl:items-end">
               <div className="inline-flex w-fit rounded-full border border-border/70 bg-card p-1 shadow-sm">
                 {reportPeriods.map((item) => (
                   <button
@@ -2054,12 +2099,12 @@ export function ReportsPage() {
                 </div>
               ) : null}
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 print:hidden">
                 <ActionButton dataCy="reports-save" variant="secondary" onClick={handleSaveReport}>
                   <CheckCircle2 className="h-4 w-4" />
                   Salvar relatório
                 </ActionButton>
-                <ActionButton dataCy="reports-export-pdf" variant="secondary" onClick={() => openReportPreview(true)}>
+                <ActionButton dataCy="reports-export-pdf" variant="secondary" onClick={handleExportPdf}>
                   <Download className="h-4 w-4" />
                   Baixar PDF
                 </ActionButton>
@@ -2072,7 +2117,7 @@ export function ReportsPage() {
           </div>
         </section>
 
-        <section className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.06)]">
+        <section className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.06)] print:hidden">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Filtros</p>
@@ -2128,7 +2173,7 @@ export function ReportsPage() {
                         type="button"
                         onClick={openOverviewEditor}
                         data-cy="reports-overview-edit"
-                        className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border/70 bg-white text-foreground shadow-[0_10px_22px_rgba(15,23,42,0.08)] transition hover:border-primary/25 hover:text-primary hover:shadow-md"
+                        className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border/70 bg-white text-foreground shadow-[0_10px_22px_rgba(15,23,42,0.08)] transition hover:border-primary/25 hover:text-primary hover:shadow-md print:hidden"
                         aria-label="Editar visão geral"
                       >
                         <PencilLine className="h-4 w-4" />
@@ -2211,13 +2256,13 @@ export function ReportsPage() {
 
         <div className="space-y-6">
               {reportRows.map((row, rowIndex) => (
-                <section key={row.title} data-cy={`reports-row-${rowIndex}`} className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.05)]">
+                <section key={row.title} data-cy={`reports-row-${rowIndex}`} className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.05)] print-avoid-break">
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <h2 className="text-lg font-semibold tracking-tight text-foreground">{row.title}</h2>
                       <p className="mt-1 text-sm text-muted-foreground">{row.description}</p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 print:hidden">
                       <button
                         type="button"
                         onClick={() => openRowSectionEditor(rowIndex)}
@@ -2271,7 +2316,7 @@ export function ReportsPage() {
                       <p className="text-sm font-semibold leading-5">{item.title}</p>
                       <p className="mt-1 text-xs text-white/75">Conteúdo pronto para publicação</p>
                     </div>
-                    <div className="absolute right-3 top-3 flex gap-2">
+                    <div className="absolute right-3 top-3 flex gap-2 print:hidden">
                       <button
                         type="button"
                         onClick={() => openEditReportCard(rowIndex, itemIndex)}
@@ -2298,7 +2343,7 @@ export function ReportsPage() {
               ))}
             </div>
 
-        <section className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.06)]">
+        <section className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.06)] print-avoid-break">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Resumo do período</p>
@@ -2307,9 +2352,9 @@ export function ReportsPage() {
                 Uma visão curta do que a equipe entregou neste recorte, com números que ajudam a tomar decisão sem sair da página.
               </p>
             </div>
-            <ActionButton dataCy="reports-open-preview" variant="secondary" onClick={() => openReportPreview()}>
+            <ActionButton dataCy="reports-open-preview" variant="secondary" onClick={handleExportPdf} className="print:hidden">
               <Printer className="h-4 w-4" />
-              Ver análise completa
+              Gerar PDF completo
             </ActionButton>
           </div>
 
@@ -2336,7 +2381,7 @@ export function ReportsPage() {
       </div>
 
       {isOverviewModalOpen ? (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-sm print:hidden">
           <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] border border-border/70 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.22)]">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -2416,7 +2461,7 @@ export function ReportsPage() {
       ) : null}
 
       {editingSection && sectionForm ? (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-sm print:hidden">
           <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] border border-border/70 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.22)]">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -2498,7 +2543,7 @@ export function ReportsPage() {
       ) : null}
 
       {cardDraft ? (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-sm print:hidden">
           <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[2rem] border border-border/70 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.22)]">
             <div className="flex items-start justify-between gap-4">
               <div>
