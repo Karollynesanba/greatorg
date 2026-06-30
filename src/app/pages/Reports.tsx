@@ -1564,11 +1564,8 @@ export function ReportsPage() {
   );
   const displaySummary = {
     health: healthScore,
-    views: currentSummary.views,
     reach: currentSummary.reach,
-    engagement: currentSummary.engagement,
     posts: currentSummary.postsCount,
-    avgEngagement: currentSummary.avgEngagement,
     monthlyProgress: currentSummary.monthlyProgress,
   };
   const heroSummaryCards = [
@@ -1580,33 +1577,11 @@ export function ReportsPage() {
       tone: "good" as const,
     },
     {
-      label: "Visualizações",
-      value: formatLongNumber(displaySummary.views),
-      delta: formatPercent(comparison.reach, 1),
-      icon: Eye,
-      tone: "good" as const,
-    },
-    {
       label: "Alcance total",
       value: formatLongNumber(displaySummary.reach),
       delta: formatPercent(comparison.reach, 1),
       icon: Eye,
       tone: "good" as const,
-    },
-    {
-      label: "Engajamento",
-      value: formatLongNumber(displaySummary.engagement),
-      delta: formatPercent(comparison.engagement, 1),
-      icon: BarChart3,
-      tone: "good" as const,
-    },
-    {
-      label: "Conteúdos finalizados",
-      value: formatLongNumber(displaySummary.posts),
-      delta: formatPercent(comparison.posts, 1),
-      icon: Rocket,
-      tone: "good" as const,
-      note: `Meta de ${monthlyContentTarget} conteúdos/mês`,
     },
     {
       label: "Progresso mensal",
@@ -1616,22 +1591,29 @@ export function ReportsPage() {
       tone: "good" as const,
       note: `${formatLongNumber(displaySummary.posts)} de ${monthlyContentTarget} conteúdos`,
     },
-  ];
-  const bottomSummary = [
-    { label: "Visualizações totais", value: formatLongNumber(currentSummary.views), icon: Eye, tone: "#B91C1C" },
-    { label: "Alcance total", value: formatLongNumber(currentSummary.reach), icon: Eye, tone: "#D10000" },
-    { label: "Engajamento total", value: formatLongNumber(currentSummary.engagement), icon: BarChart3, tone: "#E11D48" },
     {
       label: "Conteúdos finalizados",
-      value: formatLongNumber(currentSummary.postsCount),
+      value: formatLongNumber(displaySummary.posts),
+      delta: formatPercent(comparison.posts, 1),
       icon: Rocket,
-      tone: "#2563EB",
+      tone: "good" as const,
+      note: `Meta de ${monthlyContentTarget} conteúdos/mês`,
     },
+  ];
+  const bottomSummary = [
+    { label: "Saúde total", value: `${healthScore}`, icon: Sparkles, tone: "#B91C1C" },
+    { label: "Alcance total", value: formatLongNumber(currentSummary.reach), icon: Eye, tone: "#D10000" },
     {
       label: "Progresso mensal",
       value: `${currentSummary.monthlyProgress}%`,
       icon: CheckCircle2,
       tone: "#16A34A",
+    },
+    {
+      label: "Conteúdos finalizados",
+      value: formatLongNumber(currentSummary.postsCount),
+      icon: Rocket,
+      tone: "#2563EB",
     },
   ];
   const openAddReportCard = (rowIndex: number) => {
