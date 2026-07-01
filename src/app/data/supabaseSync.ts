@@ -599,66 +599,70 @@ export function useSupabaseSharedState<T>(options: {
 
     let cancelled = false;
 
-    const unsubscribe = subscribeSharedChannel(
-      `shared_state:${options.key}`,
-      (channel, dispatch) => {
-        channel.on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: "shared_state", filter: `key=eq.${options.key}` },
-          () => {
-            dispatch();
-          },
-        );
-      },
-      () => {
-        void fetchSharedStateRow<T>(options.key, currentUserId, scope).then(({ row, error, mode }) => {
-          if (cancelled) {
-            return;
-          }
+    const refreshFromRemote = () => {
+      void fetchSharedStateRow<T>(options.key, currentUserId, scope).then(({ row, error, mode }) => {
+        if (cancelled) {
+          return;
+        }
 
-          if (error) {
-            console.warn("Supabase shared_state realtime refresh failed:", {
-              key: options.key,
-              userId: currentUserId,
-              error: error.message,
-            });
-            return;
-          }
-
-          const nextValue = row?.value;
-          if (typeof nextValue === "undefined") {
-            return;
-          }
-
-          const snapshot = JSON.stringify(nextValue);
-          if (snapshot === lastRemoteSnapshotRef.current) {
-            return;
-          }
-
-          console.info("[SharedState] Realtime refresh applied", {
-            key: options.key,
-            mode,
-            userId: currentUserId,
-          });
-          lastRemoteSnapshotRef.current = snapshot;
-          setValue(nextValue);
-        }).catch((error) => {
-          if (cancelled) {
-            return;
-          }
-
-          console.warn("Supabase shared_state realtime refresh failed:", {
+        if (error) {
+          console.warn("Supabase shared_state refresh failed:", {
             key: options.key,
             userId: currentUserId,
-            error: getErrorMessage(error),
+            error: error.message,
           });
+          return;
+        }
+
+        const nextValue = row?.value;
+        if (typeof nextValue === "undefined") {
+          return;
+        }
+
+        const snapshot = JSON.stringify(nextValue);
+        if (snapshot === lastRemoteSnapshotRef.current) {
+          return;
+        }
+
+        console.info("[SharedState] Remote refresh applied", {
+          key: options.key,
+          mode,
+          userId: currentUserId,
         });
-      },
-    );
+        lastRemoteSnapshotRef.current = snapshot;
+        setValue(nextValue);
+      }).catch((error) => {
+        if (cancelled) {
+          return;
+        }
+
+        console.warn("Supabase shared_state refresh failed:", {
+          key: options.key,
+          userId: currentUserId,
+          error: getErrorMessage(error),
+        });
+      });
+    };
+
+    const handleWindowFocus = () => {
+      refreshFromRemote();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshFromRemote();
+      }
+    };
+
+    window.addEventListener("focus", handleWindowFocus);
+    window.addEventListener("pageshow", handleWindowFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       cancelled = true;
-      unsubscribe();
+      window.removeEventListener("focus", handleWindowFocus);
+      window.removeEventListener("pageshow", handleWindowFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [currentUserId, options.key, scope, session, supabaseClient]);
 
