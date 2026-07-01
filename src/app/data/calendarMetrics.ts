@@ -5,23 +5,6 @@ import { subscribeSharedChannel } from "./supabaseRealtime";
 
 export const defaultMonthlyViewsGoal = 800000;
 
-const seededViewsByDate: Record<string, number> = {
-  "2026-06-01": 20404,
-  "2026-06-02": 15181,
-  "2026-06-03": 16794,
-  "2026-06-04": 6964,
-  "2026-06-05": 22258,
-  "2026-06-06": 10122,
-  "2026-06-07": 12145,
-  "2026-06-08": 17387,
-  "2026-06-09": 17281,
-  "2026-06-10": 16994,
-  "2026-06-11": 24475,
-  "2026-06-12": 22120,
-  "2026-06-13": 8966,
-  "2026-06-14": 5952,
-};
-
 type CalendarDayMetricRow = {
   id: number;
   user_id: string;
@@ -79,39 +62,6 @@ function toRow(record: CalendarDayMetricRecord, userId: string) {
 
 function sortRecords(records: CalendarDayMetricRecord[]) {
   return [...records].sort((left, right) => left.date.localeCompare(right.date));
-}
-
-function mergeSeededMetrics(records: CalendarDayMetricRecord[]) {
-  const byDate = new Map(records.map((record) => [record.date, record] as const));
-  let nextId = Math.max(...records.map((record) => record.id), 0) + 1;
-  let changed = false;
-
-  for (const [date, views] of Object.entries(seededViewsByDate)) {
-    const existing = byDate.get(date);
-    if (existing) {
-      if (existing.views !== views) {
-        byDate.set(date, {
-          ...existing,
-          views,
-        });
-        changed = true;
-      }
-      continue;
-    }
-
-    byDate.set(date, {
-      id: nextId++,
-      date,
-      views,
-      reach: 0,
-    });
-    changed = true;
-  }
-
-  return {
-    changed,
-    records: sortRecords([...byDate.values()]),
-  };
 }
 
 function recordsToMaps(records: CalendarDayMetricRecord[]) {
@@ -201,8 +151,7 @@ export function useCalendarDayMetrics() {
     }
 
     const remoteRecords = sortRecords((data ?? []).map((row) => toRecord(row as CalendarDayMetricRow)));
-    const mergedRecords = mergeSeededMetrics(remoteRecords).records;
-    setRecords(mergedRecords);
+    setRecords(remoteRecords);
     lastSavedSnapshotRef.current = snapshotOf(remoteRecords);
     lastPersistedIdsRef.current = new Set(remoteRecords.map((record) => record.id));
     hydratedRef.current = true;
@@ -272,7 +221,7 @@ export function useCalendarDayMetrics() {
 
       if (rows.length > 0) {
         const { error } = await supabaseClient.from("calendar_day_metrics").upsert(rows, {
-          onConflict: "id",
+          onConflict: "user_id,metric_date",
         });
 
         if (error) {

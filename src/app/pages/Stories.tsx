@@ -2,12 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Film, PencilLine, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthSession } from "../auth";
-import { canonicalJuneStoryLogs, historyTimeline, storyLogs, type HistoryEvent, type StoryLog } from "../data/mockData";
+import { type HistoryEvent, type StoryLog } from "../data/mockData";
 import { useTeamProfiles } from "../data/profiles";
-import { createStoryPost, deleteStoryPost, fetchStoriesDashboard, updateGoalMetric, updateStoriesMonthlyData, updateStoryPost } from "../data/storiesRepository";
+import { createStoryPost, deleteStoryPost, fetchStoriesDashboard, updateGoalMetric, updateStoriesMonthlyData, updateStoryPost, useSupabaseStoryLogsState } from "../data/storiesRepository";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import { isCypressRecord, isDateInRange } from "../data/periodMetrics";
+import { subscribeSharedChannel } from "../data/supabaseRealtime";
 import {
   ActionButton,
   GlassPanel,
@@ -160,28 +161,16 @@ function getLatestMonthKey(items: Array<{ date: string }>) {
     .at(-1) ?? null;
 }
 
-function mergeCanonicalStoryLogs(baseLogs: StoryLog[], overrideLogs: StoryLog[]) {
-  const overrideKeys = new Set(overrideLogs.map((item) => `${item.date}:${item.mediaType}`));
-  return [...baseLogs.filter((item) => !overrideKeys.has(`${item.date}:${item.mediaType}`)), ...overrideLogs];
-}
-
 export function StoriesPage() {
   const { isDark } = useThemeMode();
   const { session } = useAuthSession();
   const [teamMembers] = useTeamProfiles();
   const autoSelectedMonthRef = useRef(false);
-  const [items, , , reloadItems] = useSupabaseSyncedListState<StoryLog>({
-    key: "story-logs",
-    table: "story_logs",
-    fallback: storyLogs,
-    mergeFallback: true,
-    seedOnEmpty: true,
-  });
+  const [items, , { reload: reloadItems }] = useSupabaseStoryLogsState();
   const [, , , reloadHistoryEvents] = useSupabaseSyncedListState<HistoryEvent>({
     key: "history",
     table: "history_events",
-    fallback: historyTimeline,
-    seedOnEmpty: true,
+    fallback: [],
   });
   const [teamScope] = useTeamScope();
   const [monthlyCurrentVideo, setMonthlyCurrentVideo] = useState(0);
@@ -206,6 +195,7 @@ export function StoriesPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingStoryId, setEditingStoryId] = useState<number | null>(null);
   const [form, setForm] = useState<StoryFormState>(() => emptyForm(teamMembers));
+  const [dashboardReloadToken, setDashboardReloadToken] = useState(0);
   const currentMonthKey = formatMonthKey(currentMonthAnchor);
   const goalMonthKey = formatMonthKey(periodMode === "month" ? monthCursor : currentMonthAnchor);
   const activeMonthLabel = formatMonthYear(formatDateKey(periodMode === "current" ? currentMonthAnchor : monthCursor));
@@ -226,7 +216,7 @@ export function StoriesPage() {
     [computedMonthlyGoalTotal, monthlyGoalPhoto, monthlyGoalVideo],
   );
 
-  const normalizedItems = useMemo(() => mergeCanonicalStoryLogs(items, canonicalJuneStoryLogs), [items]);
+  const normalizedItems = items;
 
   const visibleItems = useMemo(
     () => {
@@ -314,6 +304,34 @@ export function StoriesPage() {
       return;
     }
 
+    const unsubscribe = subscribeSharedChannel(
+      "great-organico:stories-dashboard",
+      (channel, dispatch) => {
+        for (const table of ["story_logs", "story_metrics", "story_goal_metrics", "stories_monthly_data", "stories_monthly_posts"]) {
+          channel.on(
+            "postgres_changes",
+            { event: "*", schema: "public", table },
+            () => {
+              dispatch();
+            },
+          );
+        }
+      },
+      () => {
+        setDashboardReloadToken((current) => current + 1);
+      },
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [session?.user.id]);
+
+  useEffect(() => {
+    if (!session?.user.id) {
+      return;
+    }
+
     let cancelled = false;
     setMonthlySummaryHydrated(false);
 
@@ -351,7 +369,7 @@ export function StoriesPage() {
     return () => {
       cancelled = true;
     };
-  }, [computedCurrentPhoto, computedCurrentVideo, goalMonthKey, session?.user.id]);
+  }, [computedCurrentPhoto, computedCurrentVideo, dashboardReloadToken, goalMonthKey, session?.user.id]);
 
   useEffect(() => {
     if (!monthlySummaryHydrated && !isEditingMonthlyGoalVideo) {

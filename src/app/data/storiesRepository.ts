@@ -1,19 +1,23 @@
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CalendarEvent, StoryLog } from "./mockData";
 import { buildStoryHistoryEvent, getStoryHistoryId } from "./historyEvents";
-import { supabase } from "./supabase";
+import { getSupabaseDiagnostics, isSupabaseConfigured, supabase } from "./supabase";
+import { subscribeSharedChannel } from "./supabaseRealtime";
 
 type StoryGoalCategory = "total" | "video" | "photo";
 type StoryMetricKey = "views" | "reach";
 
 type StoryListRow<T> = {
   id: number;
-  user_id?: string;
+  user_id?: string | null;
   reference_month?: string;
   metric_date?: string;
   category?: string;
   page_module?: string;
   sort_order: number;
   data: T;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 type StoryGoalMetricRow = {
@@ -82,20 +86,51 @@ const defaultGoalValues: Record<StoryGoalCategory, number> = {
   photo: 63,
 };
 
+function snapshotOf<T>(value: T) {
+  return JSON.stringify(value);
+}
+
 function monthKeyToDate(month: string) {
   return `${month}-01`;
 }
 
 function getClient() {
   if (!supabase) {
-    throw new Error("Supabase não está configurado.");
+    throw new Error("Supabase nao esta configurado.");
   }
 
   return supabase;
 }
 
+function logStories(message: string, details?: Record<string, unknown>) {
+  console.info("[StoriesSync]", message, {
+    ...getSupabaseDiagnostics(),
+    ...details,
+  });
+}
+
 function isMissingOnConflictConstraint(errorMessage: string) {
   return errorMessage.includes("no unique or exclusion constraint matching the ON CONFLICT specification");
+}
+
+async function requireAuthenticatedSession() {
+  if (!isSupabaseConfigured() || !supabase) {
+    return null;
+  }
+
+  const { data, error } = await supabase.auth.getSession();
+  if (error) {
+    throw error;
+  }
+
+  const userId = data.session?.user.id ?? null;
+  if (!userId) {
+    console.error("[StoriesSync] Missing authenticated session", getSupabaseDiagnostics());
+    throw new Error("Nenhuma sessao autenticada encontrada no Supabase.");
+  }
+
+  logStories("Authenticated session resolved", { userId });
+  return userId;
 }
 
 async function upsertStoriesMonthlyDataRow(client: ReturnType<typeof getClient>, payload: {
@@ -186,11 +221,83 @@ function normalizeStories(rows: StoryListRow<StoryLog>[] | null | undefined) {
     .sort((a, b) => `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`));
 }
 
-export async function fetchStoryPosts(_userId: string) {
+async function syncStoryMonthlyPost(userId: string, story: StoryLog) {
+  const client = getClient();
+  const payload = {
+    user_id: userId,
+    reference_month: monthKeyToDate(story.date.slice(0, 7)),
+    metric_date: story.date,
+    category: story.mediaType,
+    status: story.status ?? null,
+    quantity: story.quantity,
+    responsible_profile_id: story.madeById,
+    published_by_profile_id: story.postedById,
+    source_story_log_id: story.id,
+    notes: story.notes ?? "",
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await client.from("stories_monthly_posts").upsert(payload, {
+    onConflict: "user_id,source_story_log_id",
+  });
+
+  if (!error) {
+    return;
+  }
+
+  const { data: updatedRows, error: updateError } = await client
+    .from("stories_monthly_posts")
+    .update(payload)
+    .eq("user_id", userId)
+    .eq("source_story_log_id", story.id)
+    .select("source_story_log_id")
+    .limit(1);
+
+  if (!updateError && (updatedRows?.length ?? 0) > 0) {
+    return;
+  }
+
+  const { error: insertError } = await client.from("stories_monthly_posts").insert(payload);
+  if (insertError) {
+    throw new Error(insertError.message);
+  }
+}
+
+async function deleteStoryMonthlyPost(userId: string, storyId: number) {
+  const client = getClient();
+  const { error } = await client
+    .from("stories_monthly_posts")
+    .delete()
+    .eq("user_id", userId)
+    .eq("source_story_log_id", storyId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+async function fetchStoryLogById(userId: string, storyId: number) {
   const client = getClient();
   const { data, error } = await client
     .from("story_logs")
-    .select("id, sort_order, data")
+    .select("id, user_id, reference_month, metric_date, category, page_module, sort_order, data, created_at, updated_at")
+    .eq("user_id", userId)
+    .eq("id", storyId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data ? ((data as StoryListRow<StoryLog>).data ?? null) : null;
+}
+
+export async function fetchStoryPosts(userId: string) {
+  const client = getClient();
+  const { data, error } = await client
+    .from("story_logs")
+    .select("id, user_id, reference_month, metric_date, category, page_module, sort_order, data, created_at, updated_at")
+    .eq("user_id", userId)
     .order("sort_order", { ascending: false });
 
   if (error) {
@@ -200,11 +307,14 @@ export async function fetchStoryPosts(_userId: string) {
   return normalizeStories((data ?? []) as StoryListRow<StoryLog>[]);
 }
 
-export async function fetchMonthlyCalendar(_userId: string, month: string) {
+export async function fetchMonthlyCalendar(userId: string, month: string) {
   const client = getClient();
   const { data, error } = await client
     .from("calendar_events")
-    .select("data");
+    .select("data")
+    .eq("user_id", userId)
+    .gte("metric_date", `${month}-01`)
+    .lt("metric_date", `${month}-32`);
 
   if (error) {
     throw new Error(error.message);
@@ -384,6 +494,32 @@ export async function fetchStoriesDashboard(userId: string, month: string): Prom
   };
 }
 
+async function syncStoriesMonthlySummaryForMonth(userId: string, month: string) {
+  const dashboard = await fetchStoriesDashboard(userId, month);
+  const videoCurrent = dashboard.stories
+    .filter((story) => story.mediaType === "video")
+    .reduce((sum, story) => sum + story.quantity, 0);
+  const photoCurrent = dashboard.stories
+    .filter((story) => story.mediaType === "photo")
+    .reduce((sum, story) => sum + story.quantity, 0);
+  const videoGoal = dashboard.goals.video.goalValue || defaultGoalValues.video;
+  const photoGoal = dashboard.goals.photo.goalValue || defaultGoalValues.photo;
+
+  await updateStoriesMonthlyData(userId, month, {
+    videoCurrent,
+    videoGoal,
+    photoCurrent,
+    photoGoal,
+    totalCurrent: videoCurrent + photoCurrent,
+    totalGoal: videoGoal + photoGoal,
+  });
+}
+
+async function syncStoriesMonthlySummaryForMonths(userId: string, months: string[]) {
+  const uniqueMonths = [...new Set(months.filter(Boolean))];
+  await Promise.all(uniqueMonths.map((month) => syncStoriesMonthlySummaryForMonth(userId, month)));
+}
+
 export async function updateStoriesMonthlyData(userId: string, month: string, summary: StoriesMonthlySummary) {
   const client = getClient();
   const payload = {
@@ -457,13 +593,20 @@ export async function updateGoalMetric(
   }
 }
 
-async function upsertStoryHistory(_userId: string, story: StoryLog, actorName: string, action: "created" | "updated") {
+async function upsertStoryHistory(userId: string, story: StoryLog, actorName: string, action: "created" | "updated") {
   const client = getClient();
   const historyEvent = buildStoryHistoryEvent(story, actorName, action);
   const { error } = await client.from("history_events").upsert(
     {
       id: historyEvent.id,
+      user_id: userId,
       sort_order: Date.now(),
+      page_module: "history",
+      reference_month: monthKeyToDate(story.date.slice(0, 7)),
+      metric_date: story.date,
+      category: "story",
+      event_title: historyEvent.title,
+      event_type: historyEvent.type,
       data: historyEvent,
     },
     { onConflict: "id" },
@@ -474,11 +617,12 @@ async function upsertStoryHistory(_userId: string, story: StoryLog, actorName: s
   }
 }
 
-async function deleteStoryHistory(_userId: string, storyId: number) {
+async function deleteStoryHistory(userId: string, storyId: number) {
   const client = getClient();
   const { error } = await client
     .from("history_events")
     .delete()
+    .eq("user_id", userId)
     .eq("id", getStoryHistoryId(storyId));
 
   if (error) {
@@ -486,39 +630,140 @@ async function deleteStoryHistory(_userId: string, storyId: number) {
   }
 }
 
-export async function createStoryPost(data: StoryPostPayload & { actorName: string }) {
+async function upsertStoryLogRow(row: StoryListRow<StoryLog>, story: StoryLog) {
   const client = getClient();
-  const row = toStoryRow(data, Date.now());
   const { error } = await client.from("story_logs").upsert(row, { onConflict: "id" });
 
   if (error) {
     throw new Error(error.message);
   }
 
-  await upsertStoryHistory(data.userId, row.data, data.actorName, "created");
+  await syncStoryMonthlyPost(row.user_id ?? "", story);
+}
+
+export async function createStoryPost(data: StoryPostPayload & { actorName: string }) {
+  const sessionUserId = await requireAuthenticatedSession();
+  const userId = data.userId || sessionUserId;
+  if (!userId) {
+    throw new Error("Nao foi possivel resolver o usuario autenticado.");
+  }
+
+  const row = toStoryRow({ ...data, userId }, Date.now());
+  await upsertStoryLogRow(row, row.data);
+  await upsertStoryHistory(userId, row.data, data.actorName, "created");
+  await syncStoriesMonthlySummaryForMonths(userId, [row.data.date.slice(0, 7)]);
   return row.data;
 }
 
 export async function updateStoryPost(id: number, data: StoryPostPayload & { actorName: string }) {
-  const client = getClient();
-  const row = toStoryRow({ ...data, id }, Date.now());
-  const { error } = await client.from("story_logs").upsert(row, { onConflict: "id" });
-
-  if (error) {
-    throw new Error(error.message);
+  const sessionUserId = await requireAuthenticatedSession();
+  const userId = data.userId || sessionUserId;
+  if (!userId) {
+    throw new Error("Nao foi possivel resolver o usuario autenticado.");
   }
 
-  await upsertStoryHistory(data.userId, row.data, data.actorName, "updated");
+  const previousStory = await fetchStoryLogById(userId, id);
+  const row = toStoryRow({ ...data, id, userId }, Date.now());
+  await upsertStoryLogRow(row, row.data);
+  await upsertStoryHistory(userId, row.data, data.actorName, "updated");
+  await syncStoriesMonthlySummaryForMonths(userId, [
+    previousStory?.date.slice(0, 7) ?? "",
+    row.data.date.slice(0, 7),
+  ]);
   return row.data;
 }
 
 export async function deleteStoryPost(id: number, userId: string) {
   const client = getClient();
-  const { error } = await client.from("story_logs").delete().eq("id", id);
+  const existingStory = await fetchStoryLogById(userId, id);
+  const { error } = await client
+    .from("story_logs")
+    .delete()
+    .eq("user_id", userId)
+    .eq("id", id);
 
   if (error) {
     throw new Error(error.message);
   }
 
+  await deleteStoryMonthlyPost(userId, id);
   await deleteStoryHistory(userId, id);
+  await syncStoriesMonthlySummaryForMonths(userId, [existingStory?.date.slice(0, 7) ?? ""]);
+}
+
+export function useSupabaseStoryLogsState() {
+  const [value, setValue] = useState<StoryLog[]>([]);
+  const [hydrated, setHydrated] = useState(false);
+  const lastPersistedValueRef = useRef<StoryLog[]>([]);
+  const lastSavedSnapshotRef = useRef<string | null>(null);
+
+  const commitValue = useCallback((nextValue: StoryLog[]) => {
+    setValue(nextValue);
+    lastPersistedValueRef.current = nextValue;
+    lastSavedSnapshotRef.current = snapshotOf(nextValue);
+    setHydrated(true);
+    return nextValue;
+  }, []);
+
+  const reload = useCallback(async () => {
+    if (!isSupabaseConfigured() || !supabase) {
+      return commitValue([]);
+    }
+
+    const userId = await requireAuthenticatedSession();
+    const nextValue = userId ? await fetchStoryPosts(userId) : [];
+    return commitValue(nextValue);
+  }, [commitValue]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const nextValue = await reload();
+        if (cancelled) {
+          return;
+        }
+
+        logStories("Initial load completed", {
+          count: nextValue.length,
+        });
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        console.error("[StoriesSync] Failed to load story_logs from Supabase", {
+          error,
+          ...getSupabaseDiagnostics(),
+        });
+        commitValue(lastPersistedValueRef.current);
+      }
+    };
+
+    void load();
+
+    const unsubscribe = subscribeSharedChannel(
+      "great-organico:story-logs-direct",
+      (channel, dispatch) => {
+        channel.on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "story_logs" },
+          () => {
+            dispatch();
+          },
+        );
+      },
+      () => {
+        void load();
+      },
+    );
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [commitValue, reload]);
+
+  return [value, hydrated, { reload }] as const;
 }

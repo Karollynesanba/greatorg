@@ -27,13 +27,14 @@ import { createClientNumericId } from "../data/clientIds";
 import { useTeamProfiles } from "../data/profiles";
 import { useCurrentTeamMember } from "../data/profiles";
 import { formatBrazilDateLabel, getBrazilYesterdayDateKey } from "../data/brazilDate";
-import { useSupabaseCalendarItemsState } from "../data/calendarItemsRepository";
-import { useSupabaseSharedState, useSupabaseSyncedListState } from "../data/supabaseSync";
+import { useSupabaseCalendarState } from "../data/calendarItemsRepository";
+import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import { defaultMonthlyViewsGoal, sumMonthViews, useCalendarDayMetrics } from "../data/calendarMetrics";
 import { shouldUseMonthlyPerformanceSnapshot, useMonthlyPerformanceSnapshot } from "../data/monthlyPerformance";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import { buildCalendarCompletionHistoryEvent, getCalendarCompletionHistoryId } from "../data/calendarWorkflow";
 import { removeHistoryEvent, upsertHistoryEvent } from "../data/historyEvents";
+import { useSupabasePreference } from "../data/userPreferences";
 import {
   ActionButton,
   ConfirmDialog,
@@ -931,17 +932,14 @@ export function CalendarPage() {
   const [teamMembers] = useTeamProfiles();
   const { member: currentMember, memberId: currentMemberId, updateMember } = useCurrentTeamMember();
   const [teamScope] = useTeamScope();
-  const [events, , { createEvent, updateEvent, deleteEvent: deleteCalendarEvent }] = useSupabaseCalendarItemsState([]);
+  const [events, , { createEvent, updateEvent, deleteEvent: deleteCalendarEvent }] = useSupabaseCalendarState([]);
   const [, setHistoryEvents] = useSupabaseSyncedListState<HistoryEvent>({
     key: "history",
     table: "history_events",
     fallback: [],
   });
   const [dayViewsByDate, setDayViewsByDate, dayReachByDate, setDayReachByDate] = useCalendarDayMetrics();
-  const [monthlyViewsGoal, setMonthlyViewsGoal] = useSupabaseSharedState<number>({
-    key: "calendar-monthly-views-goal",
-    fallback: defaultMonthlyViewsGoal,
-  });
+  const [monthlyViewsGoal, setMonthlyViewsGoal] = useSupabasePreference<number>("calendar-monthly-views-goal", defaultMonthlyViewsGoal);
   const [monthlyPerformance] = useMonthlyPerformanceSnapshot();
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [eventForm, setEventForm] = useState<CalendarEventFormState | null>(null);
