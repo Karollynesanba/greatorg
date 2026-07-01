@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useSupabaseSharedState } from "./supabaseSync";
+import { getBrazilMonthKey } from "./brazilDate";
 
 export type MonthlyPerformanceSnapshot = {
   monthKey: string;
@@ -12,14 +13,14 @@ export type MonthlyPerformanceSnapshot = {
 };
 
 export function getCurrentMonthKey() {
-  return new Date().toISOString().slice(0, 7);
+  return getBrazilMonthKey(new Date());
 }
 
 export function buildDefaultMonthlyPerformanceSnapshot(monthKey = getCurrentMonthKey()): MonthlyPerformanceSnapshot {
   return {
     monthKey,
-    views: 978_855,
-    reach: 493_808,
+    views: 0,
+    reach: 0,
     socialSellingViews: 0,
     socialSellingCount: 0,
     testimonialsCount: 0,
@@ -43,6 +44,7 @@ export function useMonthlyPerformanceSnapshot() {
     }
 
     if (snapshot.monthKey !== currentMonthKey) {
+      setSnapshot(buildDefaultMonthlyPerformanceSnapshot(currentMonthKey));
       return;
     }
 
