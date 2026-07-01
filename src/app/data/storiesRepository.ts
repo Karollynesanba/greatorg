@@ -7,6 +7,11 @@ type StoryMetricKey = "views" | "reach";
 
 type StoryListRow<T> = {
   id: number;
+  user_id?: string;
+  reference_month?: string;
+  metric_date?: string;
+  category?: string;
+  page_module?: string;
   sort_order: number;
   data: T;
 };
@@ -65,6 +70,12 @@ export type StoriesMonthlySummary = {
   totalGoal: number;
 };
 
+type SharedStateSummaryRow = {
+  key: string;
+  value: StoriesMonthlySummary | null;
+  updated_at?: string;
+};
+
 type StoryPostPayload = Omit<StoryLog, "id"> & {
   id?: number;
   userId: string;
@@ -88,15 +99,73 @@ function getClient() {
   return supabase;
 }
 
+function getStoriesMonthlySummaryKey(month: string) {
+  return `stories-monthly-summary:${month}`;
+}
+
+function isStoriesMonthlySummary(value: unknown): value is StoriesMonthlySummary {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const summary = value as Partial<StoriesMonthlySummary>;
+  return [
+    summary.videoCurrent,
+    summary.videoGoal,
+    summary.photoCurrent,
+    summary.photoGoal,
+    summary.totalCurrent,
+    summary.totalGoal,
+  ].every((item) => typeof item === "number" && Number.isFinite(item));
+}
+
+async function fetchGlobalStoriesMonthlySummary(month: string) {
+  const client = getClient();
+  const { data, error } = await client
+    .from("shared_state")
+    .select("key, value, updated_at")
+    .eq("key", getStoriesMonthlySummaryKey(month))
+    .order("updated_at", { ascending: false })
+    .limit(1);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const row = (data?.[0] as SharedStateSummaryRow | undefined) ?? null;
+  return isStoriesMonthlySummary(row?.value) ? row.value : null;
+}
+
+async function persistGlobalStoriesMonthlySummary(month: string, summary: StoriesMonthlySummary) {
+  const client = getClient();
+  const payload = {
+    key: getStoriesMonthlySummaryKey(month),
+    value: summary,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await client.from("shared_state").upsert(payload, { onConflict: "key" });
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 function nextNumericId() {
   return Date.now() * 1000 + Math.floor(Math.random() * 1000);
 }
 
 function toStoryRow(data: StoryPostPayload, sortOrder: number): StoryListRow<StoryLog> {
   const id = data.id ?? nextNumericId();
+  const metricDate = data.date;
+  const referenceMonth = monthKeyToDate(data.date.slice(0, 7));
 
   return {
     id,
+    user_id: data.userId,
+    reference_month: referenceMonth,
+    metric_date: metricDate,
+    category: data.mediaType,
+    page_module: "stories",
     sort_order: sortOrder,
     data: {
       id,
@@ -147,7 +216,23 @@ export async function fetchMonthlyCalendar(_userId: string, month: string) {
     .filter((row) => row.date.startsWith(month));
 }
 
-export async function fetchStoriesMonthlySummary(userId: string, month: string): Promise<StoriesMonthlySummary> {
+export async function fetchStoriesMonthlySummary(userId: string | null, month: string): Promise<StoriesMonthlySummary> {
+  const globalSummary = await fetchGlobalStoriesMonthlySummary(month).catch(() => null);
+  if (globalSummary) {
+    return globalSummary;
+  }
+
+  if (!userId) {
+    return {
+      videoCurrent: 0,
+      videoGoal: defaultGoalValues.video,
+      photoCurrent: 0,
+      photoGoal: defaultGoalValues.photo,
+      totalCurrent: 0,
+      totalGoal: defaultGoalValues.total,
+    };
+  }
+
   const client = getClient();
   const { data: monthlyDataRow, error: monthlyDataError } = await client
     .from("stories_monthly_data")
@@ -216,6 +301,7 @@ export async function fetchStoriesMonthlySummary(userId: string, month: string):
 }
 
 export async function fetchStoriesDashboard(userId: string, month: string): Promise<StoriesDashboardSnapshot> {
+  const globalSummary = await fetchGlobalStoriesMonthlySummary(month).catch(() => null);
   const client = getClient();
   const [{ data: monthlyDataRow, error: monthlyDataError }, { data: metricRows, error: metricError }, stories, calendar] = await Promise.all([
     client
@@ -239,7 +325,22 @@ export async function fetchStoriesDashboard(userId: string, month: string): Prom
 
   let goals: StoryGoalMetricMap;
 
-  if (!monthlyDataError && monthlyDataRow) {
+  if (globalSummary) {
+    goals = {
+      total: {
+        currentValue: globalSummary.totalCurrent,
+        goalValue: globalSummary.totalGoal,
+      },
+      video: {
+        currentValue: globalSummary.videoCurrent,
+        goalValue: globalSummary.videoGoal,
+      },
+      photo: {
+        currentValue: globalSummary.photoCurrent,
+        goalValue: globalSummary.photoGoal,
+      },
+    };
+  } else if (!monthlyDataError && monthlyDataRow) {
     const row = monthlyDataRow as StoriesMonthlyDataRow;
     goals = {
       total: {
@@ -305,6 +406,8 @@ export async function fetchStoriesDashboard(userId: string, month: string): Prom
 
 export async function updateStoriesMonthlyData(userId: string, month: string, summary: StoriesMonthlySummary) {
   const client = getClient();
+  await persistGlobalStoriesMonthlySummary(month, summary);
+
   const payload = {
     user_id: userId,
     reference_month: monthKeyToDate(month),

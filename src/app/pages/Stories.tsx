@@ -184,8 +184,8 @@ export function StoriesPage() {
     seedOnEmpty: true,
   });
   const [teamScope] = useTeamScope();
-  const [, setMonthlyCurrentVideo] = useState(0);
-  const [, setMonthlyCurrentPhoto] = useState(0);
+  const [monthlyCurrentVideo, setMonthlyCurrentVideo] = useState(0);
+  const [monthlyCurrentPhoto, setMonthlyCurrentPhoto] = useState(0);
   const [, setMonthlyGoalTotal] = useState(defaultMonthlyGoalTotal);
   const [monthlyGoalVideo, setMonthlyGoalVideo] = useState(defaultMonthlyGoalVideo);
   const [monthlyGoalPhoto, setMonthlyGoalPhoto] = useState(defaultMonthlyGoalPhoto);
@@ -197,6 +197,7 @@ export function StoriesPage() {
   const [monthlyGoalVideoDraft, setMonthlyGoalVideoDraft] = useState(String(defaultMonthlyGoalVideo));
   const [monthlyCurrentPhotoDraft, setMonthlyCurrentPhotoDraft] = useState("0");
   const [monthlyGoalPhotoDraft, setMonthlyGoalPhotoDraft] = useState(String(defaultMonthlyGoalPhoto));
+  const [monthlySummaryHydrated, setMonthlySummaryHydrated] = useState(false);
   const currentMonthAnchor = useMemo(() => new Date(), []);
   const [periodMode, setPeriodMode] = useState<StoryPeriodMode>("current");
   const [monthCursor, setMonthCursor] = useState(() => startOfMonth(currentMonthAnchor));
@@ -310,9 +311,9 @@ export function StoriesPage() {
   }, [currentMonthAnchor, normalizedItems, periodMode, teamScope]);
 
   const stats = useMemo(() => {
-    const total = computedCurrentVideo + computedCurrentPhoto;
-    const video = computedCurrentVideo;
-    const photo = computedCurrentPhoto;
+    const video = monthlyCurrentVideo;
+    const photo = monthlyCurrentPhoto;
+    const total = video + photo;
 
     return {
       total,
@@ -320,7 +321,7 @@ export function StoriesPage() {
       photo,
       remainingTotal: Math.max(effectiveMonthlyGoals.total - total, 0),
     };
-  }, [computedCurrentPhoto, computedCurrentVideo, effectiveMonthlyGoals.total]);
+  }, [effectiveMonthlyGoals.total, monthlyCurrentPhoto, monthlyCurrentVideo]);
 
   useEffect(() => {
     if (!session?.user.id) {
@@ -328,6 +329,7 @@ export function StoriesPage() {
     }
 
     let cancelled = false;
+    setMonthlySummaryHydrated(false);
 
     const loadDashboard = async () => {
       try {
@@ -338,14 +340,22 @@ export function StoriesPage() {
 
         const nextVideoGoal = dashboard.goals.video.goalValue || defaultMonthlyGoalVideo;
         const nextPhotoGoal = dashboard.goals.photo.goalValue || defaultMonthlyGoalPhoto;
+        const nextVideoCurrent = Math.max(dashboard.goals.video.currentValue || 0, computedCurrentVideo);
+        const nextPhotoCurrent = Math.max(dashboard.goals.photo.currentValue || 0, computedCurrentPhoto);
 
+        setMonthlyCurrentVideo(nextVideoCurrent);
+        setMonthlyCurrentPhoto(nextPhotoCurrent);
         setMonthlyGoalVideo(nextVideoGoal);
         setMonthlyGoalPhoto(nextPhotoGoal);
+        setMonthlyCurrentVideoDraft(String(nextVideoCurrent));
+        setMonthlyCurrentPhotoDraft(String(nextPhotoCurrent));
         setMonthlyGoalVideoDraft(String(nextVideoGoal));
         setMonthlyGoalPhotoDraft(String(nextPhotoGoal));
+        setMonthlySummaryHydrated(true);
       } catch (error) {
         if (!cancelled) {
           console.error("Failed to load Stories dashboard", error);
+          setMonthlySummaryHydrated(true);
         }
       }
     };
@@ -355,7 +365,21 @@ export function StoriesPage() {
     return () => {
       cancelled = true;
     };
-  }, [goalMonthKey, session?.user.id]);
+  }, [computedCurrentPhoto, computedCurrentVideo, goalMonthKey, session?.user.id]);
+
+  useEffect(() => {
+    if (!monthlySummaryHydrated && !isEditingMonthlyGoalVideo) {
+      setMonthlyCurrentVideo(computedCurrentVideo);
+      setMonthlyCurrentVideoDraft(String(computedCurrentVideo));
+    }
+  }, [computedCurrentVideo, isEditingMonthlyGoalVideo, monthlySummaryHydrated]);
+
+  useEffect(() => {
+    if (!monthlySummaryHydrated && !isEditingMonthlyGoalPhoto) {
+      setMonthlyCurrentPhoto(computedCurrentPhoto);
+      setMonthlyCurrentPhotoDraft(String(computedCurrentPhoto));
+    }
+  }, [computedCurrentPhoto, isEditingMonthlyGoalPhoto, monthlySummaryHydrated]);
 
   const handleStartEditingMonthlyGoalTotal = () => {
     setMonthlyGoalTotalDraft(String(monthlyGoalTotal));
@@ -454,7 +478,7 @@ export function StoriesPage() {
   };
 
   const handleStartEditingVideoCard = () => {
-    setMonthlyCurrentVideoDraft(String(computedCurrentVideo));
+    setMonthlyCurrentVideoDraft(String(monthlyCurrentVideo));
     setMonthlyGoalVideoDraft(String(monthlyGoalVideo));
     setIsEditingMonthlyGoalVideo(true);
   };
@@ -465,27 +489,33 @@ export function StoriesPage() {
       return;
     }
 
-    const nextCurrentValue = parseMetricInput(monthlyCurrentVideoDraft, computedCurrentVideo);
+    const nextCurrentValue = parseMetricInput(monthlyCurrentVideoDraft, monthlyCurrentVideo);
     const nextGoalValue = Math.max(1, parseMetricInput(monthlyGoalVideoDraft, monthlyGoalVideo || defaultMonthlyGoalVideo));
-    const nextTotalCurrent = nextCurrentValue + computedCurrentPhoto;
+    const nextTotalCurrent = nextCurrentValue + monthlyCurrentPhoto;
     const nextTotalGoal = nextGoalValue + monthlyGoalPhoto;
 
     try {
       await updateStoriesMonthlyData(session.user.id, goalMonthKey, {
         videoCurrent: nextCurrentValue,
         videoGoal: nextGoalValue,
-        photoCurrent: computedCurrentPhoto,
+        photoCurrent: monthlyCurrentPhoto,
         photoGoal: monthlyGoalPhoto,
         totalCurrent: nextTotalCurrent,
         totalGoal: nextTotalGoal,
       });
 
       const dashboard = await fetchStoriesDashboard(session.user.id, goalMonthKey);
+      const savedVideoCurrent = Math.max(dashboard.goals.video.currentValue || 0, nextCurrentValue);
+      const savedPhotoCurrent = Math.max(dashboard.goals.photo.currentValue || 0, monthlyCurrentPhoto);
       const savedVideoGoal = dashboard.goals.video.goalValue || nextGoalValue;
       const savedPhotoGoal = dashboard.goals.photo.goalValue || monthlyGoalPhoto;
 
+      setMonthlyCurrentVideo(savedVideoCurrent);
+      setMonthlyCurrentPhoto(savedPhotoCurrent);
       setMonthlyGoalVideo(savedVideoGoal);
       setMonthlyGoalPhoto(savedPhotoGoal);
+      setMonthlyCurrentVideoDraft(String(savedVideoCurrent));
+      setMonthlyCurrentPhotoDraft(String(savedPhotoCurrent));
       setMonthlyGoalVideoDraft(String(savedVideoGoal));
       setMonthlyGoalPhotoDraft(String(savedPhotoGoal));
       setIsEditingMonthlyGoalVideo(false);
@@ -497,13 +527,13 @@ export function StoriesPage() {
   };
 
   const handleCancelVideoCardEdit = () => {
-    setMonthlyCurrentVideoDraft(String(computedCurrentVideo));
+    setMonthlyCurrentVideoDraft(String(monthlyCurrentVideo));
     setMonthlyGoalVideoDraft(String(monthlyGoalVideo));
     setIsEditingMonthlyGoalVideo(false);
   };
 
   const handleStartEditingPhotoCard = () => {
-    setMonthlyCurrentPhotoDraft(String(computedCurrentPhoto));
+    setMonthlyCurrentPhotoDraft(String(monthlyCurrentPhoto));
     setMonthlyGoalPhotoDraft(String(monthlyGoalPhoto));
     setIsEditingMonthlyGoalPhoto(true);
   };
@@ -514,14 +544,14 @@ export function StoriesPage() {
       return;
     }
 
-    const nextCurrentValue = parseMetricInput(monthlyCurrentPhotoDraft, computedCurrentPhoto);
+    const nextCurrentValue = parseMetricInput(monthlyCurrentPhotoDraft, monthlyCurrentPhoto);
     const nextGoalValue = Math.max(1, parseMetricInput(monthlyGoalPhotoDraft, monthlyGoalPhoto || defaultMonthlyGoalPhoto));
-    const nextTotalCurrent = computedCurrentVideo + nextCurrentValue;
+    const nextTotalCurrent = monthlyCurrentVideo + nextCurrentValue;
     const nextTotalGoal = monthlyGoalVideo + nextGoalValue;
 
     try {
       await updateStoriesMonthlyData(session.user.id, goalMonthKey, {
-        videoCurrent: computedCurrentVideo,
+        videoCurrent: monthlyCurrentVideo,
         videoGoal: monthlyGoalVideo,
         photoCurrent: nextCurrentValue,
         photoGoal: nextGoalValue,
@@ -530,11 +560,17 @@ export function StoriesPage() {
       });
 
       const dashboard = await fetchStoriesDashboard(session.user.id, goalMonthKey);
+      const savedVideoCurrent = Math.max(dashboard.goals.video.currentValue || 0, monthlyCurrentVideo);
+      const savedPhotoCurrent = Math.max(dashboard.goals.photo.currentValue || 0, nextCurrentValue);
       const savedVideoGoal = dashboard.goals.video.goalValue || monthlyGoalVideo;
       const savedPhotoGoal = dashboard.goals.photo.goalValue || nextGoalValue;
 
+      setMonthlyCurrentVideo(savedVideoCurrent);
+      setMonthlyCurrentPhoto(savedPhotoCurrent);
       setMonthlyGoalVideo(savedVideoGoal);
       setMonthlyGoalPhoto(savedPhotoGoal);
+      setMonthlyCurrentVideoDraft(String(savedVideoCurrent));
+      setMonthlyCurrentPhotoDraft(String(savedPhotoCurrent));
       setMonthlyGoalVideoDraft(String(savedVideoGoal));
       setMonthlyGoalPhotoDraft(String(savedPhotoGoal));
       setIsEditingMonthlyGoalPhoto(false);
@@ -546,7 +582,7 @@ export function StoriesPage() {
   };
 
   const handleCancelPhotoCardEdit = () => {
-    setMonthlyCurrentPhotoDraft(String(computedCurrentPhoto));
+    setMonthlyCurrentPhotoDraft(String(monthlyCurrentPhoto));
     setMonthlyGoalPhotoDraft(String(monthlyGoalPhoto));
     setIsEditingMonthlyGoalPhoto(false);
   };

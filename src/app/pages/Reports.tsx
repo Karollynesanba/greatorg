@@ -32,6 +32,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuthSession } from "../auth";
 import {
   calendarEvents,
   getGoalResponsibleIds,
@@ -44,6 +45,7 @@ import {
   storyLogs,
 } from "../data/mockData";
 import { createStorageKey } from "../data/sharedState";
+import { fetchStoriesMonthlySummary, type StoriesMonthlySummary } from "../data/storiesRepository";
 import { useTeamProfiles } from "../data/profiles";
 import { usePosts, type Post } from "../data/posts";
 import { shouldUseMonthlyPerformanceSnapshot, useMonthlyPerformanceState } from "../data/monthlyPerformance";
@@ -911,6 +913,7 @@ function DateRangePicker({
 }
 
 export function ReportsPage() {
+  const { session } = useAuthSession();
   const reportFiltersRef = useRef<HTMLElement | null>(null);
   const { isDark } = useThemeMode();
   const anchorDate = useMemo(() => new Date(), []);
@@ -1074,6 +1077,53 @@ export function ReportsPage() {
     });
   }, [anchorDate, customEndDate, customMonth, customPastMonths, customPeriodMode, customStartDate, customYear, period]);
   const previousRange = useMemo(() => shiftRange(currentRange.start, currentRange.end), [currentRange]);
+  const [currentMonthlyStoriesSummary, setCurrentMonthlyStoriesSummary] = useState<StoriesMonthlySummary | null>(null);
+  const [previousMonthlyStoriesSummary, setPreviousMonthlyStoriesSummary] = useState<StoriesMonthlySummary | null>(null);
+
+  useEffect(() => {
+    const useCurrentMonthlyStories =
+      responsibleFilter === "todos" && teamScope === "todos" && isExactMonthRange(currentRange, monthKeyFromDate(currentRange.start));
+    const usePreviousMonthlyStories =
+      responsibleFilter === "todos" && teamScope === "todos" && isExactMonthRange(previousRange, monthKeyFromDate(previousRange.start));
+
+    if (!session?.user.id || (!useCurrentMonthlyStories && !usePreviousMonthlyStories)) {
+      setCurrentMonthlyStoriesSummary(null);
+      setPreviousMonthlyStoriesSummary(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadStorySummaries = async () => {
+      try {
+        const [currentSummaryValue, previousSummaryValue] = await Promise.all([
+          useCurrentMonthlyStories ? fetchStoriesMonthlySummary(session.user.id, monthKeyFromDate(currentRange.start)) : Promise.resolve(null),
+          usePreviousMonthlyStories ? fetchStoriesMonthlySummary(session.user.id, monthKeyFromDate(previousRange.start)) : Promise.resolve(null),
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        setCurrentMonthlyStoriesSummary(currentSummaryValue);
+        setPreviousMonthlyStoriesSummary(previousSummaryValue);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        console.error("Failed to load shared monthly stories summary for reports", error);
+        setCurrentMonthlyStoriesSummary(null);
+        setPreviousMonthlyStoriesSummary(null);
+      }
+    };
+
+    void loadStorySummaries();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentRange, previousRange, responsibleFilter, session?.user.id, teamScope]);
   const historicalMonthKeys = useMemo(
     () => Array.from(new Set([...getMonthKeysBetween(previousRange.start, previousRange.end), ...getMonthKeysBetween(currentRange.start, currentRange.end)])),
     [currentRange, previousRange],
@@ -1204,7 +1254,11 @@ export function ReportsPage() {
     const finalizedPosts = filteredPosts.filter((post) => isFinalContentStatus(post.status)).length;
     const finalizedCalendarItems = filteredCalendarItems.filter((event) => isCompletedCalendarEvent(event)).length;
     const postsCount = finalizedPosts + finalizedCalendarItems;
-    const storiesCount = filteredStoryLogs.reduce((sum, story) => sum + Math.max(story.quantity, 0), 0);
+    const computedStoriesCount = filteredStoryLogs.reduce((sum, story) => sum + Math.max(story.quantity, 0), 0);
+    const storiesCount =
+      responsibleFilter === "todos" && teamScope === "todos" && isExactMonthRange(currentRange, currentMonthKey)
+        ? Math.max(currentMonthlyStoriesSummary?.totalCurrent ?? 0, computedStoriesCount)
+        : computedStoriesCount;
     const progressParts = [
       monthlyViewsGoal > 0 ? views / monthlyViewsGoal : null,
       dashboardMetricGoals.reach > 0 ? reach / dashboardMetricGoals.reach : null,
@@ -1216,7 +1270,7 @@ export function ReportsPage() {
         : 0;
 
     return { views, reach, engagement, saves, shares, likes, comments, avgEngagement, postsCount, finalizedPosts, finalizedCalendarItems, storiesCount, monthlyProgress };
-  }, [currentRange, dashboardMetricGoals.reach, filteredCalendarItems, filteredPosts, filteredStoryLogs, monthlyPerformance, monthlyPerformanceHistory, monthlyViewsGoal, responsibleFilter, teamScope]);
+  }, [currentMonthlyStoriesSummary, currentRange, dashboardMetricGoals.reach, filteredCalendarItems, filteredPosts, filteredStoryLogs, monthlyPerformance, monthlyPerformanceHistory, monthlyViewsGoal, responsibleFilter, teamScope]);
 
   const previousSummary = useMemo(() => {
     const previousMonthKey = monthKeyFromDate(previousRange.start);
@@ -1231,7 +1285,11 @@ export function ReportsPage() {
     const finalizedPosts = previousPosts.filter((post) => isFinalContentStatus(post.status)).length;
     const finalizedCalendarItems = previousCalendarItems.filter((event) => isCompletedCalendarEvent(event)).length;
     const postsCount = finalizedPosts + finalizedCalendarItems;
-    const storiesCount = previousStoryLogs.reduce((sum, story) => sum + Math.max(story.quantity, 0), 0);
+    const computedStoriesCount = previousStoryLogs.reduce((sum, story) => sum + Math.max(story.quantity, 0), 0);
+    const storiesCount =
+      responsibleFilter === "todos" && teamScope === "todos" && isExactMonthRange(previousRange, previousMonthKey)
+        ? Math.max(previousMonthlyStoriesSummary?.totalCurrent ?? 0, computedStoriesCount)
+        : computedStoriesCount;
     const progressParts = [
       monthlyViewsGoal > 0 ? views / monthlyViewsGoal : null,
       dashboardMetricGoals.reach > 0 ? reach / dashboardMetricGoals.reach : null,
@@ -1243,7 +1301,7 @@ export function ReportsPage() {
         : 0;
 
     return { views, reach, engagement, avgEngagement, postsCount, storiesCount, monthlyProgress };
-  }, [dashboardMetricGoals.reach, monthlyPerformanceHistory, monthlyViewsGoal, previousCalendarItems, previousPosts, previousRange, previousStoryLogs, responsibleFilter, teamScope]);
+  }, [dashboardMetricGoals.reach, monthlyPerformanceHistory, monthlyViewsGoal, previousCalendarItems, previousMonthlyStoriesSummary, previousPosts, previousRange, previousStoryLogs, responsibleFilter, teamScope]);
 
   const comparison = {
     reach:
