@@ -40,13 +40,17 @@ import {
   type ContentType,
   type Goal,
   type PostStatus,
+  type StoryLog,
+  storyLogs,
 } from "../data/mockData";
 import { createStorageKey } from "../data/sharedState";
 import { useTeamProfiles } from "../data/profiles";
 import { usePosts, type Post } from "../data/posts";
-import { shouldUseMonthlyPerformanceSnapshot, useMonthlyPerformanceSnapshot } from "../data/monthlyPerformance";
+import { shouldUseMonthlyPerformanceSnapshot, useMonthlyPerformanceHistory, useMonthlyPerformanceSnapshot } from "../data/monthlyPerformance";
 import { useSupabaseSharedState, useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
+import { getMonthKeysBetween, useHistoricalMonthlyData } from "../data/monthlySnapshots";
+import { useSupabasePreference } from "../data/userPreferences";
 import {
   ActionButton,
   GlassPanel,
@@ -879,12 +883,20 @@ export function ReportsPage() {
     fallback: calendarEvents,
   });
   const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
+  const [storyItems] = useSupabaseSyncedListState<StoryLog>({ key: "story-logs", table: "story_logs", fallback: storyLogs });
   const [monthlyArchive] = useSupabaseSharedState<MonthlyArchiveSnapshot>({
     key: createStorageKey("monthly-archive"),
     fallback: monthlyArchiveFallback,
   });
   const [teamScope] = useTeamScope();
   const [monthlyPerformance] = useMonthlyPerformanceSnapshot();
+  const [monthlyPerformanceHistory] = useMonthlyPerformanceHistory();
+  const [monthlyViewsGoal] = useSupabasePreference<number>("calendar-monthly-views-goal", 800_000);
+  const [dashboardMetricGoals] = useSupabasePreference<{ reach: number; engagement: number; followers: number }>("dashboard-metric-goals", {
+    reach: 0,
+    engagement: 0,
+    followers: 0,
+  });
   const [savedReports, setSavedReports, savedReportsHydrated] = useSupabaseSharedState<SavedReport[]>({
     key: createStorageKey("reports-history"),
     fallback: savedReportsFallback,
@@ -980,9 +992,15 @@ export function ReportsPage() {
     });
   }, [anchorDate, customEndDate, customMonth, customPastMonths, customPeriodMode, customStartDate, customYear, period]);
   const previousRange = useMemo(() => shiftRange(currentRange.start, currentRange.end), [currentRange]);
-  const allPosts = useMemo(() => [...monthlyArchive.posts, ...posts], [monthlyArchive.posts, posts]);
-  const allCalendarItems = useMemo(() => [...monthlyArchive.calendarEvents, ...calendarItems], [calendarItems, monthlyArchive.calendarEvents]);
-  const allGoals = useMemo(() => [...monthlyArchive.goals, ...goals], [goals, monthlyArchive.goals]);
+  const historicalMonthKeys = useMemo(
+    () => Array.from(new Set([...getMonthKeysBetween(previousRange.start, previousRange.end), ...getMonthKeysBetween(currentRange.start, currentRange.end)])),
+    [currentRange, previousRange],
+  );
+  const [historicalMonthlyData] = useHistoricalMonthlyData(historicalMonthKeys);
+  const allPosts = useMemo(() => [...historicalMonthlyData.posts, ...monthlyArchive.posts, ...posts], [historicalMonthlyData.posts, monthlyArchive.posts, posts]);
+  const allCalendarItems = useMemo(() => [...historicalMonthlyData.calendarEvents, ...monthlyArchive.calendarEvents, ...calendarItems], [calendarItems, historicalMonthlyData.calendarEvents, monthlyArchive.calendarEvents]);
+  const allGoals = useMemo(() => [...historicalMonthlyData.goals, ...monthlyArchive.goals, ...goals], [goals, historicalMonthlyData.goals, monthlyArchive.goals]);
+  const allStoryLogs = useMemo(() => [...historicalMonthlyData.storyLogs, ...monthlyArchive.storyLogs, ...storyItems], [historicalMonthlyData.storyLogs, monthlyArchive.storyLogs, storyItems]);
 
   const filteredPosts = useMemo(
     () =>
@@ -1053,6 +1071,32 @@ export function ReportsPage() {
     });
   }, [allGoals, currentRange.end, currentRange.start, responsibleFilter, teamScope]);
 
+  const filteredStoryLogs = useMemo(
+    () =>
+      allStoryLogs.filter((story) => {
+        const matchesDate = inRange(story.date, currentRange.start, currentRange.end);
+        const matchesResponsible =
+          responsibleFilter === "todos" || story.madeById === responsibleFilter || story.postedById === responsibleFilter;
+        const matchesScope = matchesTeamScope(story.madeById, teamScope) || matchesTeamScope(story.postedById, teamScope);
+
+        return matchesDate && matchesResponsible && matchesScope;
+      }),
+    [allStoryLogs, currentRange.end, currentRange.start, responsibleFilter, teamScope],
+  );
+
+  const previousStoryLogs = useMemo(
+    () =>
+      allStoryLogs.filter((story) => {
+        const matchesDate = inRange(story.date, previousRange.start, previousRange.end);
+        const matchesResponsible =
+          responsibleFilter === "todos" || story.madeById === responsibleFilter || story.postedById === responsibleFilter;
+        const matchesScope = matchesTeamScope(story.madeById, teamScope) || matchesTeamScope(story.postedById, teamScope);
+
+        return matchesDate && matchesResponsible && matchesScope;
+      }),
+    [allStoryLogs, previousRange.end, previousRange.start, responsibleFilter, teamScope],
+  );
+
   const currentSummary = useMemo(() => {
     const currentMonthKey = monthKeyFromDate(currentRange.start);
     const useSharedMonthlyTotals = shouldUseMonthlyPerformanceSnapshot(
@@ -1060,11 +1104,15 @@ export function ReportsPage() {
       currentMonthKey,
       responsibleFilter === "todos" && teamScope === "todos" && isExactMonthRange(currentRange, currentMonthKey),
     );
+    const archivedMonthlyPerformance =
+      !useSharedMonthlyTotals && responsibleFilter === "todos" && teamScope === "todos" && isExactMonthRange(currentRange, currentMonthKey)
+        ? monthlyPerformanceHistory[currentMonthKey]
+        : null;
     const computedViews = filteredPosts.reduce((sum, post) => sum + post.reach, 0);
     const computedReach = filteredPosts.reduce((sum, post) => sum + post.reach, 0);
-    const views = useSharedMonthlyTotals ? monthlyPerformance.views : computedViews;
+    const views = useSharedMonthlyTotals ? monthlyPerformance.views : archivedMonthlyPerformance?.views ?? computedViews;
     const reach =
-      useSharedMonthlyTotals ? monthlyPerformance.reach : computedReach;
+      useSharedMonthlyTotals ? monthlyPerformance.reach : archivedMonthlyPerformance?.reach ?? computedReach;
     const engagement = filteredPosts.reduce((sum, post) => sum + post.engagement, 0);
     const saves = filteredPosts.reduce((sum, post) => sum + post.metrics.saves, 0);
     const shares = filteredPosts.reduce((sum, post) => sum + post.metrics.shares, 0);
@@ -1074,22 +1122,46 @@ export function ReportsPage() {
     const finalizedPosts = filteredPosts.filter((post) => isFinalContentStatus(post.status)).length;
     const finalizedCalendarItems = filteredCalendarItems.filter((event) => isCompletedCalendarEvent(event)).length;
     const postsCount = finalizedPosts + finalizedCalendarItems;
-    const monthlyProgress = Math.min(100, Math.round((postsCount / monthlyContentTarget) * 100));
+    const storiesCount = filteredStoryLogs.reduce((sum, story) => sum + Math.max(story.quantity, 0), 0);
+    const progressParts = [
+      monthlyViewsGoal > 0 ? views / monthlyViewsGoal : null,
+      dashboardMetricGoals.reach > 0 ? reach / dashboardMetricGoals.reach : null,
+      monthlyContentTarget > 0 ? postsCount / monthlyContentTarget : null,
+    ].filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+    const monthlyProgress =
+      progressParts.length > 0
+        ? Math.min(100, Math.round((progressParts.reduce((sum, value) => sum + value, 0) / progressParts.length) * 100))
+        : 0;
 
-    return { views, reach, engagement, saves, shares, likes, comments, avgEngagement, postsCount, finalizedPosts, finalizedCalendarItems, monthlyProgress };
-  }, [currentRange, filteredCalendarItems, filteredPosts, monthlyPerformance, responsibleFilter, teamScope]);
+    return { views, reach, engagement, saves, shares, likes, comments, avgEngagement, postsCount, finalizedPosts, finalizedCalendarItems, storiesCount, monthlyProgress };
+  }, [currentRange, dashboardMetricGoals.reach, filteredCalendarItems, filteredPosts, filteredStoryLogs, monthlyPerformance, monthlyPerformanceHistory, monthlyViewsGoal, responsibleFilter, teamScope]);
 
   const previousSummary = useMemo(() => {
-    const views = previousPosts.reduce((sum, post) => sum + post.reach, 0);
-    const reach = previousPosts.reduce((sum, post) => sum + post.reach, 0);
+    const previousMonthKey = monthKeyFromDate(previousRange.start);
+    const useArchivedMonthlyPerformance =
+      responsibleFilter === "todos" && teamScope === "todos" && isExactMonthRange(previousRange, previousMonthKey)
+        ? monthlyPerformanceHistory[previousMonthKey]
+        : null;
+    const views = useArchivedMonthlyPerformance?.views ?? previousPosts.reduce((sum, post) => sum + post.reach, 0);
+    const reach = useArchivedMonthlyPerformance?.reach ?? previousPosts.reduce((sum, post) => sum + post.reach, 0);
     const engagement = previousPosts.reduce((sum, post) => sum + post.engagement, 0);
     const avgEngagement = previousPosts.length > 0 ? engagement / previousPosts.length : 0;
     const finalizedPosts = previousPosts.filter((post) => isFinalContentStatus(post.status)).length;
     const finalizedCalendarItems = previousCalendarItems.filter((event) => isCompletedCalendarEvent(event)).length;
     const postsCount = finalizedPosts + finalizedCalendarItems;
+    const storiesCount = previousStoryLogs.reduce((sum, story) => sum + Math.max(story.quantity, 0), 0);
+    const progressParts = [
+      monthlyViewsGoal > 0 ? views / monthlyViewsGoal : null,
+      dashboardMetricGoals.reach > 0 ? reach / dashboardMetricGoals.reach : null,
+      monthlyContentTarget > 0 ? postsCount / monthlyContentTarget : null,
+    ].filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+    const monthlyProgress =
+      progressParts.length > 0
+        ? Math.min(100, Math.round((progressParts.reduce((sum, value) => sum + value, 0) / progressParts.length) * 100))
+        : 0;
 
-    return { views, reach, engagement, avgEngagement, postsCount };
-  }, [previousCalendarItems, previousPosts]);
+    return { views, reach, engagement, avgEngagement, postsCount, storiesCount, monthlyProgress };
+  }, [dashboardMetricGoals.reach, monthlyPerformanceHistory, monthlyViewsGoal, previousCalendarItems, previousPosts, previousRange, previousStoryLogs, responsibleFilter, teamScope]);
 
   const comparison = {
     reach:
@@ -1564,7 +1636,9 @@ export function ReportsPage() {
   );
   const displaySummary = {
     health: healthScore,
+    views: currentSummary.views,
     reach: currentSummary.reach,
+    stories: currentSummary.storiesCount,
     posts: currentSummary.postsCount,
     monthlyProgress: currentSummary.monthlyProgress,
   };
@@ -1577,6 +1651,16 @@ export function ReportsPage() {
       tone: "good" as const,
     },
     {
+      label: "Visualizações do mês",
+      value: formatLongNumber(displaySummary.views),
+      delta: formatPercent(
+        previousSummary.views === 0 ? (displaySummary.views > 0 ? 100 : 0) : ((displaySummary.views - previousSummary.views) / previousSummary.views) * 100,
+        1,
+      ),
+      icon: BarChart3,
+      tone: "good" as const,
+    },
+    {
       label: "Alcance total",
       value: formatLongNumber(displaySummary.reach),
       delta: formatPercent(comparison.reach, 1),
@@ -1584,12 +1668,22 @@ export function ReportsPage() {
       tone: "good" as const,
     },
     {
+      label: "Stories do mês",
+      value: formatLongNumber(displaySummary.stories),
+      delta: formatPercent(
+        previousSummary.storiesCount === 0 ? (displaySummary.stories > 0 ? 100 : 0) : ((displaySummary.stories - previousSummary.storiesCount) / previousSummary.storiesCount) * 100,
+        1,
+      ),
+      icon: Share2,
+      tone: "good" as const,
+    },
+    {
       label: "Progresso mensal",
       value: `${displaySummary.monthlyProgress}%`,
-      delta: formatPercent(comparison.posts, 1),
+      delta: formatPercent(currentSummary.monthlyProgress - previousSummary.monthlyProgress, 1),
       icon: CheckCircle2,
       tone: "good" as const,
-      note: `${formatLongNumber(displaySummary.posts)} de ${monthlyContentTarget} conteúdos`,
+      note: "Calculado por visualizações, alcance e conteúdos finalizados.",
     },
     {
       label: "Conteúdos finalizados",
@@ -1602,7 +1696,9 @@ export function ReportsPage() {
   ];
   const bottomSummary = [
     { label: "Saúde total", value: `${healthScore}`, icon: Sparkles, tone: "#B91C1C" },
+    { label: "Visualizações do mês", value: formatLongNumber(currentSummary.views), icon: BarChart3, tone: "#7C3AED" },
     { label: "Alcance total", value: formatLongNumber(currentSummary.reach), icon: Eye, tone: "#D10000" },
+    { label: "Stories do mês", value: formatLongNumber(currentSummary.storiesCount), icon: Share2, tone: "#EA580C" },
     {
       label: "Progresso mensal",
       value: `${currentSummary.monthlyProgress}%`,
@@ -2174,7 +2270,7 @@ export function ReportsPage() {
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2 xl:min-w-[470px]">
+              <div className="grid gap-4 sm:grid-cols-2 xl:min-w-[720px] xl:grid-cols-3 2xl:min-w-[980px]">
                 {heroSummaryCards.map((item) => {
                   const Icon = item.icon;
                   return (
@@ -2340,7 +2436,7 @@ export function ReportsPage() {
             </ActionButton>
           </div>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
             {bottomSummary.map((item) => {
               const Icon = item.icon;
               return (

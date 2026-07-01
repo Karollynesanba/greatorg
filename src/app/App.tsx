@@ -162,6 +162,9 @@ function MonthlyCycleManager() {
 
     const ensureMonthlyCycle = async () => {
       const currentMonthKey = getBrazilMonthKey(new Date());
+      const [currentYear, currentMonth] = currentMonthKey.split("-").map(Number);
+      const previousMonthDate = new Date(Date.UTC(currentYear, (currentMonth || 1) - 2, 1, 12, 0, 0, 0));
+      const previousMonthKey = getBrazilMonthKey(previousMonthDate);
       const client = supabase;
 
       if (!client) {
@@ -187,7 +190,19 @@ function MonthlyCycleManager() {
         }
 
         if (lastProcessedMonth !== currentMonthKey) {
-          const { error } = await client.rpc("archive_current_month_data", {
+          const { error: previousMonthError } = await client.rpc("archive_current_month_data", {
+            target_month_key: previousMonthKey,
+          });
+
+          if (cancelled) {
+            return;
+          }
+
+          if (previousMonthError) {
+            console.error("Failed to archive previous monthly data", previousMonthError);
+          }
+
+          const { error: currentMonthError } = await client.rpc("archive_current_month_data", {
             target_month_key: currentMonthKey,
           });
 
@@ -195,8 +210,8 @@ function MonthlyCycleManager() {
             return;
           }
 
-          if (error) {
-            console.error("Failed to archive monthly data", error);
+          if (currentMonthError) {
+            console.error("Failed to archive current monthly data", currentMonthError);
           }
         }
       } catch (error) {

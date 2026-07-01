@@ -12,6 +12,8 @@ export type MonthlyPerformanceSnapshot = {
   updatedAt: string;
 };
 
+export type MonthlyPerformanceHistory = Record<string, MonthlyPerformanceSnapshot>;
+
 export function getCurrentMonthKey() {
   return getBrazilMonthKey(new Date());
 }
@@ -35,15 +37,26 @@ export function useMonthlyPerformanceSnapshot() {
     fallback: buildDefaultMonthlyPerformanceSnapshot(currentMonthKey),
     scope: "global",
   });
+  const [, setHistory, historyHydrated] = useSupabaseSharedState<MonthlyPerformanceHistory>({
+    key: "monthly-performance-history",
+    fallback: {},
+    scope: "global",
+  });
 
   const [snapshot, setSnapshot, hydrated] = state;
 
   useEffect(() => {
-    if (!hydrated) {
+    if (!hydrated || !historyHydrated) {
       return;
     }
 
     if (snapshot.monthKey !== currentMonthKey) {
+      if (snapshot.monthKey) {
+        setHistory((currentHistory) => ({
+          ...currentHistory,
+          [snapshot.monthKey]: snapshot,
+        }));
+      }
       setSnapshot(buildDefaultMonthlyPerformanceSnapshot(currentMonthKey));
       return;
     }
@@ -62,11 +75,19 @@ export function useMonthlyPerformanceSnapshot() {
       reach: shouldUpdateReach ? 493_808 : previous.reach,
       testimonialsCount: typeof previous.testimonialsCount === "number" ? previous.testimonialsCount : 0,
     }));
-  }, [currentMonthKey, hydrated, setSnapshot, snapshot.monthKey, snapshot.reach, snapshot.testimonialsCount, snapshot.views]);
+  }, [currentMonthKey, historyHydrated, hydrated, setHistory, setSnapshot, snapshot, snapshot.monthKey, snapshot.reach, snapshot.testimonialsCount, snapshot.views]);
 
   return state;
 }
 
 export function shouldUseMonthlyPerformanceSnapshot(snapshot: MonthlyPerformanceSnapshot, monthKey: string, isGlobalScope: boolean) {
   return isGlobalScope && snapshot.monthKey === monthKey;
+}
+
+export function useMonthlyPerformanceHistory() {
+  return useSupabaseSharedState<MonthlyPerformanceHistory>({
+    key: "monthly-performance-history",
+    fallback: {},
+    scope: "global",
+  });
 }

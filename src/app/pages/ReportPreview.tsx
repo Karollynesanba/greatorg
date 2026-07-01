@@ -18,12 +18,13 @@ import {
 } from "lucide-react";
 import { type ContentType, type Goal } from "../data/mockData";
 import { createEmptyMonthlyArchive, type MonthlyArchiveSnapshot } from "../data/monthlyArchive";
-import { shouldUseMonthlyPerformanceSnapshot, useMonthlyPerformanceSnapshot } from "../data/monthlyPerformance";
+import { shouldUseMonthlyPerformanceSnapshot, useMonthlyPerformanceHistory, useMonthlyPerformanceSnapshot } from "../data/monthlyPerformance";
 import { useTeamProfiles } from "../data/profiles";
 import { usePosts, type Post } from "../data/posts";
 import { createStorageKey } from "../data/sharedState";
 import { useSupabaseSharedState, useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
+import { getMonthKeysBetween, useHistoricalMonthlyData } from "../data/monthlySnapshots";
 import {
   ActionButton,
   GlassPanel,
@@ -705,6 +706,7 @@ export function ReportPreviewPage() {
     fallback: createEmptyMonthlyArchive(),
   });
   const [monthlyPerformance] = useMonthlyPerformanceSnapshot();
+  const [monthlyPerformanceHistory] = useMonthlyPerformanceHistory();
   const [teamScope] = useTeamScope();
   const [state, setState, stateHydrated] = useSupabaseSharedState<PreviewState>({
     key: createStorageKey("report-preview-state"),
@@ -797,9 +799,14 @@ export function ReportPreviewPage() {
   }, [anchorDate, state.customEndDate, state.customStartDate, state.period]);
 
   const previousRange = useMemo(() => shiftRange(currentRange.start, currentRange.end), [currentRange]);
+  const historicalMonthKeys = useMemo(
+    () => Array.from(new Set([...getMonthKeysBetween(previousRange.start, previousRange.end), ...getMonthKeysBetween(currentRange.start, currentRange.end)])),
+    [currentRange, previousRange],
+  );
+  const [historicalMonthlyData] = useHistoricalMonthlyData(historicalMonthKeys);
 
-  const allPosts = useMemo(() => [...monthlyArchive.posts, ...posts], [monthlyArchive.posts, posts]);
-  const allGoals = useMemo(() => [...monthlyArchive.goals, ...goals], [goals, monthlyArchive.goals]);
+  const allPosts = useMemo(() => [...historicalMonthlyData.posts, ...monthlyArchive.posts, ...posts], [historicalMonthlyData.posts, monthlyArchive.posts, posts]);
+  const allGoals = useMemo(() => [...historicalMonthlyData.goals, ...monthlyArchive.goals, ...goals], [goals, historicalMonthlyData.goals, monthlyArchive.goals]);
 
   const filteredPosts = useMemo(
     () =>
@@ -844,22 +851,31 @@ export function ReportPreviewPage() {
       currentMonthKey,
       state.responsibleFilter === "todos" && teamScope === "todos" && isExactMonthRange(currentRange, currentMonthKey),
     );
+    const archivedMonthlyPerformance =
+      !useSharedMonthlyTotals && state.responsibleFilter === "todos" && teamScope === "todos" && isExactMonthRange(currentRange, currentMonthKey)
+        ? monthlyPerformanceHistory[currentMonthKey]
+        : null;
     const computedViews = filteredPosts.reduce((sum, post) => sum + post.reach, 0);
-    const views = useSharedMonthlyTotals ? monthlyPerformance.views : computedViews;
-    const reach = filteredPosts.reduce((sum, post) => sum + post.reach, 0);
+    const views = useSharedMonthlyTotals ? monthlyPerformance.views : archivedMonthlyPerformance?.views ?? computedViews;
+    const reach = useSharedMonthlyTotals ? monthlyPerformance.reach : archivedMonthlyPerformance?.reach ?? filteredPosts.reduce((sum, post) => sum + post.reach, 0);
     const engagement = filteredPosts.reduce((sum, post) => sum + post.engagement, 0);
     const postsCount = filteredPosts.length;
     const avgEngagement = postsCount > 0 ? engagement / postsCount : 0;
     return { views, reach, engagement, postsCount, avgEngagement };
-  }, [currentRange, filteredPosts, monthlyPerformance, state.responsibleFilter, teamScope]);
+  }, [currentRange, filteredPosts, monthlyPerformance, monthlyPerformanceHistory, state.responsibleFilter, teamScope]);
 
   const previousSummary = useMemo(() => {
-    const reach = previousPosts.reduce((sum, post) => sum + post.reach, 0);
+    const previousMonthKey = monthKeyFromDate(previousRange.start);
+    const archivedMonthlyPerformance =
+      state.responsibleFilter === "todos" && teamScope === "todos" && isExactMonthRange(previousRange, previousMonthKey)
+        ? monthlyPerformanceHistory[previousMonthKey]
+        : null;
+    const reach = archivedMonthlyPerformance?.reach ?? previousPosts.reduce((sum, post) => sum + post.reach, 0);
     const engagement = previousPosts.reduce((sum, post) => sum + post.engagement, 0);
     const postsCount = previousPosts.length;
     const avgEngagement = postsCount > 0 ? engagement / postsCount : 0;
     return { reach, engagement, postsCount, avgEngagement };
-  }, [previousPosts]);
+  }, [monthlyPerformanceHistory, previousPosts, previousRange, state.responsibleFilter, teamScope]);
 
   const comparisonSeries = useMemo(() => {
     const periodDays = diffDays(currentRange.start, currentRange.end) + 1;
