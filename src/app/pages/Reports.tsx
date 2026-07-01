@@ -600,6 +600,34 @@ function ReportsHeroIllustration() {
   );
 }
 
+function buildSparklinePath(values: number[], width = 220, height = 58) {
+  const safeValues = values.length > 1 ? values : [0, 0];
+  const min = Math.min(...safeValues);
+  const max = Math.max(...safeValues);
+  const range = max - min || 1;
+
+  return safeValues
+    .map((value, index) => {
+      const x = (index / (safeValues.length - 1)) * width;
+      const y = height - ((value - min) / range) * height;
+      return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
+    })
+    .join(" ");
+}
+
+function MetricSparkline({ values }: { values: number[] }) {
+  const path = buildSparklinePath(values);
+
+  return (
+    <div className="mt-5 rounded-[18px] bg-[linear-gradient(180deg,rgba(255,232,239,0.7),rgba(255,255,255,0.2))] px-2 py-2">
+      <svg viewBox="0 0 220 58" className="h-14 w-full" fill="none" aria-hidden="true">
+        <path d={path} stroke="rgba(255,126,168,0.22)" strokeWidth="10" strokeLinecap="round" />
+        <path d={path} stroke="#FF7EA8" strokeWidth="3" strokeLinecap="round" />
+      </svg>
+    </div>
+  );
+}
+
 function loadImage(src: string) {
   return new Promise<HTMLImageElement | null>((resolve) => {
     const image = new Image();
@@ -883,6 +911,7 @@ function DateRangePicker({
 }
 
 export function ReportsPage() {
+  const reportFiltersRef = useRef<HTMLElement | null>(null);
   const { isDark } = useThemeMode();
   const anchorDate = useMemo(() => new Date(), []);
   const monthlyArchiveFallback = useMemo(() => createEmptyMonthlyArchive(), []);
@@ -1702,6 +1731,8 @@ export function ReportsPage() {
       delta: formatPercent(Math.max(0, comparison.engagement), 1),
       icon: Sparkles,
       tone: "good" as const,
+      status: "Excelente",
+      trend: [24, 26, 28, 32, 34, 38, displaySummary.health],
     },
     {
       label: "Visualizações do mês",
@@ -1712,6 +1743,8 @@ export function ReportsPage() {
       ),
       icon: BarChart3,
       tone: "good" as const,
+      status: displaySummary.views > 0 ? "Em evolução" : "Sem dados ainda",
+      trend: [18, 22, 28, 30, 34, 36, Math.max(8, Math.min(58, Math.round(displaySummary.views / 20000)))],
     },
     {
       label: "Alcance total",
@@ -1719,6 +1752,8 @@ export function ReportsPage() {
       delta: formatPercent(comparison.reach, 1),
       icon: Eye,
       tone: "good" as const,
+      status: comparison.reach >= 0 ? "Alcance estável" : "Leve recuo",
+      trend: [14, 18, 17, 24, 26, 33, Math.max(10, Math.min(58, Math.round(displaySummary.reach / 12000)))],
     },
     {
       label: "Stories do mês",
@@ -1729,6 +1764,8 @@ export function ReportsPage() {
       ),
       icon: Share2,
       tone: "good" as const,
+      status: "Crescimento forte",
+      trend: [6, 9, 14, 19, 24, 28, Math.max(8, Math.min(58, displaySummary.stories))],
     },
     {
       label: "Progresso mensal",
@@ -1737,6 +1774,8 @@ export function ReportsPage() {
       icon: CheckCircle2,
       tone: "good" as const,
       note: "Calculado por visualizações, alcance e conteúdos finalizados.",
+      status: displaySummary.monthlyProgress >= 70 ? "Ritmo forte" : "Em construção",
+      trend: [8, 14, 20, 24, 30, 36, Math.max(6, Math.min(58, displaySummary.monthlyProgress))],
     },
     {
       label: "Conteúdos finalizados",
@@ -1745,6 +1784,8 @@ export function ReportsPage() {
       icon: Rocket,
       tone: "good" as const,
       note: `Meta de ${monthlyContentTarget} conteúdos/mês`,
+      status: "Entrega contínua",
+      trend: [10, 12, 18, 16, 20, 24, Math.max(8, Math.min(58, displaySummary.posts))],
     },
   ];
   const executiveHeroCards = [
@@ -2301,7 +2342,7 @@ export function ReportsPage() {
           </div>
         </section>
 
-        <section className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.06)] print:hidden">
+        <section ref={reportFiltersRef} className="rounded-[24px] border border-[rgba(255,180,200,.35)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(255,245,248,0.9))] p-7 shadow-[0_12px_40px_rgba(255,120,160,.08)] print:hidden">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Filtros</p>
@@ -2335,10 +2376,12 @@ export function ReportsPage() {
         </section>
 
         <section>
-          <div className="overflow-hidden rounded-[2.8rem] border border-rose-100/90 bg-[radial-gradient(circle_at_top_left,rgba(255,196,210,0.4),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(255,173,196,0.3),transparent_20%),linear-gradient(180deg,rgba(255,255,255,0.99),rgba(255,248,250,0.97))] p-4 shadow-[0_24px_75px_rgba(244,114,144,0.12)] sm:p-6">
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_340px] xl:items-stretch">
-              <div className="relative overflow-hidden rounded-[2.4rem] border border-rose-100/80 bg-[radial-gradient(circle_at_top_left,rgba(255,228,236,0.95),transparent_36%),radial-gradient(circle_at_bottom_right,rgba(255,214,224,0.72),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.96),rgba(255,246,248,0.95))] p-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_24px_60px_rgba(244,114,144,0.08)] sm:p-8">
+          <div className="overflow-hidden rounded-[24px] border border-[rgba(255,180,200,.35)] bg-[radial-gradient(circle_at_top_left,rgba(255,216,229,0.48),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(255,236,241,0.55),transparent_22%),linear-gradient(180deg,#FFFDFD,rgba(255,248,250,0.98))] p-5 shadow-[0_12px_40px_rgba(255,120,160,.08)] sm:p-7">
+            <div className="grid gap-8 xl:grid-cols-[minmax(0,1.48fr)_360px] xl:items-stretch">
+              <div className="relative overflow-hidden rounded-[24px] border border-[rgba(255,180,200,.35)] bg-[linear-gradient(135deg,rgba(255,255,255,0.72),rgba(255,236,241,0.48))] p-8 shadow-[0_12px_40px_rgba(255,120,160,.08)] backdrop-blur-[14px] sm:p-9">
                 <div className="absolute inset-x-10 bottom-2 h-28 rounded-full bg-primary/8 blur-3xl" />
+                <div className="absolute -left-8 top-10 h-32 w-32 rounded-full bg-[rgba(255,126,168,0.10)] blur-3xl" />
+                <div className="absolute right-12 top-8 h-20 w-20 rounded-full bg-[rgba(255,126,168,0.08)] blur-2xl" />
                 <div className="relative grid h-full gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center">
                   <div className="space-y-6">
                     <div className="flex items-start justify-between gap-4">
@@ -2349,7 +2392,7 @@ export function ReportsPage() {
                         type="button"
                         onClick={openOverviewEditor}
                         data-cy="reports-overview-edit"
-                        className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white/92 text-primary shadow-[0_16px_32px_rgba(244,114,144,0.14)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(244,114,144,0.2)] print:hidden"
+                        className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-[rgba(255,180,200,.35)] bg-white/88 text-primary shadow-[0_12px_40px_rgba(255,120,160,.10)] transition duration-250 hover:scale-[1.02] hover:shadow-[0_16px_46px_rgba(255,120,160,.16)] print:hidden"
                         aria-label="Editar visão geral"
                       >
                         <PencilLine className="h-5 w-5" />
@@ -2357,17 +2400,17 @@ export function ReportsPage() {
                     </div>
 
                     <div className="space-y-5">
-                      <h2 className="max-w-xl text-[clamp(2.5rem,4.1vw,4rem)] font-semibold leading-[0.96] tracking-tight text-slate-800">
+                      <h2 className="max-w-[600px] text-[clamp(3rem,4.6vw,3.6rem)] font-bold leading-[0.95] tracking-tight text-[#1F2937]">
                         {overviewDraft.title}
                       </h2>
                       <div className="h-1.5 w-20 rounded-full bg-[linear-gradient(90deg,rgba(255,131,167,0.88),rgba(255,164,190,0.5))]" />
-                      <p className="max-w-xl text-lg leading-9 text-slate-500">
+                      <p className="max-w-[600px] text-[18px] leading-9 text-[#6B7280]">
                         {overviewDraft.description}
                       </p>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-4 pt-2">
-                      <div className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(90deg,rgba(255,237,241,1),rgba(255,244,247,1))] px-5 py-3 text-sm font-semibold text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.95)]">
+                      <div className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(90deg,#FFECEF,#FFF5F7)] px-5 py-3 text-sm font-semibold text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.95)]">
                         <Eye className="h-4 w-4" />
                         {overviewDraft.note}
                       </div>
@@ -2384,7 +2427,7 @@ export function ReportsPage() {
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+              <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-1">
                 {executiveHeroCards.map((item) => {
                   const Icon = item.icon;
                   const isPositive = !item.delta.startsWith("-");
@@ -2392,10 +2435,11 @@ export function ReportsPage() {
                   return (
                     <div
                       key={item.label}
-                      className="group rounded-[2rem] border border-rose-100/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(255,247,249,0.96))] p-5 shadow-[0_16px_38px_rgba(244,114,144,0.08)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_42px_rgba(244,114,144,0.12)]"
+                      className="group relative overflow-hidden rounded-[24px] border border-[rgba(255,180,200,.35)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(255,245,248,0.96))] p-6 shadow-[0_12px_40px_rgba(255,120,160,.08)] transition duration-250 hover:scale-[1.02] hover:shadow-[0_16px_48px_rgba(255,120,160,.14)]"
                     >
+                      <div className="absolute inset-x-6 top-0 h-12 bg-[radial-gradient(circle_at_center,rgba(255,126,168,0.10),transparent_70%)] opacity-0 blur-2xl transition duration-250 group-hover:opacity-100" />
                       <div className="flex items-center justify-between gap-3">
-                        <div className="inline-flex h-14 w-14 items-center justify-center rounded-[1.4rem] bg-[linear-gradient(180deg,rgba(255,236,241,1),rgba(255,244,247,0.98))] text-primary shadow-[0_10px_24px_rgba(244,114,144,0.14)]">
+                        <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#FFE8EF] text-primary shadow-[0_8px_22px_rgba(255,120,160,.10)]">
                           <Icon className="h-5 w-5" />
                         </div>
                         <span className={cn("inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-semibold", deltaTone)}>
@@ -2403,13 +2447,14 @@ export function ReportsPage() {
                           {item.delta}
                         </span>
                       </div>
-                      <div className="mt-6 space-y-2.5">
-                        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">{item.label}</p>
-                        <p className="text-[clamp(2.4rem,2.8vw,3rem)] font-semibold tracking-tight text-slate-800">{item.value}</p>
-                        <p className={cn("text-sm font-medium", isPositive ? "text-emerald-600" : "text-rose-500")}>
-                          {item.note ?? (item.label === "Saúde total" ? "Excelente" : item.label === "Stories do mês" ? "Crescimento forte" : "Sem dados ainda")}
+                      <div className="mt-6 space-y-3">
+                        <p className="text-[12px] font-semibold uppercase tracking-[0.24em] text-[#6B7280]">{item.label}</p>
+                        <p className="text-[clamp(2.7rem,3vw,3.3rem)] font-bold tracking-tight text-[#1F2937]">{item.value}</p>
+                        <p className={cn("text-sm font-medium", isPositive ? "text-[#22C55E]" : "text-rose-500")}>
+                          {item.status}
                         </p>
                       </div>
+                      <MetricSparkline values={item.trend} />
                     </div>
                   );
                 })}
@@ -2418,29 +2463,34 @@ export function ReportsPage() {
           </div>
         </section>
 
-        <section className="overflow-hidden rounded-[2.8rem] border border-rose-100/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(255,248,250,0.97))] p-6 shadow-[0_24px_65px_rgba(244,114,144,0.08)]">
+        <section className="overflow-hidden rounded-[24px] border border-[rgba(255,180,200,.35)] bg-[linear-gradient(180deg,#FFFDFD,rgba(255,248,250,0.98))] p-7 shadow-[0_12px_40px_rgba(255,120,160,.08)]">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex items-start gap-4">
-              <div className="inline-flex h-14 w-14 items-center justify-center rounded-[1.4rem] bg-[linear-gradient(180deg,rgba(255,236,241,1),rgba(255,245,247,0.98))] text-primary shadow-[0_12px_26px_rgba(244,114,144,0.14)]">
+              <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#FFE8EF] text-primary shadow-[0_12px_26px_rgba(244,114,144,0.14)]">
                 <CalendarRange className="h-6 w-6" />
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Histórico salvo</p>
-                <h2 className="mt-2 text-[clamp(1.8rem,2.6vw,2.8rem)] font-semibold tracking-tight text-slate-800">Relatórios anteriores</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-500">
+                <p className="text-[12px] font-semibold uppercase tracking-[0.22em] text-[#6B7280]">Histórico salvo</p>
+                <h2 className="mt-2 text-[clamp(2rem,2.9vw,3rem)] font-bold tracking-tight text-[#1F2937]">Relatórios anteriores</h2>
+                <p className="mt-2 max-w-2xl text-[16px] leading-7 text-[#6B7280]">
                   Acompanhe a evolução do seu conteúdo em uma leitura visual rápida, com os recortes mais recentes já salvos.
                 </p>
               </div>
             </div>
 
-            <ActionButton dataCy="reports-save-report-secondary" variant="secondary" onClick={handleSaveReport} className="border-rose-100 bg-white/90 text-primary shadow-[0_12px_24px_rgba(244,114,144,0.08)]">
-              <FileDown className="h-4 w-4" />
-              Ver histórico completo
+            <ActionButton
+              dataCy="reports-filter-period-shortcut"
+              variant="secondary"
+              onClick={() => reportFiltersRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              className="border-[rgba(255,180,200,.35)] bg-white/90 text-primary shadow-[0_12px_24px_rgba(244,114,144,0.08)]"
+            >
+              <CalendarRange className="h-4 w-4" />
+              Filtrar período
             </ActionButton>
           </div>
 
           <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_360px]">
-            <div className="rounded-[2.2rem] border border-rose-100/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(255,245,248,0.88))] px-4 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.96)] sm:px-6">
+            <div className="rounded-[24px] border border-[rgba(255,180,200,.35)] bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(255,245,248,0.88))] px-4 py-5 shadow-[0_12px_40px_rgba(255,120,160,.08)] sm:px-6">
               <div className="h-[250px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={savedReportsTimeline} margin={{ top: 24, right: 12, left: -16, bottom: 4 }}>
@@ -2478,23 +2528,24 @@ export function ReportsPage() {
               </div>
             </div>
 
-            <div className="grid gap-3">
+            <div className="grid gap-4">
               {savedReports.length > 0 ? (
                 savedReports.slice(0, 3).map((snapshot) => (
-                  <div key={snapshot.id} className="rounded-[1.8rem] border border-rose-100/80 bg-white/90 p-4 shadow-[0_12px_30px_rgba(244,114,144,0.06)]">
+                  <div key={snapshot.id} className="rounded-[24px] border border-[rgba(255,180,200,.35)] bg-white/94 p-5 shadow-[0_12px_40px_rgba(255,120,160,.08)] transition duration-250 hover:scale-[1.02]">
                     <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-800">{snapshot.label}</p>
-                        <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-400">{snapshot.generatedAt}</p>
+                      <div className="flex items-start gap-3">
+                        <div className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#FFE8EF] text-primary">
+                          <FileDown className="h-4.5 w-4.5" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">{snapshot.label}</p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-400">{snapshot.generatedAt}</p>
+                        </div>
                       </div>
-                      <ActionButton
-                        dataCy="reports-history-restore"
-                        variant="secondary"
-                        onClick={() => handleRestoreReport(snapshot)}
-                        className="border-rose-100 bg-rose-50/70 px-3 py-2 text-xs text-primary shadow-none"
-                      >
-                        Restaurar
-                      </ActionButton>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-[#22C55E]">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Pronto
+                      </span>
                     </div>
                     <div className="mt-4 grid grid-cols-3 gap-2">
                       <div className="rounded-2xl bg-rose-50/70 px-3 py-2">
@@ -2509,6 +2560,16 @@ export function ReportsPage() {
                         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Posts</p>
                         <p className="mt-1 text-sm font-semibold text-slate-700">{formatLongNumber(snapshot.postsCount)}</p>
                       </div>
+                    </div>
+                    <div className="mt-4 flex justify-end">
+                      <ActionButton
+                        dataCy="reports-history-restore"
+                        variant="secondary"
+                        onClick={() => handleRestoreReport(snapshot)}
+                        className="border-[rgba(255,180,200,.35)] bg-rose-50/70 px-3 py-2 text-xs text-primary shadow-none"
+                      >
+                        Restaurar
+                      </ActionButton>
                     </div>
                   </div>
                 ))
