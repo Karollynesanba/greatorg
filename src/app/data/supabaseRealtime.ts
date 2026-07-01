@@ -4,9 +4,11 @@ import { getSupabaseDiagnostics, isSupabaseConfigured, supabase } from "./supaba
 type SharedChannel = {
   channel: RealtimeChannel;
   listeners: Set<() => void>;
+  cleanupTimer: ReturnType<typeof setTimeout> | null;
 };
 
 const sharedChannels = new Map<string, SharedChannel>();
+const CHANNEL_CLEANUP_DELAY_MS = 1_000;
 
 export function subscribeSharedChannel(
   name: string,
@@ -41,8 +43,11 @@ export function subscribeSharedChannel(
       });
     });
 
-    entry = { channel, listeners };
+    entry = { channel, listeners, cleanupTimer: null };
     sharedChannels.set(name, entry);
+  } else if (entry.cleanupTimer) {
+    clearTimeout(entry.cleanupTimer);
+    entry.cleanupTimer = null;
   }
 
   console.info("[SupabaseRealtime] Listener attached", {
@@ -70,11 +75,25 @@ export function subscribeSharedChannel(
       return;
     }
 
-    sharedChannels.delete(name);
-    console.info("[SupabaseRealtime] Channel removed", {
+    currentEntry.cleanupTimer = setTimeout(() => {
+      const pendingEntry = sharedChannels.get(name);
+      if (!pendingEntry || pendingEntry !== currentEntry || pendingEntry.listeners.size > 0) {
+        return;
+      }
+
+      sharedChannels.delete(name);
+      pendingEntry.cleanupTimer = null;
+      console.info("[SupabaseRealtime] Channel removed", {
+        channel: name,
+        ...getSupabaseDiagnostics(),
+      });
+      void client.removeChannel(pendingEntry.channel);
+    }, CHANNEL_CLEANUP_DELAY_MS);
+
+    console.info("[SupabaseRealtime] Channel cleanup scheduled", {
       channel: name,
+      delayMs: CHANNEL_CLEANUP_DELAY_MS,
       ...getSupabaseDiagnostics(),
     });
-    void client.removeChannel(currentEntry.channel);
   };
 }
