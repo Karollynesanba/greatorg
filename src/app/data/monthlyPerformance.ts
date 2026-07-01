@@ -14,6 +14,11 @@ export type MonthlyPerformanceSnapshot = {
 
 export type MonthlyPerformanceHistory = Record<string, MonthlyPerformanceSnapshot>;
 
+type MonthlyPerformanceState = {
+  snapshotState: ReturnType<typeof useSupabaseSharedState<MonthlyPerformanceSnapshot>>;
+  historyState: ReturnType<typeof useSupabaseSharedState<MonthlyPerformanceHistory>>;
+};
+
 export function getCurrentMonthKey() {
   return getBrazilMonthKey(new Date());
 }
@@ -30,20 +35,21 @@ export function buildDefaultMonthlyPerformanceSnapshot(monthKey = getCurrentMont
   };
 }
 
-export function useMonthlyPerformanceSnapshot() {
+export function useMonthlyPerformanceState(): MonthlyPerformanceState {
   const currentMonthKey = getCurrentMonthKey();
-  const state = useSupabaseSharedState<MonthlyPerformanceSnapshot>({
+  const snapshotState = useSupabaseSharedState<MonthlyPerformanceSnapshot>({
     key: "monthly-performance-snapshot",
     fallback: buildDefaultMonthlyPerformanceSnapshot(currentMonthKey),
     scope: "global",
   });
-  const [, setHistory, historyHydrated] = useSupabaseSharedState<MonthlyPerformanceHistory>({
+  const historyState = useSupabaseSharedState<MonthlyPerformanceHistory>({
     key: "monthly-performance-history",
     fallback: {},
     scope: "global",
   });
+  const [, setHistory, historyHydrated] = historyState;
 
-  const [snapshot, setSnapshot, hydrated] = state;
+  const [snapshot, setSnapshot, hydrated] = snapshotState;
 
   useEffect(() => {
     if (!hydrated || !historyHydrated) {
@@ -77,7 +83,14 @@ export function useMonthlyPerformanceSnapshot() {
     }));
   }, [currentMonthKey, historyHydrated, hydrated, setHistory, setSnapshot, snapshot, snapshot.monthKey, snapshot.reach, snapshot.testimonialsCount, snapshot.views]);
 
-  return state;
+  return {
+    snapshotState,
+    historyState,
+  };
+}
+
+export function useMonthlyPerformanceSnapshot() {
+  return useMonthlyPerformanceState().snapshotState;
 }
 
 export function shouldUseMonthlyPerformanceSnapshot(snapshot: MonthlyPerformanceSnapshot, monthKey: string, isGlobalScope: boolean) {
@@ -85,9 +98,5 @@ export function shouldUseMonthlyPerformanceSnapshot(snapshot: MonthlyPerformance
 }
 
 export function useMonthlyPerformanceHistory() {
-  return useSupabaseSharedState<MonthlyPerformanceHistory>({
-    key: "monthly-performance-history",
-    fallback: {},
-    scope: "global",
-  });
+  return useMonthlyPerformanceState().historyState;
 }

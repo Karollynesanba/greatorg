@@ -46,7 +46,7 @@ import {
 import { createStorageKey } from "../data/sharedState";
 import { useTeamProfiles } from "../data/profiles";
 import { usePosts, type Post } from "../data/posts";
-import { shouldUseMonthlyPerformanceSnapshot, useMonthlyPerformanceHistory, useMonthlyPerformanceSnapshot } from "../data/monthlyPerformance";
+import { shouldUseMonthlyPerformanceSnapshot, useMonthlyPerformanceState } from "../data/monthlyPerformance";
 import { useSupabaseSharedState, useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import { getMonthKeysBetween, useHistoricalMonthlyData } from "../data/monthlySnapshots";
@@ -889,8 +889,7 @@ export function ReportsPage() {
     fallback: monthlyArchiveFallback,
   });
   const [teamScope] = useTeamScope();
-  const [monthlyPerformance] = useMonthlyPerformanceSnapshot();
-  const [monthlyPerformanceHistory] = useMonthlyPerformanceHistory();
+  const { snapshotState: [monthlyPerformance], historyState: [monthlyPerformanceHistory] } = useMonthlyPerformanceState();
   const [monthlyViewsGoal] = useSupabasePreference<number>("calendar-monthly-views-goal", 800_000);
   const [dashboardMetricGoals] = useSupabasePreference<{ reach: number; engagement: number; followers: number }>("dashboard-metric-goals", {
     reach: 0,

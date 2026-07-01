@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { type ContentType, type Goal } from "../data/mockData";
 import { createEmptyMonthlyArchive, type MonthlyArchiveSnapshot } from "../data/monthlyArchive";
-import { shouldUseMonthlyPerformanceSnapshot, useMonthlyPerformanceHistory, useMonthlyPerformanceSnapshot } from "../data/monthlyPerformance";
+import { shouldUseMonthlyPerformanceSnapshot, useMonthlyPerformanceState } from "../data/monthlyPerformance";
 import { useTeamProfiles } from "../data/profiles";
 import { usePosts, type Post } from "../data/posts";
 import { createStorageKey } from "../data/sharedState";
@@ -705,8 +705,7 @@ export function ReportPreviewPage() {
     key: "great-organico-monthly-archive",
     fallback: createEmptyMonthlyArchive(),
   });
-  const [monthlyPerformance] = useMonthlyPerformanceSnapshot();
-  const [monthlyPerformanceHistory] = useMonthlyPerformanceHistory();
+  const { snapshotState: [monthlyPerformance], historyState: [monthlyPerformanceHistory] } = useMonthlyPerformanceState();
   const [teamScope] = useTeamScope();
   const [state, setState, stateHydrated] = useSupabaseSharedState<PreviewState>({
     key: createStorageKey("report-preview-state"),
