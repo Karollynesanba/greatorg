@@ -322,6 +322,8 @@ export const canonicalJuneStoryLogs: StoryLog[] = [
   { id: 2038, date: "2026-06-29", time: "09:00", quantity: 3, mediaType: "photo", madeById: 1, postedById: 1, notes: "historia Amanda" },
   { id: 2039, date: "2026-06-30", time: "09:00", quantity: 5, mediaType: "video", madeById: 1, postedById: 1, notes: "historia Gabriel • depoimento Alanne" },
   { id: 2040, date: "2026-06-30", time: "09:00", quantity: 3, mediaType: "photo", madeById: 1, postedById: 1, notes: "historia Gabriel • depoimento Alanne" },
+  { id: 2041, date: "2026-07-01", time: "09:00", quantity: 5, mediaType: "video", madeById: 1, postedById: 1, notes: "stories de julho" },
+  { id: 2042, date: "2026-07-01", time: "09:00", quantity: 3, mediaType: "photo", madeById: 1, postedById: 1, notes: "stories de julho" },
 ];
 
 function mergeCanonicalStoryLogs(baseLogs: StoryLog[], overrideLogs: StoryLog[]) {
