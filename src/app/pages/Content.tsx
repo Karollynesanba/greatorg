@@ -87,6 +87,7 @@ type MonthlyMetricsDraft = {
   reach: string;
   socialSellingViews: string;
   socialSellingCount: string;
+  testimonialsCount: string;
 };
 
 const storyGoalTarget = 168;
@@ -432,6 +433,15 @@ function MonthlyMetricsModal({
               inputMode="numeric"
             />
           </label>
+          <label className="grid gap-2 sm:col-span-2">
+            <span className="text-sm font-medium text-slate-800">Quantidade de depoimentos</span>
+            <input
+              value={draft.testimonialsCount}
+              onChange={(event) => onChange({ ...draft, testimonialsCount: event.target.value })}
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
+              inputMode="numeric"
+            />
+          </label>
         </div>
 
         <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 px-6 py-5 sm:px-8">
@@ -748,6 +758,7 @@ export function ContentPage() {
     reach: "",
     socialSellingViews: "",
     socialSellingCount: "",
+    testimonialsCount: "",
   });
   const [postToDelete, setPostToDelete] = useState<Post | null>(null);
   const currentMonthKey = getCurrentMonthKey();
@@ -805,12 +816,16 @@ export function ContentPage() {
   );
 
   const totalReach = visiblePosts.reduce((sum, post) => sum + post.reach, 0);
-  const totalEngagement = visiblePosts.reduce((sum, post) => sum + post.engagement, 0);
   const socialSellingPosts = useMemo(() => visiblePosts.filter((post) => isSocialSellingPost(post)), [visiblePosts]);
   const socialSellingReach = useSharedMonthlyTotals
     ? monthlyPerformance.socialSellingViews
     : socialSellingPosts.reduce((sum, post) => sum + post.reach, 0);
   const socialSellingCount = useSharedMonthlyTotals ? monthlyPerformance.socialSellingCount : socialSellingPosts.length;
+  const testimonialCountFromCalendar = useMemo(
+    () => visibleCalendarItems.filter((event) => event.visualization === "Depoimento").length,
+    [visibleCalendarItems],
+  );
+  const testimonialCount = useSharedMonthlyTotals ? monthlyPerformance.testimonialsCount : testimonialCountFromCalendar;
   const displayedMonthViews = useSharedMonthlyTotals ? monthlyPerformance.views : totalReach;
   const completedCalendarUnits = visibleCalendarItems.reduce((sum, event) => sum + getCalendarCompletedUnits(event), 0);
   const overallGoalProgress = computeGoalProgress(visibleGoals);
@@ -924,6 +939,7 @@ export function ContentPage() {
       reach: String(monthlyPerformance.reach),
       socialSellingViews: String(monthlyPerformance.socialSellingViews),
       socialSellingCount: String(monthlyPerformance.socialSellingCount),
+      testimonialsCount: String(monthlyPerformance.testimonialsCount ?? 0),
     });
     setMonthlyMetricsOpen(true);
   };
@@ -1002,6 +1018,7 @@ export function ContentPage() {
       reach: toNumber(monthlyMetricsDraft.reach),
       socialSellingViews: toNumber(monthlyMetricsDraft.socialSellingViews),
       socialSellingCount: toNumber(monthlyMetricsDraft.socialSellingCount),
+      testimonialsCount: toNumber(monthlyMetricsDraft.testimonialsCount),
       updatedAt: new Date().toISOString(),
     });
     setMonthlyMetricsOpen(false);
@@ -1020,14 +1037,19 @@ export function ContentPage() {
       dataCy: "content-metric-completed",
     },
     {
-      id: "engagement",
-      label: "Engajamento",
-      value: formatLongNumber(totalEngagement),
-      detail: "Curtidas, comentários, compartilhamentos e salvos.",
+      id: "testimonials",
+      label: "Depoimentos",
+      value: formatLongNumber(testimonialCount),
+      detail:
+        useSharedMonthlyTotals
+          ? `${formatLongNumber(testimonialCount)} depoimentos salvos no total compartilhado do mês.`
+          : testimonialCount > 0
+            ? `${formatLongNumber(testimonialCount)} depoimentos encontrados no calendário para este filtro.`
+            : "Nenhum depoimento encontrado para este filtro no mês atual.",
       icon: Users,
       delta: 0,
-      onEdit: openCreateEditor,
-      dataCy: "content-metric-engagement",
+      onEdit: useSharedMonthlyTotals ? openMonthlyMetricsEditor : undefined,
+      dataCy: "content-metric-testimonials",
     },
     {
       id: "published",
@@ -1505,8 +1527,8 @@ export function ContentPage() {
                 <p className="mt-2 text-xl font-semibold text-slate-950">{formatLongNumber(displayedMonthViews)}</p>
               </div>
               <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]">
-                <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Engajamento</p>
-                <p className="mt-2 text-xl font-semibold text-slate-950">{formatLongNumber(totalEngagement)}</p>
+                <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Depoimentos</p>
+                <p className="mt-2 text-xl font-semibold text-slate-950">{formatLongNumber(testimonialCount)}</p>
               </div>
               <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]">
                 <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Publicações</p>

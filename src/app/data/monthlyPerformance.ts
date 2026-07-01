@@ -7,6 +7,7 @@ export type MonthlyPerformanceSnapshot = {
   reach: number;
   socialSellingViews: number;
   socialSellingCount: number;
+  testimonialsCount: number;
   updatedAt: string;
 };
 
@@ -21,6 +22,7 @@ export function buildDefaultMonthlyPerformanceSnapshot(monthKey = getCurrentMont
     reach: 493_808,
     socialSellingViews: 0,
     socialSellingCount: 0,
+    testimonialsCount: 0,
     updatedAt: "",
   };
 }
@@ -30,6 +32,7 @@ export function useMonthlyPerformanceSnapshot() {
   const state = useSupabaseSharedState<MonthlyPerformanceSnapshot>({
     key: "monthly-performance-snapshot",
     fallback: buildDefaultMonthlyPerformanceSnapshot(currentMonthKey),
+    scope: "global",
   });
 
   const [snapshot, setSnapshot, hydrated] = state;
@@ -45,8 +48,9 @@ export function useMonthlyPerformanceSnapshot() {
 
     const shouldUpdateViews = snapshot.views === 920_285;
     const shouldUpdateReach = snapshot.reach === 428_118;
+    const shouldBackfillTestimonials = typeof snapshot.testimonialsCount !== "number";
 
-    if (!shouldUpdateViews && !shouldUpdateReach) {
+    if (!shouldUpdateViews && !shouldUpdateReach && !shouldBackfillTestimonials) {
       return;
     }
 
@@ -54,8 +58,9 @@ export function useMonthlyPerformanceSnapshot() {
       ...previous,
       views: shouldUpdateViews ? 978_855 : previous.views,
       reach: shouldUpdateReach ? 493_808 : previous.reach,
+      testimonialsCount: typeof previous.testimonialsCount === "number" ? previous.testimonialsCount : 0,
     }));
-  }, [currentMonthKey, hydrated, setSnapshot, snapshot.monthKey, snapshot.reach, snapshot.views]);
+  }, [currentMonthKey, hydrated, setSnapshot, snapshot.monthKey, snapshot.reach, snapshot.testimonialsCount, snapshot.views]);
 
   return state;
 }

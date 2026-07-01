@@ -304,6 +304,8 @@ type SharedStateRow<T> = {
   user_id?: string | null;
 };
 
+type SharedStateScope = "auto" | "global";
+
 function getErrorMessage(error: unknown) {
   return error && typeof error === "object" && "message" in error ? String((error as { message?: unknown }).message ?? "") : "";
 }
@@ -323,14 +325,14 @@ function isUserScopedSharedStateRequired(error: unknown) {
   );
 }
 
-async function fetchSharedStateRow<T>(key: string, currentUserId: string | null) {
+async function fetchSharedStateRow<T>(key: string, currentUserId: string | null, scope: SharedStateScope) {
   if (!supabase) {
     return { row: null as SharedStateRow<T> | null, error: null as { message: string } | null, mode: null as string | null };
   }
 
   const errors: string[] = [];
 
-  if (currentUserId) {
+  if (scope !== "global" && currentUserId) {
     const scopedResult = await supabase
       .from("shared_state")
       .select("key, value, updated_at, user_id")
@@ -373,7 +375,7 @@ async function fetchSharedStateRow<T>(key: string, currentUserId: string | null)
   };
 }
 
-async function persistSharedStateValue<T>(key: string, value: T, currentUserId: string | null) {
+async function persistSharedStateValue<T>(key: string, value: T, currentUserId: string | null, scope: SharedStateScope) {
   if (!supabase) {
     return { mode: "memory" as const };
   }
@@ -381,7 +383,7 @@ async function persistSharedStateValue<T>(key: string, value: T, currentUserId: 
   const updatedAt = new Date().toISOString();
   const errors: string[] = [];
 
-  if (currentUserId) {
+  if (scope !== "global" && currentUserId) {
     const scopedRow = {
       user_id: currentUserId,
       key,
@@ -433,6 +435,7 @@ async function persistSharedStateValue<T>(key: string, value: T, currentUserId: 
 export function useSupabaseSharedState<T>(options: {
   key: string;
   fallback: T;
+  scope?: SharedStateScope;
 }) {
   const { session, ready: authReady } = useAuthSession();
   const [value, setValue] = useState<T>(options.fallback);
@@ -441,6 +444,7 @@ export function useSupabaseSharedState<T>(options: {
   const lastRemoteSnapshotRef = useRef<string | null>(null);
   const supabaseClient = supabase;
   const currentUserId = session?.user.id ?? null;
+  const scope = options.scope ?? "auto";
 
   useEffect(() => {
     if (!authReady) {
@@ -456,7 +460,7 @@ export function useSupabaseSharedState<T>(options: {
     let cancelled = false;
 
     const loadRemote = async () => {
-      const { row, error, mode } = await fetchSharedStateRow<T>(options.key, currentUserId);
+      const { row, error, mode } = await fetchSharedStateRow<T>(options.key, currentUserId, scope);
 
       if (cancelled) {
         return;
@@ -489,7 +493,7 @@ export function useSupabaseSharedState<T>(options: {
 
       let seedError: { message: string } | null = null;
       try {
-        await persistSharedStateValue(options.key, options.fallback, currentUserId);
+        await persistSharedStateValue(options.key, options.fallback, currentUserId, scope);
       } catch (error) {
         seedError = {
           message: getErrorMessage(error),
@@ -519,7 +523,7 @@ export function useSupabaseSharedState<T>(options: {
     return () => {
       cancelled = true;
     };
-  }, [authReady, currentUserId, options.fallback, options.key, session, supabaseClient]);
+  }, [authReady, currentUserId, options.fallback, options.key, scope, session, supabaseClient]);
 
   useEffect(() => {
     if (
@@ -542,7 +546,7 @@ export function useSupabaseSharedState<T>(options: {
 
     const persistRemote = async () => {
       try {
-        const result = await persistSharedStateValue(options.key, value, currentUserId);
+        const result = await persistSharedStateValue(options.key, value, currentUserId, scope);
         if (cancelled) {
           return;
         }
@@ -564,7 +568,7 @@ export function useSupabaseSharedState<T>(options: {
           error: getErrorMessage(error),
         });
 
-        const { row } = await fetchSharedStateRow<T>(options.key, currentUserId);
+        const { row } = await fetchSharedStateRow<T>(options.key, currentUserId, scope);
         if (cancelled) {
           return;
         }
@@ -586,7 +590,7 @@ export function useSupabaseSharedState<T>(options: {
     return () => {
       cancelled = true;
     };
-  }, [authReady, currentUserId, options.fallback, options.key, session, supabaseClient, value]);
+  }, [authReady, currentUserId, options.fallback, options.key, scope, session, supabaseClient, value]);
 
   useEffect(() => {
     if (!isSupabaseConfigured() || !supabaseClient || !session || isDemoSession(session)) {
@@ -601,7 +605,7 @@ export function useSupabaseSharedState<T>(options: {
         "postgres_changes",
         { event: "*", schema: "public", table: "shared_state", filter: `key=eq.${options.key}` },
         () => {
-          void fetchSharedStateRow<T>(options.key, currentUserId).then(({ row, error, mode }) => {
+          void fetchSharedStateRow<T>(options.key, currentUserId, scope).then(({ row, error, mode }) => {
             if (cancelled) {
               return;
             }
@@ -651,7 +655,7 @@ export function useSupabaseSharedState<T>(options: {
       cancelled = true;
       void supabaseClient.removeChannel(channel);
     };
-  }, [currentUserId, options.key, session, supabaseClient]);
+  }, [currentUserId, options.key, scope, session, supabaseClient]);
 
   return [value, setValue, hydrated] as const;
 }
