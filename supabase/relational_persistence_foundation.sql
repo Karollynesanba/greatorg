@@ -590,15 +590,13 @@ begin
     new.id,
     coalesce(new.data ->> 'notes', '')
   )
-  on conflict (user_id, source_story_log_id) do update
+  on conflict (user_id, reference_month, metric_date, category) do update
   set
-    reference_month = excluded.reference_month,
-    metric_date = excluded.metric_date,
-    category = excluded.category,
     status = excluded.status,
     quantity = excluded.quantity,
     responsible_profile_id = excluded.responsible_profile_id,
     published_by_profile_id = excluded.published_by_profile_id,
+    source_story_log_id = excluded.source_story_log_id,
     notes = excluded.notes,
     updated_at = now();
 
