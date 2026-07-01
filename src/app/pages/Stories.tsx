@@ -265,20 +265,6 @@ export function StoriesPage() {
   );
 
   useEffect(() => {
-    if (!isEditingMonthlyGoalVideo) {
-      setMonthlyCurrentVideo(computedCurrentVideo);
-      setMonthlyCurrentVideoDraft(String(computedCurrentVideo));
-    }
-  }, [computedCurrentVideo, isEditingMonthlyGoalVideo]);
-
-  useEffect(() => {
-    if (!isEditingMonthlyGoalPhoto) {
-      setMonthlyCurrentPhoto(computedCurrentPhoto);
-      setMonthlyCurrentPhotoDraft(String(computedCurrentPhoto));
-    }
-  }, [computedCurrentPhoto, isEditingMonthlyGoalPhoto]);
-
-  useEffect(() => {
     if (autoSelectedMonthRef.current || periodMode !== "current") {
       return;
     }
