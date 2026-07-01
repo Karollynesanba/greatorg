@@ -35,13 +35,42 @@ export function buildDefaultMonthlyPerformanceSnapshot(monthKey = getCurrentMont
   };
 }
 
-export function useMonthlyPerformanceState(): MonthlyPerformanceState {
+function useMonthlyPerformanceSnapshotState() {
   const currentMonthKey = getCurrentMonthKey();
   const snapshotState = useSupabaseSharedState<MonthlyPerformanceSnapshot>({
     key: "monthly-performance-snapshot",
     fallback: buildDefaultMonthlyPerformanceSnapshot(currentMonthKey),
     scope: "global",
   });
+  const [snapshot, setSnapshot, hydrated] = snapshotState;
+
+  useEffect(() => {
+    if (!hydrated) {
+      return;
+    }
+
+    const shouldUpdateViews = snapshot.views === 920_285;
+    const shouldUpdateReach = snapshot.reach === 428_118;
+    const shouldBackfillTestimonials = typeof snapshot.testimonialsCount !== "number";
+
+    if (!shouldUpdateViews && !shouldUpdateReach && !shouldBackfillTestimonials) {
+      return;
+    }
+
+    setSnapshot((previous) => ({
+      ...previous,
+      views: shouldUpdateViews ? 978_855 : previous.views,
+      reach: shouldUpdateReach ? 493_808 : previous.reach,
+      testimonialsCount: typeof previous.testimonialsCount === "number" ? previous.testimonialsCount : 0,
+    }));
+  }, [hydrated, setSnapshot, snapshot, snapshot.reach, snapshot.testimonialsCount, snapshot.views]);
+
+  return snapshotState;
+}
+
+export function useMonthlyPerformanceState(): MonthlyPerformanceState {
+  const currentMonthKey = getCurrentMonthKey();
+  const snapshotState = useMonthlyPerformanceSnapshotState();
   const historyState = useSupabaseSharedState<MonthlyPerformanceHistory>({
     key: "monthly-performance-history",
     fallback: {},
@@ -67,21 +96,7 @@ export function useMonthlyPerformanceState(): MonthlyPerformanceState {
       return;
     }
 
-    const shouldUpdateViews = snapshot.views === 920_285;
-    const shouldUpdateReach = snapshot.reach === 428_118;
-    const shouldBackfillTestimonials = typeof snapshot.testimonialsCount !== "number";
-
-    if (!shouldUpdateViews && !shouldUpdateReach && !shouldBackfillTestimonials) {
-      return;
-    }
-
-    setSnapshot((previous) => ({
-      ...previous,
-      views: shouldUpdateViews ? 978_855 : previous.views,
-      reach: shouldUpdateReach ? 493_808 : previous.reach,
-      testimonialsCount: typeof previous.testimonialsCount === "number" ? previous.testimonialsCount : 0,
-    }));
-  }, [currentMonthKey, historyHydrated, hydrated, setHistory, setSnapshot, snapshot, snapshot.monthKey, snapshot.reach, snapshot.testimonialsCount, snapshot.views]);
+  }, [currentMonthKey, historyHydrated, hydrated, setHistory, setSnapshot, snapshot, snapshot.monthKey]);
 
   return {
     snapshotState,
@@ -90,7 +105,7 @@ export function useMonthlyPerformanceState(): MonthlyPerformanceState {
 }
 
 export function useMonthlyPerformanceSnapshot() {
-  return useMonthlyPerformanceState().snapshotState;
+  return useMonthlyPerformanceSnapshotState();
 }
 
 export function shouldUseMonthlyPerformanceSnapshot(snapshot: MonthlyPerformanceSnapshot, monthKey: string, isGlobalScope: boolean) {
