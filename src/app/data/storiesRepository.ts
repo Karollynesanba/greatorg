@@ -72,6 +72,7 @@ export type StoriesMonthlySummary = {
 
 type SharedStateSummaryRow = {
   key: string;
+  user_id?: string | null;
   value: StoriesMonthlySummary | null;
   updated_at?: string;
 };
@@ -103,6 +104,17 @@ function getStoriesMonthlySummaryKey(month: string) {
   return `stories-monthly-summary:${month}`;
 }
 
+async function getCurrentUserId() {
+  const client = getClient();
+  const { data, error } = await client.auth.getSession();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data.session?.user.id ?? null;
+}
+
 function isStoriesMonthlySummary(value: unknown): value is StoriesMonthlySummary {
   if (!value || typeof value !== "object") {
     return false;
@@ -121,9 +133,10 @@ function isStoriesMonthlySummary(value: unknown): value is StoriesMonthlySummary
 
 async function fetchGlobalStoriesMonthlySummary(month: string) {
   const client = getClient();
+  const currentUserId = await getCurrentUserId().catch(() => null);
   const { data, error } = await client
     .from("shared_state")
-    .select("key, value, updated_at")
+    .select("key, user_id, value, updated_at")
     .eq("key", getStoriesMonthlySummaryKey(month))
     .order("updated_at", { ascending: false })
     .limit(1);
@@ -132,21 +145,115 @@ async function fetchGlobalStoriesMonthlySummary(month: string) {
     throw new Error(error.message);
   }
 
-  const row = (data?.[0] as SharedStateSummaryRow | undefined) ?? null;
-  return isStoriesMonthlySummary(row?.value) ? row.value : null;
+  const rows = (data ?? []) as SharedStateSummaryRow[];
+  const preferredRow =
+    rows.find((row) => currentUserId && row.user_id === currentUserId) ??
+    rows[0] ??
+    null;
+
+  return isStoriesMonthlySummary(preferredRow?.value) ? preferredRow.value : null;
 }
 
 async function persistGlobalStoriesMonthlySummary(month: string, summary: StoriesMonthlySummary) {
   const client = getClient();
+  const currentUserId = await getCurrentUserId().catch(() => null);
   const payload = {
     key: getStoriesMonthlySummaryKey(month),
+    ...(currentUserId ? { user_id: currentUserId } : {}),
     value: summary,
     updated_at: new Date().toISOString(),
   };
 
-  const { error } = await client.from("shared_state").upsert(payload, { onConflict: "key" });
-  if (error) {
+  const tryGlobalUpsert = await client.from("shared_state").upsert(payload, { onConflict: "key" });
+  if (!tryGlobalUpsert.error) {
+    return;
+  }
+
+  const tryUserScopedUpsert = currentUserId
+    ? await client.from("shared_state").upsert(payload, { onConflict: "user_id,key" })
+    : { error: tryGlobalUpsert.error };
+
+  if (!tryUserScopedUpsert.error) {
+    return;
+  }
+
+  let updateQuery = client
+    .from("shared_state")
+    .update({
+      value: summary,
+      updated_at: payload.updated_at,
+    })
+    .eq("key", payload.key)
+    .select("key")
+    .limit(1);
+
+  if (currentUserId) {
+    updateQuery = updateQuery.eq("user_id", currentUserId);
+  }
+
+  const { data: updatedRows, error: updateError } = await updateQuery;
+  if (!updateError && (updatedRows?.length ?? 0) > 0) {
+    return;
+  }
+
+  const { error: insertError } = await client.from("shared_state").insert(payload);
+  if (!insertError) {
+    return;
+  }
+
+  throw new Error(insertError.message || updateError?.message || tryUserScopedUpsert.error.message || tryGlobalUpsert.error.message);
+}
+
+function isMissingOnConflictConstraint(errorMessage: string) {
+  return errorMessage.includes("no unique or exclusion constraint matching the ON CONFLICT specification");
+}
+
+async function upsertStoriesMonthlyDataRow(client: ReturnType<typeof getClient>, payload: {
+  user_id: string;
+  reference_month: string;
+  video_current: number;
+  video_goal: number;
+  photo_current: number;
+  photo_goal: number;
+  total_current: number;
+  total_goal: number;
+  updated_at: string;
+}) {
+  const { error } = await client.from("stories_monthly_data").upsert(payload, {
+    onConflict: "user_id,reference_month",
+  });
+
+  if (!error) {
+    return;
+  }
+
+  if (!isMissingOnConflictConstraint(error.message)) {
     throw new Error(error.message);
+  }
+
+  const { data: updatedRows, error: updateError } = await client
+    .from("stories_monthly_data")
+    .update({
+      video_current: payload.video_current,
+      video_goal: payload.video_goal,
+      photo_current: payload.photo_current,
+      photo_goal: payload.photo_goal,
+      total_current: payload.total_current,
+      total_goal: payload.total_goal,
+      updated_at: payload.updated_at,
+    })
+    .eq("user_id", payload.user_id)
+    .eq("reference_month", payload.reference_month)
+    .select("user_id")
+    .limit(1);
+
+  if (!updateError && (updatedRows?.length ?? 0) > 0) {
+    return;
+  }
+
+  const { error: insertError } = await client.from("stories_monthly_data").insert(payload);
+  if (insertError) {
+    throw new Error(insertError.message);
   }
 }
 
@@ -420,12 +527,12 @@ export async function updateStoriesMonthlyData(userId: string, month: string, su
     updated_at: new Date().toISOString(),
   };
 
-  const { error } = await client.from("stories_monthly_data").upsert(payload, {
-    onConflict: "user_id,reference_month",
-  });
-
-  if (!error) {
+  try {
+    await upsertStoriesMonthlyDataRow(client, payload);
     return;
+  } catch (error) {
+    // Fall back to the older metrics table shape when the relational monthly table
+    // is not available or does not yet have the expected unique constraint.
   }
 
   await Promise.all([
