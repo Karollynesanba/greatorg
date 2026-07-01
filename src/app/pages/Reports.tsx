@@ -44,12 +44,12 @@ import {
   type StoryLog,
   storyLogs,
 } from "../data/mockData";
-import { createStorageKey } from "../data/sharedState";
+import { useSupabaseReportState } from "../data/reportsRepository";
 import { fetchStoriesMonthlySummary, type StoriesMonthlySummary } from "../data/storiesRepository";
 import { useTeamProfiles } from "../data/profiles";
 import { usePosts, type Post } from "../data/posts";
 import { shouldUseMonthlyPerformanceSnapshot, useMonthlyPerformanceState } from "../data/monthlyPerformance";
-import { useSupabaseSharedState, useSupabaseSyncedListState } from "../data/supabaseSync";
+import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import { getMonthKeysBetween, useHistoricalMonthlyData } from "../data/monthlySnapshots";
 import { useSupabasePreference } from "../data/userPreferences";
@@ -917,6 +917,7 @@ export function ReportsPage() {
   const reportFiltersRef = useRef<HTMLElement | null>(null);
   const { isDark } = useThemeMode();
   const anchorDate = useMemo(() => new Date(), []);
+  const reportReferenceMonth = useMemo(() => monthKeyFromDate(anchorDate), [anchorDate]);
   const monthlyArchiveFallback = useMemo(() => createEmptyMonthlyArchive(), []);
   const savedReportsFallback = useMemo<SavedReport[]>(() => [], []);
   const reportsOverviewFallback = useMemo<ReportOverview>(
@@ -970,9 +971,14 @@ export function ReportsPage() {
   });
   const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
   const [storyItems] = useSupabaseSyncedListState<StoryLog>({ key: "story-logs", table: "story_logs", fallback: storyLogs });
-  const [monthlyArchive] = useSupabaseSharedState<MonthlyArchiveSnapshot>({
-    key: createStorageKey("monthly-archive"),
+  const [monthlyArchive] = useSupabaseReportState<MonthlyArchiveSnapshot>({
+    reportKind: "monthly_archive",
+    referenceMonth: reportReferenceMonth,
+    externalKey: reportReferenceMonth,
+    title: "Arquivo mensal",
     fallback: monthlyArchiveFallback,
+    category: "archive",
+    legacySharedStateKey: "great-organico-monthly-archive",
   });
   const [teamScope] = useTeamScope();
   const { snapshotState: [monthlyPerformance], historyState: [monthlyPerformanceHistory] } = useMonthlyPerformanceState();
@@ -982,14 +988,23 @@ export function ReportsPage() {
     engagement: 0,
     followers: 0,
   });
-  const [savedReports, setSavedReports, savedReportsHydrated] = useSupabaseSharedState<SavedReport[]>({
-    key: createStorageKey("reports-history"),
+  const [savedReports, setSavedReports, savedReportsHydrated] = useSupabaseReportState<SavedReport[]>({
+    reportKind: "saved_report_history",
+    referenceMonth: reportReferenceMonth,
+    externalKey: "great-organico-reports-history",
+    title: "Histórico de relatórios",
     fallback: savedReportsFallback,
+    legacySharedStateKey: "great-organico-reports-history",
   });
   const [selectedMetric, setSelectedMetric] = useState<MetricKey>("reach");
-  const [overviewDraft, setOverviewDraft, overviewHydrated] = useSupabaseSharedState<ReportOverview>({
-    key: createStorageKey("reports-overview"),
+  const [overviewDraft, setOverviewDraft, overviewHydrated] = useSupabaseReportState<ReportOverview>({
+    reportKind: "overview",
+    referenceMonth: reportReferenceMonth,
+    externalKey: "great-organico-reports-overview",
+    title: "Resumo executivo",
     fallback: reportsOverviewFallback,
+    category: "overview",
+    legacySharedStateKey: "great-organico-reports-overview",
   });
   const [overviewForm, setOverviewForm] = useState(overviewDraft);
   const [isOverviewModalOpen, setIsOverviewModalOpen] = useState(false);
@@ -1004,9 +1019,14 @@ export function ReportsPage() {
     image: string;
     imageName: string;
   } | null>(null);
-  const [reportRows, setReportRows, reportRowsHydrated] = useSupabaseSharedState<ReportCardRow[]>({
-    key: createStorageKey("reports-rows"),
+  const [reportRows, setReportRows, reportRowsHydrated] = useSupabaseReportState<ReportCardRow[]>({
+    reportKind: "layout",
+    referenceMonth: reportReferenceMonth,
+    externalKey: "great-organico-reports-rows",
+    title: "Layout do relatório",
     fallback: reportRowsFallback,
+    category: "rows",
+    legacySharedStateKey: "great-organico-reports-rows",
   });
   const reportSharedReady = savedReportsHydrated && overviewHydrated && reportRowsHydrated;
 

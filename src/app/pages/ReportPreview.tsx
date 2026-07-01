@@ -21,8 +21,8 @@ import { createEmptyMonthlyArchive, type MonthlyArchiveSnapshot } from "../data/
 import { shouldUseMonthlyPerformanceSnapshot, useMonthlyPerformanceState } from "../data/monthlyPerformance";
 import { useTeamProfiles } from "../data/profiles";
 import { usePosts, type Post } from "../data/posts";
-import { createStorageKey } from "../data/sharedState";
-import { useSupabaseSharedState, useSupabaseSyncedListState } from "../data/supabaseSync";
+import { useSupabaseReportState } from "../data/reportsRepository";
+import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import { getMonthKeysBetween, useHistoricalMonthlyData } from "../data/monthlySnapshots";
 import {
@@ -697,24 +697,38 @@ export function ReportPreviewPage() {
   const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const shouldAutoPrint = query.get("autoprint") === "1";
   const anchorDate = useMemo(() => new Date(), []);
+  const reportReferenceMonth = useMemo(() => monthKeyFromDate(anchorDate), [anchorDate]);
   const defaultPreviewState = useMemo(() => createDefaultPreviewState(anchorDate), [anchorDate]);
   const [teamMembers] = useTeamProfiles();
   const [posts] = usePosts();
   const [goals] = useSupabaseSyncedListState<Goal>({ key: "goals", table: "goals", fallback: [] });
-  const [monthlyArchive] = useSupabaseSharedState<MonthlyArchiveSnapshot>({
-    key: "great-organico-monthly-archive",
+  const [monthlyArchive] = useSupabaseReportState<MonthlyArchiveSnapshot>({
+    reportKind: "monthly_archive",
+    referenceMonth: reportReferenceMonth,
+    externalKey: reportReferenceMonth,
+    title: "Arquivo mensal",
     fallback: createEmptyMonthlyArchive(),
+    category: "archive",
+    legacySharedStateKey: "great-organico-monthly-archive",
   });
   const { snapshotState: [monthlyPerformance], historyState: [monthlyPerformanceHistory] } = useMonthlyPerformanceState();
   const [teamScope] = useTeamScope();
-  const [state, setState, stateHydrated] = useSupabaseSharedState<PreviewState>({
-    key: createStorageKey("report-preview-state"),
+  const [state, setState, stateHydrated] = useSupabaseReportState<PreviewState>({
+    reportKind: "preview_state",
+    referenceMonth: reportReferenceMonth,
+    externalKey: "great-organico-report-preview-state",
+    title: "Estado do preview do relatório",
     fallback: defaultPreviewState,
+    legacySharedStateKey: "great-organico-report-preview-state",
   });
   const emptyManualBlocks = useMemo<ManualBlock[]>(() => [], []);
-  const [manualBlocks, setManualBlocks, manualBlocksHydrated] = useSupabaseSharedState<ManualBlock[]>({
-    key: createStorageKey("report-preview-blocks"),
+  const [manualBlocks, setManualBlocks, manualBlocksHydrated] = useSupabaseReportState<ManualBlock[]>({
+    reportKind: "preview_blocks",
+    referenceMonth: reportReferenceMonth,
+    externalKey: "great-organico-report-preview-blocks",
+    title: "Blocos manuais do preview do relatório",
     fallback: emptyManualBlocks,
+    legacySharedStateKey: "great-organico-report-preview-blocks",
   });
   const reportPreviewSharedReady = stateHydrated && manualBlocksHydrated;
   const [draft, setDraft] = useState<ManualBlock>(emptyManualBlock(state.selectedPage));

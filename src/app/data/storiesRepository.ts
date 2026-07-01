@@ -43,6 +43,7 @@ type StoriesMonthlyDataRow = {
   total_current: number;
   total_goal: number;
   updated_at?: string;
+  category?: string;
 };
 
 export type StoryGoalMetricMap = Record<
@@ -70,13 +71,6 @@ export type StoriesMonthlySummary = {
   totalGoal: number;
 };
 
-type SharedStateSummaryRow = {
-  key: string;
-  user_id?: string | null;
-  value: StoriesMonthlySummary | null;
-  updated_at?: string;
-};
-
 type StoryPostPayload = Omit<StoryLog, "id"> & {
   id?: number;
   userId: string;
@@ -100,110 +94,6 @@ function getClient() {
   return supabase;
 }
 
-function getStoriesMonthlySummaryKey(month: string) {
-  return `stories-monthly-summary:${month}`;
-}
-
-async function getCurrentUserId() {
-  const client = getClient();
-  const { data, error } = await client.auth.getSession();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data.session?.user.id ?? null;
-}
-
-function isStoriesMonthlySummary(value: unknown): value is StoriesMonthlySummary {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const summary = value as Partial<StoriesMonthlySummary>;
-  return [
-    summary.videoCurrent,
-    summary.videoGoal,
-    summary.photoCurrent,
-    summary.photoGoal,
-    summary.totalCurrent,
-    summary.totalGoal,
-  ].every((item) => typeof item === "number" && Number.isFinite(item));
-}
-
-async function fetchGlobalStoriesMonthlySummary(month: string) {
-  const client = getClient();
-  const currentUserId = await getCurrentUserId().catch(() => null);
-  const { data, error } = await client
-    .from("shared_state")
-    .select("key, user_id, value, updated_at")
-    .eq("key", getStoriesMonthlySummaryKey(month))
-    .order("updated_at", { ascending: false })
-    .limit(1);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  const rows = (data ?? []) as SharedStateSummaryRow[];
-  const preferredRow =
-    rows.find((row) => currentUserId && row.user_id === currentUserId) ??
-    rows[0] ??
-    null;
-
-  return isStoriesMonthlySummary(preferredRow?.value) ? preferredRow.value : null;
-}
-
-async function persistGlobalStoriesMonthlySummary(month: string, summary: StoriesMonthlySummary) {
-  const client = getClient();
-  const currentUserId = await getCurrentUserId().catch(() => null);
-  const payload = {
-    key: getStoriesMonthlySummaryKey(month),
-    ...(currentUserId ? { user_id: currentUserId } : {}),
-    value: summary,
-    updated_at: new Date().toISOString(),
-  };
-
-  const tryGlobalUpsert = await client.from("shared_state").upsert(payload, { onConflict: "key" });
-  if (!tryGlobalUpsert.error) {
-    return;
-  }
-
-  const tryUserScopedUpsert = currentUserId
-    ? await client.from("shared_state").upsert(payload, { onConflict: "user_id,key" })
-    : { error: tryGlobalUpsert.error };
-
-  if (!tryUserScopedUpsert.error) {
-    return;
-  }
-
-  let updateQuery = client
-    .from("shared_state")
-    .update({
-      value: summary,
-      updated_at: payload.updated_at,
-    })
-    .eq("key", payload.key)
-    .select("key")
-    .limit(1);
-
-  if (currentUserId) {
-    updateQuery = updateQuery.eq("user_id", currentUserId);
-  }
-
-  const { data: updatedRows, error: updateError } = await updateQuery;
-  if (!updateError && (updatedRows?.length ?? 0) > 0) {
-    return;
-  }
-
-  const { error: insertError } = await client.from("shared_state").insert(payload);
-  if (!insertError) {
-    return;
-  }
-
-  throw new Error(insertError.message || updateError?.message || tryUserScopedUpsert.error.message || tryGlobalUpsert.error.message);
-}
-
 function isMissingOnConflictConstraint(errorMessage: string) {
   return errorMessage.includes("no unique or exclusion constraint matching the ON CONFLICT specification");
 }
@@ -218,9 +108,10 @@ async function upsertStoriesMonthlyDataRow(client: ReturnType<typeof getClient>,
   total_current: number;
   total_goal: number;
   updated_at: string;
+  category: string;
 }) {
   const { error } = await client.from("stories_monthly_data").upsert(payload, {
-    onConflict: "user_id,reference_month",
+    onConflict: "user_id,reference_month,category",
   });
 
   if (!error) {
@@ -244,6 +135,7 @@ async function upsertStoriesMonthlyDataRow(client: ReturnType<typeof getClient>,
     })
     .eq("user_id", payload.user_id)
     .eq("reference_month", payload.reference_month)
+    .eq("category", payload.category)
     .select("user_id")
     .limit(1);
 
@@ -324,11 +216,6 @@ export async function fetchMonthlyCalendar(_userId: string, month: string) {
 }
 
 export async function fetchStoriesMonthlySummary(userId: string | null, month: string): Promise<StoriesMonthlySummary> {
-  const globalSummary = await fetchGlobalStoriesMonthlySummary(month).catch(() => null);
-  if (globalSummary) {
-    return globalSummary;
-  }
-
   if (!userId) {
     return {
       videoCurrent: 0,
@@ -343,9 +230,10 @@ export async function fetchStoriesMonthlySummary(userId: string | null, month: s
   const client = getClient();
   const { data: monthlyDataRow, error: monthlyDataError } = await client
     .from("stories_monthly_data")
-    .select("user_id, reference_month, video_current, video_goal, photo_current, photo_goal, total_current, total_goal, updated_at")
+    .select("user_id, reference_month, video_current, video_goal, photo_current, photo_goal, total_current, total_goal, updated_at, category")
     .eq("user_id", userId)
     .eq("reference_month", monthKeyToDate(month))
+    .eq("category", "summary")
     .maybeSingle();
 
   if (!monthlyDataError && monthlyDataRow) {
@@ -408,14 +296,14 @@ export async function fetchStoriesMonthlySummary(userId: string | null, month: s
 }
 
 export async function fetchStoriesDashboard(userId: string, month: string): Promise<StoriesDashboardSnapshot> {
-  const globalSummary = await fetchGlobalStoriesMonthlySummary(month).catch(() => null);
   const client = getClient();
   const [{ data: monthlyDataRow, error: monthlyDataError }, { data: metricRows, error: metricError }, stories, calendar] = await Promise.all([
     client
       .from("stories_monthly_data")
-      .select("user_id, reference_month, video_current, video_goal, photo_current, photo_goal, total_current, total_goal, updated_at")
+      .select("user_id, reference_month, video_current, video_goal, photo_current, photo_goal, total_current, total_goal, updated_at, category")
       .eq("user_id", userId)
       .eq("reference_month", monthKeyToDate(month))
+      .eq("category", "summary")
       .maybeSingle(),
     client
       .from("story_metrics")
@@ -432,22 +320,7 @@ export async function fetchStoriesDashboard(userId: string, month: string): Prom
 
   let goals: StoryGoalMetricMap;
 
-  if (globalSummary) {
-    goals = {
-      total: {
-        currentValue: globalSummary.totalCurrent,
-        goalValue: globalSummary.totalGoal,
-      },
-      video: {
-        currentValue: globalSummary.videoCurrent,
-        goalValue: globalSummary.videoGoal,
-      },
-      photo: {
-        currentValue: globalSummary.photoCurrent,
-        goalValue: globalSummary.photoGoal,
-      },
-    };
-  } else if (!monthlyDataError && monthlyDataRow) {
+  if (!monthlyDataError && monthlyDataRow) {
     const row = monthlyDataRow as StoriesMonthlyDataRow;
     goals = {
       total: {
@@ -513,8 +386,6 @@ export async function fetchStoriesDashboard(userId: string, month: string): Prom
 
 export async function updateStoriesMonthlyData(userId: string, month: string, summary: StoriesMonthlySummary) {
   const client = getClient();
-  await persistGlobalStoriesMonthlySummary(month, summary);
-
   const payload = {
     user_id: userId,
     reference_month: monthKeyToDate(month),
@@ -525,6 +396,7 @@ export async function updateStoriesMonthlyData(userId: string, month: string, su
     total_current: summary.totalCurrent,
     total_goal: summary.totalGoal,
     updated_at: new Date().toISOString(),
+    category: "summary",
   };
 
   try {
