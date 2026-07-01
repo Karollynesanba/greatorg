@@ -546,6 +546,60 @@ function readFileAsDataUrl(file: File) {
   });
 }
 
+function ReportsHeroIllustration() {
+  return (
+    <div className="relative mx-auto flex aspect-[1.06] w-full max-w-[360px] items-center justify-center">
+      <div className="absolute inset-x-6 bottom-3 h-16 rounded-full bg-[radial-gradient(circle,rgba(255,120,156,0.28),rgba(255,120,156,0.06)_62%,transparent_72%)] blur-md" />
+      <div className="absolute left-3 top-20 h-32 w-32 rounded-full bg-primary/12 blur-2xl" />
+      <div className="absolute right-2 top-10 h-28 w-28 rounded-full bg-rose-200/60 blur-2xl" />
+
+      <div className="relative h-[300px] w-[250px] rounded-[2rem] border border-rose-300/80 bg-[linear-gradient(180deg,rgba(255,199,213,0.95),rgba(255,231,236,0.95))] shadow-[0_28px_50px_rgba(255,90,130,0.22)]">
+        <div className="flex items-center gap-2 px-5 py-4">
+          <span className="h-3 w-3 rounded-full bg-white/95 shadow-sm" />
+          <span className="h-3 w-3 rounded-full bg-white/70 shadow-sm" />
+          <span className="ml-1 h-2.5 w-7 rounded-full bg-white/70" />
+        </div>
+
+        <div className="mx-4 rounded-[1.6rem] border border-white/70 bg-white/72 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur">
+          <div className="flex gap-2">
+            <div className="h-2.5 w-20 rounded-full bg-rose-100" />
+            <div className="h-2.5 w-10 rounded-full bg-rose-50" />
+          </div>
+          <div className="mt-4 rounded-[1.1rem] border border-rose-100/90 bg-[linear-gradient(180deg,rgba(255,249,250,0.95),rgba(255,241,244,0.92))] p-3">
+            <div className="flex h-24 items-end gap-2">
+              <div className="h-8 flex-1 rounded-t-full bg-rose-200/80" />
+              <div className="h-14 flex-1 rounded-t-full bg-rose-300/90" />
+              <div className="h-10 flex-1 rounded-t-full bg-rose-200/80" />
+              <div className="h-20 flex-1 rounded-t-full bg-primary/70" />
+            </div>
+            <div className="mt-3 h-10 rounded-[1rem] bg-[linear-gradient(90deg,rgba(255,167,193,0.15),rgba(255,86,135,0.45),rgba(255,167,193,0.18))]" />
+          </div>
+          <div className="mt-4 grid gap-2">
+            <div className="h-3 rounded-full bg-rose-100/90" />
+            <div className="h-3 w-4/5 rounded-full bg-rose-100/70" />
+          </div>
+        </div>
+      </div>
+
+      <div className="absolute bottom-2 left-0 h-28 w-28 rounded-full border border-rose-300/75 bg-[conic-gradient(from_12deg,rgba(255,126,162,0.95)_0_28%,rgba(255,239,242,0.95)_28%_51%,rgba(255,173,196,0.88)_51%_100%)] shadow-[0_20px_36px_rgba(255,90,130,0.18)]" />
+
+      <div className="absolute bottom-8 right-0 w-[132px] rounded-[1.4rem] border border-rose-200/90 bg-white/82 p-4 shadow-[0_18px_36px_rgba(255,90,130,0.16)] backdrop-blur">
+        <div className="flex items-center justify-between">
+          <div className="h-2.5 w-14 rounded-full bg-rose-100" />
+          <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-primary text-white shadow-sm">
+            <CheckCircle2 className="h-5 w-5" />
+          </div>
+        </div>
+        <div className="mt-4 grid gap-2">
+          <div className="h-2.5 rounded-full bg-rose-100/90" />
+          <div className="h-2.5 w-5/6 rounded-full bg-rose-100/70" />
+          <div className="h-2.5 w-3/5 rounded-full bg-rose-100/60" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function loadImage(src: string) {
   return new Promise<HTMLImageElement | null>((resolve) => {
     const image = new Image();
@@ -1693,6 +1747,12 @@ export function ReportsPage() {
       note: `Meta de ${monthlyContentTarget} conteúdos/mês`,
     },
   ];
+  const executiveHeroCards = [
+    heroSummaryCards[0],
+    heroSummaryCards[1],
+    heroSummaryCards[3],
+    heroSummaryCards[4],
+  ].filter(Boolean);
   const bottomSummary = [
     { label: "Saúde total", value: `${healthScore}`, icon: Sparkles, tone: "#B91C1C" },
     { label: "Visualizações do mês", value: formatLongNumber(currentSummary.views), icon: BarChart3, tone: "#7C3AED" },
@@ -1711,6 +1771,53 @@ export function ReportsPage() {
       tone: "#2563EB",
     },
   ];
+  const savedReportsTimeline = (savedReports.length > 0 ? savedReports : [
+    {
+      id: "current",
+      label: describeReportPeriod({
+        period,
+        customMode: customPeriodMode,
+        customMonth,
+        customYear,
+        customStart: customStartDate,
+        customEnd: customEndDate,
+        customPastMonths,
+        currentRange,
+      }),
+      generatedAt: new Intl.DateTimeFormat("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+      }).format(anchorDate),
+      period,
+      startDate: formatDateKey(currentRange.start),
+      endDate: formatDateKey(currentRange.end),
+      views: currentSummary.views,
+      reach: currentSummary.reach,
+      engagement: currentSummary.engagement,
+      postsCount: currentSummary.postsCount,
+      responsibleId: responsibleFilter,
+      typeFilter,
+    },
+  ])
+    .slice(-8)
+    .map((snapshot, index) => ({
+      id: snapshot.id,
+      label:
+        snapshot.label.length > 16
+          ? snapshot.label.replace(/^Últimos\s+/i, "").replace(/\s+/g, " ").slice(0, 16)
+          : snapshot.label,
+      score: Math.max(
+        0,
+        Math.round(
+          snapshot.views * 0.00003 +
+            snapshot.reach * 0.00005 +
+            snapshot.engagement * 0.04 +
+            snapshot.postsCount * 1.8,
+        ),
+      ),
+      fullLabel: snapshot.label,
+      accent: index === (savedReports.length > 0 ? savedReports : [{ id: "current" }]).slice(-8).length - 1,
+    }));
   const openAddReportCard = (rowIndex: number) => {
     if (!reportSharedReady) {
       toast.loading("Carregando relatório compartilhado...");
@@ -2228,68 +2335,80 @@ export function ReportsPage() {
         </section>
 
         <section>
-          <div className="overflow-hidden rounded-[2.6rem] border border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,250,252,0.98))] p-6 shadow-[0_24px_65px_rgba(15,23,42,0.07)] sm:p-7">
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_520px] xl:items-stretch">
-              <div className="relative overflow-hidden rounded-[2.2rem] border border-rose-200/70 bg-[radial-gradient(circle_at_top_left,rgba(227,27,75,0.18),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(255,110,140,0.12),transparent_28%),linear-gradient(180deg,rgba(255,248,249,0.99),rgba(255,239,242,0.97))] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_18px_42px_rgba(227,27,75,0.08)] sm:p-8">
-                <div className="absolute right-0 top-0 h-36 w-36 rounded-full bg-primary/10 blur-3xl" />
-                <div className="relative flex h-full flex-col justify-between gap-8">
-                  <div className="max-w-2xl">
-                    <span className="inline-flex rounded-full border border-border/60 bg-white/85 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground shadow-sm">
-                      {overviewDraft.badge}
-                    </span>
-                    <div className="mt-5 flex items-start justify-between gap-4">
-                      <div className="space-y-3">
-                        <h2 className="max-w-xl text-[clamp(2rem,3vw,3rem)] font-semibold tracking-tight text-foreground">
-                          {overviewDraft.title}
-                        </h2>
-                        <p className="max-w-2xl text-base leading-8 text-muted-foreground">
-                          {overviewDraft.description}
-                        </p>
-                      </div>
+          <div className="overflow-hidden rounded-[2.8rem] border border-rose-100/90 bg-[radial-gradient(circle_at_top_left,rgba(255,196,210,0.4),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(255,173,196,0.3),transparent_20%),linear-gradient(180deg,rgba(255,255,255,0.99),rgba(255,248,250,0.97))] p-4 shadow-[0_24px_75px_rgba(244,114,144,0.12)] sm:p-6">
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_340px] xl:items-stretch">
+              <div className="relative overflow-hidden rounded-[2.4rem] border border-rose-100/80 bg-[radial-gradient(circle_at_top_left,rgba(255,228,236,0.95),transparent_36%),radial-gradient(circle_at_bottom_right,rgba(255,214,224,0.72),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.96),rgba(255,246,248,0.95))] p-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_24px_60px_rgba(244,114,144,0.08)] sm:p-8">
+                <div className="absolute inset-x-10 bottom-2 h-28 rounded-full bg-primary/8 blur-3xl" />
+                <div className="relative grid h-full gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center">
+                  <div className="space-y-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <span className="inline-flex rounded-full bg-[linear-gradient(90deg,rgba(255,228,236,0.96),rgba(255,239,243,0.96))] px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+                        {overviewDraft.badge}
+                      </span>
                       <button
                         type="button"
                         onClick={openOverviewEditor}
                         data-cy="reports-overview-edit"
-                        className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border/70 bg-white text-foreground shadow-[0_10px_22px_rgba(15,23,42,0.08)] transition hover:border-primary/25 hover:text-primary hover:shadow-md print:hidden"
+                        className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white/92 text-primary shadow-[0_16px_32px_rgba(244,114,144,0.14)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(244,114,144,0.2)] print:hidden"
                         aria-label="Editar visão geral"
                       >
-                        <PencilLine className="h-4 w-4" />
+                        <PencilLine className="h-5 w-5" />
                       </button>
+                    </div>
+
+                    <div className="space-y-5">
+                      <h2 className="max-w-xl text-[clamp(2.5rem,4.1vw,4rem)] font-semibold leading-[0.96] tracking-tight text-slate-800">
+                        {overviewDraft.title}
+                      </h2>
+                      <div className="h-1.5 w-20 rounded-full bg-[linear-gradient(90deg,rgba(255,131,167,0.88),rgba(255,164,190,0.5))]" />
+                      <p className="max-w-xl text-lg leading-9 text-slate-500">
+                        {overviewDraft.description}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-4 pt-2">
+                      <div className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(90deg,rgba(255,237,241,1),rgba(255,244,247,1))] px-5 py-3 text-sm font-semibold text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.95)]">
+                        <Eye className="h-4 w-4" />
+                        {overviewDraft.note}
+                      </div>
+                      <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50/90 px-5 py-3 text-sm font-semibold text-emerald-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.96)]">
+                        <CheckCircle2 className="h-4 w-4" />
+                        Operação acompanhada em tempo real
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="inline-flex rounded-full bg-primary/8 px-4 py-2 text-sm font-semibold text-primary">
-                      {overviewDraft.note}
-                    </div>
-                    <div className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-600">
-                      Operação acompanhada em tempo real
-                    </div>
+                  <div className="flex items-center justify-center">
+                    <ReportsHeroIllustration />
                   </div>
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2 xl:min-w-[720px] xl:grid-cols-3 2xl:min-w-[980px]">
-                {heroSummaryCards.map((item) => {
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+                {executiveHeroCards.map((item) => {
                   const Icon = item.icon;
+                  const isPositive = !item.delta.startsWith("-");
+                  const deltaTone = item.delta === "0,0%" ? "text-emerald-600" : isPositive ? "text-emerald-600" : "text-rose-500";
                   return (
                     <div
                       key={item.label}
-                      className="group rounded-[1.7rem] border border-rose-200/70 bg-[linear-gradient(180deg,rgba(255,248,249,0.98),rgba(255,241,244,0.96))] p-5 shadow-[0_12px_28px_rgba(227,27,75,0.08)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_36px_rgba(227,27,75,0.12)]"
+                      className="group rounded-[2rem] border border-rose-100/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(255,247,249,0.96))] p-5 shadow-[0_16px_38px_rgba(244,114,144,0.08)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_42px_rgba(244,114,144,0.12)]"
                     >
                       <div className="flex items-center justify-between gap-3">
-                        <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/12 text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.78)]">
+                        <div className="inline-flex h-14 w-14 items-center justify-center rounded-[1.4rem] bg-[linear-gradient(180deg,rgba(255,236,241,1),rgba(255,244,247,0.98))] text-primary shadow-[0_10px_24px_rgba(244,114,144,0.14)]">
                           <Icon className="h-5 w-5" />
                         </div>
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-600">
-                          <TrendingUp className="h-3.5 w-3.5" />
+                        <span className={cn("inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-semibold", deltaTone)}>
+                          {isPositive ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
                           {item.delta}
                         </span>
                       </div>
-                      <div className="mt-7 space-y-2">
-                        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">{item.label}</p>
-                        <p className="text-[clamp(2rem,2.4vw,2.5rem)] font-semibold tracking-tight text-foreground">{item.value}</p>
-                        {item.note ? <p className="text-sm leading-6 text-muted-foreground">{item.note}</p> : null}
+                      <div className="mt-6 space-y-2.5">
+                        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">{item.label}</p>
+                        <p className="text-[clamp(2.4rem,2.8vw,3rem)] font-semibold tracking-tight text-slate-800">{item.value}</p>
+                        <p className={cn("text-sm font-medium", isPositive ? "text-emerald-600" : "text-rose-500")}>
+                          {item.note ?? (item.label === "Saúde total" ? "Excelente" : item.label === "Stories do mês" ? "Crescimento forte" : "Sem dados ainda")}
+                        </p>
                       </div>
                     </div>
                   );
@@ -2299,35 +2418,106 @@ export function ReportsPage() {
           </div>
         </section>
 
-        <section className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.06)]">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Histórico salvo</p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Relatórios recentes</h2>
-            </div>
-          </div>
-          <div className="mt-5 grid gap-3">
-            {savedReports.length > 0 ? (
-              savedReports.slice(0, 3).map((snapshot) => (
-                <div key={snapshot.id} className="flex items-center justify-between gap-4 rounded-[1.4rem] border border-border/60 bg-muted/20 px-4 py-3">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{snapshot.label}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{snapshot.generatedAt}</p>
-                  </div>
-                  <ActionButton
-                    dataCy="reports-history-restore"
-                    variant="secondary"
-                    onClick={() => handleRestoreReport(snapshot)}
-                  >
-                    Restaurar
-                  </ActionButton>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-[1.4rem] border border-dashed border-border/60 bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
-                Nenhum relatório salvo ainda.
+        <section className="overflow-hidden rounded-[2.8rem] border border-rose-100/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(255,248,250,0.97))] p-6 shadow-[0_24px_65px_rgba(244,114,144,0.08)]">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="inline-flex h-14 w-14 items-center justify-center rounded-[1.4rem] bg-[linear-gradient(180deg,rgba(255,236,241,1),rgba(255,245,247,0.98))] text-primary shadow-[0_12px_26px_rgba(244,114,144,0.14)]">
+                <CalendarRange className="h-6 w-6" />
               </div>
-            )}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Histórico salvo</p>
+                <h2 className="mt-2 text-[clamp(1.8rem,2.6vw,2.8rem)] font-semibold tracking-tight text-slate-800">Relatórios anteriores</h2>
+                <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-500">
+                  Acompanhe a evolução do seu conteúdo em uma leitura visual rápida, com os recortes mais recentes já salvos.
+                </p>
+              </div>
+            </div>
+
+            <ActionButton dataCy="reports-save-report-secondary" variant="secondary" onClick={handleSaveReport} className="border-rose-100 bg-white/90 text-primary shadow-[0_12px_24px_rgba(244,114,144,0.08)]">
+              <FileDown className="h-4 w-4" />
+              Ver histórico completo
+            </ActionButton>
+          </div>
+
+          <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_360px]">
+            <div className="rounded-[2.2rem] border border-rose-100/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(255,245,248,0.88))] px-4 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.96)] sm:px-6">
+              <div className="h-[250px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={savedReportsTimeline} margin={{ top: 24, right: 12, left: -16, bottom: 4 }}>
+                    <defs>
+                      <linearGradient id="reports-history-fill" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stopColor="#ff7ea2" stopOpacity={0.28} />
+                        <stop offset="100%" stopColor="#ff7ea2" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid vertical={false} stroke="rgba(148,163,184,0.18)" strokeDasharray="4 6" />
+                    <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "#64748b", fontSize: 12 }} />
+                    <YAxis tickLine={false} axisLine={false} tick={{ fill: "#64748b", fontSize: 12 }} />
+                    <Tooltip
+                      cursor={{ stroke: "rgba(255,126,162,0.4)", strokeWidth: 1.5, strokeDasharray: "4 4" }}
+                      contentStyle={{
+                        borderRadius: "18px",
+                        border: "1px solid rgba(255,228,236,0.95)",
+                        boxShadow: "0 18px 45px rgba(244,114,144,0.14)",
+                        background: "rgba(255,255,255,0.96)",
+                      }}
+                      formatter={(value) => [formatLongNumber(Number(value ?? 0)), "Índice"]}
+                      labelFormatter={(label) => `Período: ${label}`}
+                    />
+                    <Area type="monotone" dataKey="score" stroke="none" fill="url(#reports-history-fill)" />
+                    <Line
+                      type="monotone"
+                      dataKey="score"
+                      stroke="#ff6d93"
+                      strokeWidth={2.5}
+                      dot={{ r: 4, strokeWidth: 0, fill: "#ff6d93" }}
+                      activeDot={{ r: 6, strokeWidth: 0, fill: "#ff4f7d" }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="grid gap-3">
+              {savedReports.length > 0 ? (
+                savedReports.slice(0, 3).map((snapshot) => (
+                  <div key={snapshot.id} className="rounded-[1.8rem] border border-rose-100/80 bg-white/90 p-4 shadow-[0_12px_30px_rgba(244,114,144,0.06)]">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800">{snapshot.label}</p>
+                        <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-400">{snapshot.generatedAt}</p>
+                      </div>
+                      <ActionButton
+                        dataCy="reports-history-restore"
+                        variant="secondary"
+                        onClick={() => handleRestoreReport(snapshot)}
+                        className="border-rose-100 bg-rose-50/70 px-3 py-2 text-xs text-primary shadow-none"
+                      >
+                        Restaurar
+                      </ActionButton>
+                    </div>
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      <div className="rounded-2xl bg-rose-50/70 px-3 py-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Views</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-700">{formatLongNumber(snapshot.views)}</p>
+                      </div>
+                      <div className="rounded-2xl bg-rose-50/70 px-3 py-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Alcance</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-700">{formatLongNumber(snapshot.reach)}</p>
+                      </div>
+                      <div className="rounded-2xl bg-rose-50/70 px-3 py-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Posts</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-700">{formatLongNumber(snapshot.postsCount)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-[1.8rem] border border-dashed border-rose-200 bg-white/70 px-5 py-8 text-sm text-slate-500">
+                  Nenhum relatório salvo ainda.
+                </div>
+              )}
+            </div>
           </div>
         </section>
 
