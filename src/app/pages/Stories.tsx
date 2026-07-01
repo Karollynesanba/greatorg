@@ -663,10 +663,26 @@ export function StoriesPage() {
       notes: form.notes.trim(),
     };
 
+    const existingSameDayMedia = editingStoryId === null
+      ? items.find((item) => item.date === nextItem.date && item.mediaType === nextItem.mediaType)
+      : null;
+
     try {
       if (editingStoryId !== null) {
         await updateStoryPost(editingStoryId, {
           ...nextItem,
+          userId: session.user.id,
+          actorName: madeBy.name,
+        });
+      } else if (existingSameDayMedia) {
+        await updateStoryPost(existingSameDayMedia.id, {
+          ...existingSameDayMedia,
+          time: nextItem.time,
+          quantity: existingSameDayMedia.quantity + nextItem.quantity,
+          status: nextItem.status,
+          madeById: nextItem.madeById,
+          postedById: nextItem.postedById,
+          notes: nextItem.notes || existingSameDayMedia.notes,
           userId: session.user.id,
           actorName: madeBy.name,
         });
@@ -680,7 +696,13 @@ export function StoriesPage() {
 
       await reloadItems();
       await reloadHistoryEvents();
-      toast.success(editingStoryId !== null ? "Story atualizado." : "Stories registrados.");
+      toast.success(
+        editingStoryId !== null
+          ? "Story atualizado."
+          : existingSameDayMedia
+            ? "Stories somados ao registro existente."
+            : "Stories registrados.",
+      );
       closeModal();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Falha ao salvar o story no Supabase.";
