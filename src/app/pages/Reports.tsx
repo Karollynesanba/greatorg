@@ -2116,8 +2116,8 @@ export function ReportsPage() {
   ];
 
   return (
-    <PageTransition>
-      <div className="space-y-6 print-report-shell">
+    <PageTransition fluid className="w-full max-w-none min-w-0 px-0 py-0 sm:px-0 lg:px-0">
+      <div className="w-full min-w-0 space-y-6 print-report-shell">
         <section className="hidden rounded-[2rem] border border-[#ead7d7] bg-white px-8 py-10 shadow-none print:block">
           <div className="space-y-6">
             <div className="flex items-start justify-between gap-6 border-b border-[#ead7d7] pb-6">
@@ -2376,14 +2376,14 @@ export function ReportsPage() {
         </section>
 
         <section>
-          <div className="overflow-hidden rounded-[24px] border border-[rgba(255,180,200,.35)] bg-[radial-gradient(circle_at_top_left,rgba(255,216,229,0.48),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(255,236,241,0.55),transparent_22%),linear-gradient(180deg,#FFFDFD,rgba(255,248,250,0.98))] p-5 shadow-[0_12px_40px_rgba(255,120,160,.08)] sm:p-7">
-            <div className="grid gap-8 xl:grid-cols-[minmax(0,1.48fr)_360px] xl:items-stretch">
-              <div className="relative overflow-hidden rounded-[24px] border border-[rgba(255,180,200,.35)] bg-[linear-gradient(135deg,rgba(255,255,255,0.72),rgba(255,236,241,0.48))] p-8 shadow-[0_12px_40px_rgba(255,120,160,.08)] backdrop-blur-[14px] sm:p-9">
+          <div className="w-full min-w-0 max-w-none overflow-hidden rounded-[24px] border border-[rgba(255,180,200,.35)] bg-[radial-gradient(circle_at_top_left,rgba(255,216,229,0.48),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(255,236,241,0.55),transparent_22%),linear-gradient(180deg,#FFFDFD,rgba(255,248,250,0.98))] p-5 shadow-[0_12px_40px_rgba(255,120,160,.08)] sm:p-6 min-[1400px]:p-7">
+            <div className="grid w-full min-w-0 max-w-none gap-6 min-[1400px]:grid-cols-[minmax(0,1.6fr)_minmax(360px,1fr)] min-[1400px]:items-stretch min-[1400px]:gap-6 min-[1600px]:gap-8">
+              <div className="relative min-w-0 overflow-hidden rounded-[24px] border border-[rgba(255,180,200,.35)] bg-[linear-gradient(135deg,rgba(255,255,255,0.72),rgba(255,236,241,0.48))] p-8 shadow-[0_12px_40px_rgba(255,120,160,.08)] backdrop-blur-[14px] sm:p-9">
                 <div className="absolute inset-x-10 bottom-2 h-28 rounded-full bg-primary/8 blur-3xl" />
                 <div className="absolute -left-8 top-10 h-32 w-32 rounded-full bg-[rgba(255,126,168,0.10)] blur-3xl" />
                 <div className="absolute right-12 top-8 h-20 w-20 rounded-full bg-[rgba(255,126,168,0.08)] blur-2xl" />
-                <div className="relative grid h-full gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center">
-                  <div className="space-y-6">
+                <div className="relative grid h-full min-w-0 gap-8 min-[1600px]:grid-cols-[minmax(0,1fr)_320px] min-[1600px]:items-center">
+                  <div className="min-w-0 space-y-6">
                     <div className="flex items-start justify-between gap-4">
                       <span className="inline-flex rounded-full bg-[linear-gradient(90deg,rgba(255,228,236,0.96),rgba(255,239,243,0.96))] px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
                         {overviewDraft.badge}
@@ -2392,7 +2392,7 @@ export function ReportsPage() {
                         type="button"
                         onClick={openOverviewEditor}
                         data-cy="reports-overview-edit"
-                        className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-[rgba(255,180,200,.35)] bg-white/88 text-primary shadow-[0_12px_40px_rgba(255,120,160,.10)] transition duration-250 hover:scale-[1.02] hover:shadow-[0_16px_46px_rgba(255,120,160,.16)] print:hidden"
+                        className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-[rgba(255,180,200,.35)] bg-white/88 text-primary shadow-[0_12px_40px_rgba(255,120,160,.10)] transition duration-250 hover:shadow-[0_16px_46px_rgba(255,120,160,.16)] print:hidden"
                         aria-label="Editar visão geral"
                       >
                         <PencilLine className="h-5 w-5" />
@@ -2427,7 +2427,7 @@ export function ReportsPage() {
                 </div>
               </div>
 
-              <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-1">
+              <div className="grid min-w-0 grid-cols-1 gap-5 min-[900px]:grid-cols-2 min-[900px]:auto-rows-[minmax(190px,auto)] min-[1400px]:grid-cols-[repeat(2,minmax(240px,1fr))]">
                 {executiveHeroCards.map((item) => {
                   const Icon = item.icon;
                   const isPositive = !item.delta.startsWith("-");
@@ -2435,21 +2435,26 @@ export function ReportsPage() {
                   return (
                     <div
                       key={item.label}
-                      className="group relative overflow-hidden rounded-[24px] border border-[rgba(255,180,200,.35)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(255,245,248,0.96))] p-6 shadow-[0_12px_40px_rgba(255,120,160,.08)] transition duration-250 hover:scale-[1.02] hover:shadow-[0_16px_48px_rgba(255,120,160,.14)]"
+                      className="group relative flex min-h-[190px] w-full min-w-0 max-w-none flex-col justify-between overflow-hidden rounded-[24px] border border-[rgba(255,180,200,.35)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(255,245,248,0.96))] p-6 shadow-[0_12px_40px_rgba(255,120,160,.08)] transition duration-250 hover:shadow-[0_16px_48px_rgba(255,120,160,.14)]"
+                      style={{ boxSizing: "border-box" }}
                     >
                       <div className="absolute inset-x-6 top-0 h-12 bg-[radial-gradient(circle_at_center,rgba(255,126,168,0.10),transparent_70%)] opacity-0 blur-2xl transition duration-250 group-hover:opacity-100" />
-                      <div className="flex items-center justify-between gap-3">
+                      <div className="flex min-w-0 items-center justify-between gap-3">
                         <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#FFE8EF] text-primary shadow-[0_8px_22px_rgba(255,120,160,.10)]">
                           <Icon className="h-5 w-5" />
                         </div>
-                        <span className={cn("inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-semibold", deltaTone)}>
+                        <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-semibold", deltaTone)}>
                           {isPositive ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
                           {item.delta}
                         </span>
                       </div>
-                      <div className="mt-6 space-y-3">
-                        <p className="text-[12px] font-semibold uppercase tracking-[0.24em] text-[#6B7280]">{item.label}</p>
-                        <p className="text-[clamp(2.7rem,3vw,3.3rem)] font-bold tracking-tight text-[#1F2937]">{item.value}</p>
+                      <div className="mt-6 min-w-0 space-y-3">
+                        <p className="min-w-0 text-[12px] font-semibold uppercase tracking-[0.24em] text-[#6B7280] [overflow-wrap:anywhere] [word-break:normal]">
+                          {item.label}
+                        </p>
+                        <p className="mt-[10px] mb-3 whitespace-nowrap text-[56px] font-bold leading-none tracking-tight text-[#1F2937]">
+                          {item.value}
+                        </p>
                         <p className={cn("text-sm font-medium", isPositive ? "text-[#22C55E]" : "text-rose-500")}>
                           {item.status}
                         </p>
@@ -2531,7 +2536,7 @@ export function ReportsPage() {
             <div className="grid gap-4">
               {savedReports.length > 0 ? (
                 savedReports.slice(0, 3).map((snapshot) => (
-                  <div key={snapshot.id} className="rounded-[24px] border border-[rgba(255,180,200,.35)] bg-white/94 p-5 shadow-[0_12px_40px_rgba(255,120,160,.08)] transition duration-250 hover:scale-[1.02]">
+                  <div key={snapshot.id} className="rounded-[24px] border border-[rgba(255,180,200,.35)] bg-white/94 p-5 shadow-[0_12px_40px_rgba(255,120,160,.08)] transition duration-250 hover:shadow-[0_16px_48px_rgba(255,120,160,.14)]">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-start gap-3">
                         <div className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#FFE8EF] text-primary">

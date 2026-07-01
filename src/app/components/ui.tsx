@@ -60,8 +60,12 @@ export const animatedItem = {
   }),
 };
 
-export function PageTransition({ children }: PropsWithChildren) {
-  return <div className={pageContainerClass}>{children}</div>;
+export function PageTransition({
+  children,
+  className,
+  fluid = false,
+}: PropsWithChildren<{ className?: string; fluid?: boolean }>) {
+  return <div className={cn(fluid ? "flex w-full min-w-0 flex-col gap-6" : pageContainerClass, className)}>{children}</div>;
 }
 
 export function GlassPanel({

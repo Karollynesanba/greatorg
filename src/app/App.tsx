@@ -104,7 +104,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
     >
       <MonthlyCycleManager />
       <Sidebar onLogout={onLogout} />
-      <div className="flex min-h-screen w-full flex-col xl:pl-[304px] xl:pr-5 xl:py-5">
+      <div className="flex min-h-screen w-full min-w-0 flex-col xl:pl-[304px] xl:pr-5 xl:py-5">
         <div
           className="flex min-h-screen flex-1 flex-col overflow-hidden xl:min-h-0 xl:rounded-[36px]"
           style={{
@@ -116,7 +116,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
           }}
         >
           <TopBar />
-          <main className="relative min-h-0 flex-1 p-4 sm:p-6 xl:p-7" tabIndex={0}>
+          <main className="relative min-h-0 w-full flex-1 p-4 sm:p-6 xl:p-7" tabIndex={0}>
             <Routes location={location} key={location.pathname}>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/login" element={<Navigate to="/dashboard" replace />} />
