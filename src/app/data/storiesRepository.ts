@@ -94,6 +94,18 @@ function monthKeyToDate(month: string) {
   return `${month}-01`;
 }
 
+function nextMonthKey(month: string) {
+  const [yearValue, monthValue] = month.split("-").map(Number);
+  if (!yearValue || !monthValue) {
+    return month;
+  }
+
+  const nextDate = new Date(yearValue, monthValue, 1);
+  const nextYear = nextDate.getFullYear();
+  const nextMonth = String(nextDate.getMonth() + 1).padStart(2, "0");
+  return `${nextYear}-${nextMonth}`;
+}
+
 function getClient() {
   if (!supabase) {
     throw new Error("Supabase nao esta configurado.");
@@ -309,12 +321,13 @@ export async function fetchStoryPosts(userId: string) {
 
 export async function fetchMonthlyCalendar(userId: string, month: string) {
   const client = getClient();
+  const nextMonth = nextMonthKey(month);
   const { data, error } = await client
     .from("calendar_events")
     .select("data")
     .eq("user_id", userId)
     .gte("metric_date", `${month}-01`)
-    .lt("metric_date", `${month}-32`);
+    .lt("metric_date", `${nextMonth}-01`);
 
   if (error) {
     throw new Error(error.message);
