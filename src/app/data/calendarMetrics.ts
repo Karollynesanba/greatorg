@@ -4,6 +4,12 @@ import { isSupabaseConfigured, supabase } from "./supabase";
 import { subscribeSharedChannel } from "./supabaseRealtime";
 
 export const defaultMonthlyViewsGoal = 800000;
+const seededCalendarDayMetrics: Record<string, { views?: number; reach?: number }> = {
+  "2026-07-01": { views: 33921 },
+  "2026-07-02": { views: 39389 },
+  "2026-07-03": { views: 51724 },
+  "2026-07-04": { views: 63115 },
+};
 
 type CalendarDayMetricRow = {
   id: number;
@@ -64,6 +70,33 @@ function sortRecords(records: CalendarDayMetricRecord[]) {
   return [...records].sort((left, right) => left.date.localeCompare(right.date));
 }
 
+function applySeedCalendarDayMetrics(records: CalendarDayMetricRecord[]) {
+  const byDate = new Map(records.map((record) => [record.date, { ...record }] as const));
+  let nextId = Math.max(...records.map((record) => record.id), 0) + 1;
+
+  Object.entries(seededCalendarDayMetrics).forEach(([date, metric]) => {
+    const existing = byDate.get(date);
+
+    if (!existing) {
+      byDate.set(date, {
+        id: nextId++,
+        date,
+        views: normalizeMetricValue(metric.views),
+        reach: normalizeMetricValue(metric.reach),
+      });
+      return;
+    }
+
+    byDate.set(date, {
+      ...existing,
+      views: metric.views === undefined ? existing.views : Math.max(existing.views, normalizeMetricValue(metric.views)),
+      reach: metric.reach === undefined ? existing.reach : Math.max(existing.reach, normalizeMetricValue(metric.reach)),
+    });
+  });
+
+  return sortRecords([...byDate.values()]);
+}
+
 function recordsToMaps(records: CalendarDayMetricRecord[]) {
   return records.reduce(
     (accumulator, record) => {
@@ -112,6 +145,10 @@ export function sumMonthViews(dayViewsByDate: Record<string, number>, monthKey: 
   }, 0);
 }
 
+export function hasMonthMetricRecords(dayMetricByDate: Record<string, number>, monthKey: string) {
+  return Object.keys(dayMetricByDate).some((dateKey) => dateKey.startsWith(monthKey));
+}
+
 export function useCalendarDayMetrics() {
   const { session, ready: authReady } = useAuthSession();
   const [records, setRecords] = useState<CalendarDayMetricRecord[]>([]);
@@ -127,9 +164,10 @@ export function useCalendarDayMetrics() {
     }
 
     if (!isSupabaseConfigured() || !supabaseClient || !session) {
-      setRecords([]);
-      lastSavedSnapshotRef.current = snapshotOf([]);
-      lastPersistedIdsRef.current = new Set();
+      const seededRecords = applySeedCalendarDayMetrics([]);
+      setRecords(seededRecords);
+      lastSavedSnapshotRef.current = snapshotOf(seededRecords);
+      lastPersistedIdsRef.current = new Set(seededRecords.map((record) => record.id));
       hydratedRef.current = true;
       setReady(true);
       return;
@@ -142,15 +180,16 @@ export function useCalendarDayMetrics() {
 
     if (error) {
       console.warn("Supabase calendar_day_metrics load failed:", error.message);
-      setRecords([]);
-      lastSavedSnapshotRef.current = snapshotOf([]);
-      lastPersistedIdsRef.current = new Set();
+      const seededRecords = applySeedCalendarDayMetrics([]);
+      setRecords(seededRecords);
+      lastSavedSnapshotRef.current = snapshotOf(seededRecords);
+      lastPersistedIdsRef.current = new Set(seededRecords.map((record) => record.id));
       hydratedRef.current = true;
       setReady(true);
       return;
     }
 
-    const remoteRecords = sortRecords((data ?? []).map((row) => toRecord(row as CalendarDayMetricRow)));
+    const remoteRecords = applySeedCalendarDayMetrics((data ?? []).map((row) => toRecord(row as CalendarDayMetricRow)));
     setRecords(remoteRecords);
     lastSavedSnapshotRef.current = snapshotOf(remoteRecords);
     lastPersistedIdsRef.current = new Set(remoteRecords.map((record) => record.id));

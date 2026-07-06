@@ -7,7 +7,7 @@ import { usePosts } from "../data/posts";
 import { useTeamProfiles } from "../data/profiles";
 import { shouldUseMonthlyPerformanceSnapshot, useMonthlyPerformanceSnapshot } from "../data/monthlyPerformance";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
-import { defaultMonthlyViewsGoal, sumMonthViews, useCalendarDayMetrics } from "../data/calendarMetrics";
+import { defaultMonthlyViewsGoal, hasMonthMetricRecords, sumMonthViews, useCalendarDayMetrics } from "../data/calendarMetrics";
 import { useSupabasePreference } from "../data/userPreferences";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import {
@@ -474,11 +474,13 @@ export function DashboardPage() {
   const topPosts = [...visiblePosts].sort((a, b) => asNumber(b.engagement) - asNumber(a.engagement)).slice(0, 5);
   const worstPosts = [...visiblePosts].sort((a, b) => asNumber(a.engagement) - asNumber(b.engagement)).slice(0, 2);
   const monthKey = dashboardMonthKey;
-  const computedMonthViews = sumMonthViews(safeDayViewsByDate, currentMonthKey());
+  const computedMonthViews = sumMonthViews(safeDayViewsByDate, monthKey);
   const computedMonthReach = sumMonthViews(safeDayReachByDate, monthKey);
+  const hasCurrentMonthViewsData = hasMonthMetricRecords(safeDayViewsByDate, monthKey);
+  const hasCurrentMonthReachData = hasMonthMetricRecords(safeDayReachByDate, monthKey);
   const useSharedMonthlyTotals = shouldUseMonthlyPerformanceSnapshot(monthlyPerformance, monthKey, teamScope === "todos");
-  const monthViews = useSharedMonthlyTotals ? monthlyPerformance.views : computedMonthViews;
-  const monthReach = useSharedMonthlyTotals ? monthlyPerformance.reach : computedMonthReach;
+  const monthViews = useSharedMonthlyTotals && !hasCurrentMonthViewsData ? monthlyPerformance.views : computedMonthViews;
+  const monthReach = useSharedMonthlyTotals && !hasCurrentMonthReachData ? monthlyPerformance.reach : computedMonthReach;
   const monthFollowers = sumMonthViews(safeDashboardDailyFollowers, monthKey);
   const storyLogMonthTotal = visibleStoryLogs.reduce((sum, story) => sum + asNumber((story as { quantity?: unknown }).quantity), 0);
   const monthStories = Math.max(monthlyStoriesSnapshot?.currentValue ?? 0, storyLogMonthTotal);
