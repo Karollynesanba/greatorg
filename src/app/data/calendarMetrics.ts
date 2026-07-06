@@ -11,6 +11,7 @@ const seededCalendarDayMetrics: Record<string, { views?: number; reach?: number 
   "2026-07-02": { views: 39389 },
   "2026-07-03": { views: 51724 },
   "2026-07-04": { views: 63115 },
+  "2026-07-05": { views: 45291 },
 };
 
 type CalendarDayMetricRow = {

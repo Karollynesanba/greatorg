@@ -116,6 +116,11 @@ function formatViewsNumber(value: number) {
   return new Intl.NumberFormat("pt-BR").format(value);
 }
 
+function parseMetricDraftValue(value: string) {
+  const parsedValue = Number(String(value).replace(/[^\d]/g, ""));
+  return Number.isFinite(parsedValue) ? Math.max(0, Math.round(parsedValue)) : 0;
+}
+
 function inferEventVisualization(event: CalendarEvent & { visualization?: CalendarVisualizationType }) {
   if (event.visualization) {
     return event.visualization;
@@ -1067,12 +1072,24 @@ export function CalendarPage() {
   useEffect(() => {
     setDayViewsDraft(String(currentDayViews));
     setIsEditingDayViews(false);
-  }, [currentDayViews, referenceDateKey]);
+  }, [referenceDateKey]);
+
+  useEffect(() => {
+    if (!isEditingDayViews) {
+      setDayViewsDraft(String(currentDayViews));
+    }
+  }, [currentDayViews, isEditingDayViews]);
 
   useEffect(() => {
     setDayReachDraft(String(currentDayReach));
     setIsEditingDayReach(false);
-  }, [currentDayReach, referenceDateKey]);
+  }, [referenceDateKey]);
+
+  useEffect(() => {
+    if (!isEditingDayReach) {
+      setDayReachDraft(String(currentDayReach));
+    }
+  }, [currentDayReach, isEditingDayReach]);
 
   useEffect(() => {
     setMonthlyViewsGoalDraft(String(monthlyViewsGoal));
@@ -1084,16 +1101,21 @@ export function CalendarPage() {
     setIsEditingDayViews(true);
   };
 
-  const handleCommitDayViews = () => {
-    const parsedValue = Number(String(dayViewsDraft).replace(/[^\d]/g, ""));
-    const nextValue = Number.isFinite(parsedValue) ? Math.max(0, Math.round(parsedValue)) : 0;
-
+  const persistDayViews = (nextValue: number, showToast = false) => {
     setDayViewsByDate((previous) => ({
       ...previous,
       [referenceDateKey]: nextValue,
     }));
+
+    if (showToast) {
+      toast.success("Visualizações de ontem atualizadas.");
+    }
+  };
+
+  const handleCommitDayViews = () => {
+    const nextValue = parseMetricDraftValue(dayViewsDraft);
+    persistDayViews(nextValue, true);
     setIsEditingDayViews(false);
-    toast.success("Visualizações de ontem atualizadas.");
   };
 
   const handleCancelDayViewsEdit = () => {
@@ -1106,16 +1128,21 @@ export function CalendarPage() {
     setIsEditingDayReach(true);
   };
 
-  const handleCommitDayReach = () => {
-    const parsedValue = Number(String(dayReachDraft).replace(/[^\d]/g, ""));
-    const nextValue = Number.isFinite(parsedValue) ? Math.max(0, Math.round(parsedValue)) : 0;
-
+  const persistDayReach = (nextValue: number, showToast = false) => {
     setDayReachByDate((previous) => ({
       ...previous,
       [referenceDateKey]: nextValue,
     }));
+
+    if (showToast) {
+      toast.success("Alcance de ontem atualizado.");
+    }
+  };
+
+  const handleCommitDayReach = () => {
+    const nextValue = parseMetricDraftValue(dayReachDraft);
+    persistDayReach(nextValue, true);
     setIsEditingDayReach(false);
-    toast.success("Alcance de ontem atualizado.");
   };
 
   const handleCancelDayReachEdit = () => {
@@ -1142,6 +1169,44 @@ export function CalendarPage() {
     setMonthlyViewsGoalDraft(String(monthlyViewsGoal));
     setIsEditingMonthlyViewsGoal(false);
   };
+
+  useEffect(() => {
+    if (!isEditingDayViews) {
+      return;
+    }
+
+    const nextValue = parseMetricDraftValue(dayViewsDraft);
+    if (nextValue === currentDayViews) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      persistDayViews(nextValue);
+    }, 500);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [currentDayViews, dayViewsDraft, isEditingDayViews, referenceDateKey]);
+
+  useEffect(() => {
+    if (!isEditingDayReach) {
+      return;
+    }
+
+    const nextValue = parseMetricDraftValue(dayReachDraft);
+    if (nextValue === currentDayReach) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      persistDayReach(nextValue);
+    }, 500);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [currentDayReach, dayReachDraft, isEditingDayReach, referenceDateKey]);
 
   const controlBarClass = isDark
     ? "overflow-hidden p-4"
