@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isDemoSession, useAuthSession } from "../auth";
 import type { CalendarEvent, StoryLog } from "./mockData";
 import { buildStoryHistoryEvent, getStoryHistoryId } from "./historyEvents";
 import { getSupabaseDiagnostics, isSupabaseConfigured, supabase } from "./supabase";
@@ -257,15 +258,44 @@ async function syncStoryMonthlyPost(userId: string, story: StoryLog) {
     return;
   }
 
-  const { data: updatedRows, error: updateError } = await client
+  const duplicateKeyError = error.message.includes("duplicate key value violates unique constraint");
+
+  if (!isMissingOnConflictConstraint(error.message) && !duplicateKeyError) {
+    throw new Error(error.message);
+  }
+
+  const { data: existingRow, error: existingRowError } = await client
     .from("stories_monthly_posts")
-    .update(payload)
+    .select("source_story_log_id")
     .eq("user_id", userId)
     .eq("source_story_log_id", story.id)
-    .select("source_story_log_id")
-    .limit(1);
+    .maybeSingle();
 
-  if (!updateError && (updatedRows?.length ?? 0) > 0) {
+  if (existingRowError) {
+    throw new Error(existingRowError.message);
+  }
+
+  if (existingRow) {
+    const { error: updateError } = await client
+      .from("stories_monthly_posts")
+      .update({
+        reference_month: payload.reference_month,
+        metric_date: payload.metric_date,
+        category: payload.category,
+        status: payload.status,
+        quantity: payload.quantity,
+        responsible_profile_id: payload.responsible_profile_id,
+        published_by_profile_id: payload.published_by_profile_id,
+        notes: payload.notes,
+        updated_at: payload.updated_at,
+      })
+      .eq("user_id", userId)
+      .eq("source_story_log_id", story.id);
+
+    if (updateError) {
+      throw new Error(updateError.message);
+    }
+
     return;
   }
 
@@ -705,10 +735,12 @@ export async function deleteStoryPost(id: number, userId: string) {
 }
 
 export function useSupabaseStoryLogsState() {
+  const { session, ready: authReady } = useAuthSession();
   const [value, setValue] = useState<StoryLog[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const lastPersistedValueRef = useRef<StoryLog[]>([]);
   const lastSavedSnapshotRef = useRef<string | null>(null);
+  const currentUserId = session?.user.id ?? null;
 
   const commitValue = useCallback((nextValue: StoryLog[]) => {
     setValue(nextValue);
@@ -719,16 +751,28 @@ export function useSupabaseStoryLogsState() {
   }, []);
 
   const reload = useCallback(async () => {
-    if (!isSupabaseConfigured() || !supabase) {
+    if (!authReady) {
+      return lastPersistedValueRef.current;
+    }
+
+    if (!isSupabaseConfigured() || !supabase || !session || isDemoSession(session) || !currentUserId) {
       return commitValue([]);
     }
 
-    const userId = await requireAuthenticatedSession();
-    const nextValue = userId ? await fetchStoryPosts(userId) : [];
+    const nextValue = await fetchStoryPosts(currentUserId);
     return commitValue(nextValue);
-  }, [commitValue]);
+  }, [authReady, commitValue, currentUserId, session]);
 
   useEffect(() => {
+    if (!authReady) {
+      return;
+    }
+
+    if (!isSupabaseConfigured() || !supabase || !session || isDemoSession(session) || !currentUserId) {
+      commitValue([]);
+      return;
+    }
+
     let cancelled = false;
 
     const load = async () => {
@@ -776,7 +820,7 @@ export function useSupabaseStoryLogsState() {
       cancelled = true;
       unsubscribe();
     };
-  }, [commitValue, reload]);
+  }, [authReady, commitValue, currentUserId, reload, session]);
 
   return [value, hydrated, { reload }] as const;
 }
