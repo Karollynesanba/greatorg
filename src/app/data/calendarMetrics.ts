@@ -45,6 +45,11 @@ function writeLocalMetricRecords(records: CalendarDayMetricRecord[]) {
   writeLocalJson(CALENDAR_DAY_METRICS_LOCAL_KEY, records);
 }
 
+function getRecordTimestamp(record: CalendarDayMetricRecord) {
+  const timestamp = Date.parse(record.updatedAt ?? record.createdAt ?? "");
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
 function normalizeDateKey(value: string) {
   return value.slice(0, 10);
 }
@@ -119,6 +124,23 @@ function applySeedCalendarDayMetrics(records: CalendarDayMetricRecord[]) {
   return sortRecords([...byDate.values()]);
 }
 
+function mergeMetricRecords(
+  baseRecords: CalendarDayMetricRecord[],
+  preferredRecords: CalendarDayMetricRecord[],
+) {
+  const byDate = new Map(baseRecords.map((record) => [record.date, { ...record }] as const));
+
+  preferredRecords.forEach((record) => {
+    const existing = byDate.get(record.date);
+
+    if (!existing || getRecordTimestamp(record) >= getRecordTimestamp(existing)) {
+      byDate.set(record.date, { ...record });
+    }
+  });
+
+  return sortRecords([...byDate.values()]);
+}
+
 function recordsToMaps(records: CalendarDayMetricRecord[]) {
   return records.reduce(
     (accumulator, record) => {
@@ -155,6 +177,7 @@ function mergeMetricMap(
     return {
       ...currentRecord,
       [metric]: normalizeMetricValue(nextMap[date] ?? currentRecord[metric]),
+      updatedAt: new Date().toISOString(),
     };
   });
 
@@ -211,9 +234,11 @@ export function useCalendarDayMetrics() {
       return;
     }
 
+    const localRecords = readLocalMetricRecords();
     const remoteRecords = applySeedCalendarDayMetrics((data ?? []).map((row) => toRecord(row as CalendarDayMetricRow)));
-    setRecords(remoteRecords);
-    lastSavedSnapshotRef.current = snapshotOf(remoteRecords);
+    const mergedRecords = mergeMetricRecords(remoteRecords, localRecords);
+    setRecords(mergedRecords);
+    lastSavedSnapshotRef.current = snapshotOf(mergedRecords);
     lastPersistedIdsRef.current = new Set(remoteRecords.map((record) => record.id));
     hydratedRef.current = true;
     setReady(true);
