@@ -2201,14 +2201,36 @@ export function CalendarPage() {
                       <span className="pb-2 text-sm font-medium text-muted-foreground">visualizações</span>
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={handleStartEditingDayViews}
-                    className="mt-4 inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/20 px-3 py-2 text-sm font-medium text-foreground transition hover:border-primary/25 hover:bg-primary/5"
-                  >
-                    <Pencil className="h-4 w-4 text-primary" />
-                    Editar valor
-                  </button>
+                  {isEditingDayViews ? (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={handleCommitDayViews}
+                        className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-2 text-sm font-medium text-primary transition hover:bg-primary/15"
+                      >
+                        <Pencil className="h-4 w-4" />
+                        Salvar valor
+                      </button>
+                      <button
+                        type="button"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={handleCancelDayViewsEdit}
+                        className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/20 px-3 py-2 text-sm font-medium text-foreground transition hover:border-primary/25 hover:bg-primary/5"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleStartEditingDayViews}
+                      className="mt-4 inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/20 px-3 py-2 text-sm font-medium text-foreground transition hover:border-primary/25 hover:bg-primary/5"
+                    >
+                      <Pencil className="h-4 w-4 text-primary" />
+                      Editar valor
+                    </button>
+                  )}
                 </div>
               </GlassPanel>
 
@@ -2261,14 +2283,36 @@ export function CalendarPage() {
                         <span className="pb-2 text-sm font-medium text-muted-foreground">alcance</span>
                       </button>
                     )}
-                    <button
-                      type="button"
-                      onClick={handleStartEditingDayReach}
-                      className="mt-4 inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/20 px-3 py-2 text-sm font-medium text-foreground transition hover:border-primary/25 hover:bg-primary/5"
-                    >
-                      <Pencil className="h-4 w-4 text-primary" />
-                      Editar valor
-                    </button>
+                    {isEditingDayReach ? (
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={handleCommitDayReach}
+                          className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-2 text-sm font-medium text-primary transition hover:bg-primary/15"
+                        >
+                          <Pencil className="h-4 w-4" />
+                          Salvar valor
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={handleCancelDayReachEdit}
+                          className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/20 px-3 py-2 text-sm font-medium text-foreground transition hover:border-primary/25 hover:bg-primary/5"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleStartEditingDayReach}
+                        className="mt-4 inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/20 px-3 py-2 text-sm font-medium text-foreground transition hover:border-primary/25 hover:bg-primary/5"
+                      >
+                        <Pencil className="h-4 w-4 text-primary" />
+                        Editar valor
+                      </button>
+                    )}
                   </div>
 
                   <div className="rounded-[1.6rem] border border-border/60 bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
