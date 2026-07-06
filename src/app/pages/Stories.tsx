@@ -287,8 +287,8 @@ export function StoriesPage() {
   }, [currentMonthAnchor, normalizedItems, periodMode, teamScope]);
 
   const stats = useMemo(() => {
-    const video = monthlyCurrentVideo;
-    const photo = monthlyCurrentPhoto;
+    const video = computedCurrentVideo;
+    const photo = computedCurrentPhoto;
     const total = video + photo;
 
     return {
@@ -297,7 +297,7 @@ export function StoriesPage() {
       photo,
       remainingTotal: Math.max(effectiveMonthlyGoals.total - total, 0),
     };
-  }, [effectiveMonthlyGoals.total, monthlyCurrentPhoto, monthlyCurrentVideo]);
+  }, [computedCurrentPhoto, computedCurrentVideo, effectiveMonthlyGoals.total]);
 
   useEffect(() => {
     if (!session?.user.id) {
@@ -344,8 +344,8 @@ export function StoriesPage() {
 
         const nextVideoGoal = dashboard.goals.video.goalValue || defaultMonthlyGoalVideo;
         const nextPhotoGoal = dashboard.goals.photo.goalValue || defaultMonthlyGoalPhoto;
-        const nextVideoCurrent = Math.max(dashboard.goals.video.currentValue || 0, computedCurrentVideo);
-        const nextPhotoCurrent = Math.max(dashboard.goals.photo.currentValue || 0, computedCurrentPhoto);
+        const nextVideoCurrent = computedCurrentVideo;
+        const nextPhotoCurrent = computedCurrentPhoto;
 
         setMonthlyCurrentVideo(nextVideoCurrent);
         setMonthlyCurrentPhoto(nextPhotoCurrent);
@@ -681,26 +681,10 @@ export function StoriesPage() {
       notes: form.notes.trim(),
     };
 
-    const existingSameDayMedia = editingStoryId === null
-      ? items.find((item) => item.date === nextItem.date && item.mediaType === nextItem.mediaType)
-      : null;
-
     try {
       if (editingStoryId !== null) {
         await updateStoryPost(editingStoryId, {
           ...nextItem,
-          userId: session.user.id,
-          actorName: madeBy.name,
-        });
-      } else if (existingSameDayMedia) {
-        await updateStoryPost(existingSameDayMedia.id, {
-          ...existingSameDayMedia,
-          time: nextItem.time,
-          quantity: existingSameDayMedia.quantity + nextItem.quantity,
-          status: nextItem.status,
-          madeById: nextItem.madeById,
-          postedById: nextItem.postedById,
-          notes: nextItem.notes || existingSameDayMedia.notes,
           userId: session.user.id,
           actorName: madeBy.name,
         });
@@ -717,9 +701,7 @@ export function StoriesPage() {
       toast.success(
         editingStoryId !== null
           ? "Story atualizado."
-          : existingSameDayMedia
-            ? "Stories somados ao registro existente."
-            : "Stories registrados.",
+          : "Stories registrados.",
       );
       closeModal();
     } catch (error) {
@@ -933,6 +915,41 @@ export function StoriesPage() {
                   </p>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={handleStartEditingMonthlyGoalTotal}
+                className="mt-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-white/90 text-muted-foreground transition hover:border-primary/25 hover:bg-primary/5 hover:text-primary"
+                aria-label="Editar meta total"
+              >
+                <PencilLine className="h-4 w-4" />
+              </button>
+              {isEditingMonthlyGoalTotal ? (
+                <div className="mt-4 grid gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
+                  <label className="grid gap-1">
+                    <span className="text-sm font-semibold text-primary">Meta</span>
+                    <input
+                      autoFocus
+                      value={monthlyGoalTotalDraft}
+                      onChange={(event) => setMonthlyGoalTotalDraft(event.target.value)}
+                      onBlur={handleCommitMonthlyGoalTotal}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          handleCommitMonthlyGoalTotal();
+                        }
+
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          handleCancelMonthlyGoalTotalEdit();
+                        }
+                      }}
+                      inputMode="numeric"
+                      className="w-full rounded-2xl border border-primary/15 bg-white/90 px-3 py-2 text-lg font-semibold tracking-tight text-foreground outline-none placeholder:text-muted-foreground"
+                      placeholder={String(defaultMonthlyGoalTotal)}
+                    />
+                  </label>
+                </div>
+              ) : null}
               <p className="mt-4 text-sm text-muted-foreground">Calculado automaticamente por vídeo + foto.</p>
               <ProgressBar value={stats.total} max={effectiveMonthlyGoals.total} />
             </GlassPanel>
