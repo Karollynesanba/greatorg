@@ -57,7 +57,7 @@ function toRecord(row: CalendarDayMetricRow): CalendarDayMetricRecord {
 
 function toRow(record: CalendarDayMetricRecord, userId: string) {
   return {
-    id: record.id,
+    ...(record.id > 0 ? { id: record.id } : {}),
     user_id: userId,
     metric_date: normalizeDateKey(record.date),
     views: normalizeMetricValue(record.views),
@@ -70,16 +70,28 @@ function sortRecords(records: CalendarDayMetricRecord[]) {
   return [...records].sort((left, right) => left.date.localeCompare(right.date));
 }
 
+function getNextLocalMetricId(records: CalendarDayMetricRecord[]) {
+  const smallestLocalId = records.reduce((smallest, record) => {
+    if (record.id <= 0) {
+      return Math.min(smallest, record.id);
+    }
+
+    return smallest;
+  }, 0);
+
+  return smallestLocalId - 1;
+}
+
 function applySeedCalendarDayMetrics(records: CalendarDayMetricRecord[]) {
   const byDate = new Map(records.map((record) => [record.date, { ...record }] as const));
-  let nextId = Math.max(...records.map((record) => record.id), 0) + 1;
+  let nextLocalId = getNextLocalMetricId(records);
 
   Object.entries(seededCalendarDayMetrics).forEach(([date, metric]) => {
     const existing = byDate.get(date);
 
     if (!existing) {
       byDate.set(date, {
-        id: nextId++,
+        id: nextLocalId--,
         date,
         views: normalizeMetricValue(metric.views),
         reach: normalizeMetricValue(metric.reach),
@@ -119,12 +131,12 @@ function mergeMetricMap(
   const byDate = new Map(records.map((record) => [record.date, { ...record }] as const));
   const nextDates = new Set(Object.keys(nextMap));
   const dates = new Set([...byDate.keys(), ...nextDates]);
-  let nextId = Math.max(...records.map((record) => record.id), 0) + 1;
+  let nextLocalId = getNextLocalMetricId(records);
 
   const nextRecords = [...dates].map((date) => {
     const existing = byDate.get(date);
     const currentRecord = existing ?? {
-      id: nextId++,
+      id: nextLocalId--,
       date,
       views: 0,
       reach: 0,
