@@ -310,10 +310,10 @@ export function useCalendarDayMetrics() {
 
     const nextRecords = sortRecords(records);
     const nextIds = new Set(nextRecords.map((record) => record.id));
+    writeLocalMetricRecords(nextRecords);
+    lastSavedSnapshotRef.current = snapshotOf(nextRecords);
 
     if (!isSupabaseConfigured() || !supabaseClient || !session) {
-      writeLocalMetricRecords(nextRecords);
-      lastSavedSnapshotRef.current = snapshotOf(nextRecords);
       lastPersistedIdsRef.current = nextIds;
       return;
     }
@@ -348,8 +348,6 @@ export function useCalendarDayMetrics() {
       }
 
       if (!cancelled) {
-        writeLocalMetricRecords(nextRecords);
-        lastSavedSnapshotRef.current = snapshotOf(nextRecords);
         lastPersistedIdsRef.current = nextIds;
       }
     };
