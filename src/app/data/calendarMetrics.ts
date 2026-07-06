@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuthSession } from "../auth";
+import { readLocalJson, subscribeLocalKey, writeLocalJson } from "./localStore";
 import { isSupabaseConfigured, supabase } from "./supabase";
 import { subscribeSharedChannel } from "./supabaseRealtime";
 
 export const defaultMonthlyViewsGoal = 800000;
+const CALENDAR_DAY_METRICS_LOCAL_KEY = "great-organico:calendar-day-metrics";
 const seededCalendarDayMetrics: Record<string, { views?: number; reach?: number }> = {
   "2026-07-01": { views: 33921 },
   "2026-07-02": { views: 39389 },
@@ -33,6 +35,14 @@ export type CalendarDayMetricRecord = {
 
 function snapshotOf(value: CalendarDayMetricRecord[]) {
   return JSON.stringify(value);
+}
+
+function readLocalMetricRecords() {
+  return readLocalJson<CalendarDayMetricRecord[]>(CALENDAR_DAY_METRICS_LOCAL_KEY, []);
+}
+
+function writeLocalMetricRecords(records: CalendarDayMetricRecord[]) {
+  writeLocalJson(CALENDAR_DAY_METRICS_LOCAL_KEY, records);
 }
 
 function normalizeDateKey(value: string) {
@@ -176,7 +186,7 @@ export function useCalendarDayMetrics() {
     }
 
     if (!isSupabaseConfigured() || !supabaseClient || !session) {
-      const seededRecords = applySeedCalendarDayMetrics([]);
+      const seededRecords = applySeedCalendarDayMetrics(readLocalMetricRecords());
       setRecords(seededRecords);
       lastSavedSnapshotRef.current = snapshotOf(seededRecords);
       lastPersistedIdsRef.current = new Set(seededRecords.map((record) => record.id));
@@ -192,7 +202,7 @@ export function useCalendarDayMetrics() {
 
     if (error) {
       console.warn("Supabase calendar_day_metrics load failed:", error.message);
-      const seededRecords = applySeedCalendarDayMetrics([]);
+      const seededRecords = applySeedCalendarDayMetrics(readLocalMetricRecords());
       setRecords(seededRecords);
       lastSavedSnapshotRef.current = snapshotOf(seededRecords);
       lastPersistedIdsRef.current = new Set(seededRecords.map((record) => record.id));
@@ -244,6 +254,25 @@ export function useCalendarDayMetrics() {
   }, [session, supabaseClient, syncFromRemote]);
 
   useEffect(() => {
+    if (isSupabaseConfigured() && supabaseClient && session) {
+      return;
+    }
+
+    const unsubscribe = subscribeLocalKey(CALENDAR_DAY_METRICS_LOCAL_KEY, () => {
+      const localRecords = applySeedCalendarDayMetrics(readLocalMetricRecords());
+      setRecords(localRecords);
+      lastSavedSnapshotRef.current = snapshotOf(localRecords);
+      lastPersistedIdsRef.current = new Set(localRecords.map((record) => record.id));
+      hydratedRef.current = true;
+      setReady(true);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [session, supabaseClient]);
+
+  useEffect(() => {
     if (!hydratedRef.current) {
       return;
     }
@@ -257,6 +286,7 @@ export function useCalendarDayMetrics() {
     const nextIds = new Set(nextRecords.map((record) => record.id));
 
     if (!isSupabaseConfigured() || !supabaseClient || !session) {
+      writeLocalMetricRecords(nextRecords);
       lastSavedSnapshotRef.current = snapshotOf(nextRecords);
       lastPersistedIdsRef.current = nextIds;
       return;
@@ -292,6 +322,7 @@ export function useCalendarDayMetrics() {
       }
 
       if (!cancelled) {
+        writeLocalMetricRecords(nextRecords);
         lastSavedSnapshotRef.current = snapshotOf(nextRecords);
         lastPersistedIdsRef.current = nextIds;
       }
