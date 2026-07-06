@@ -83,11 +83,7 @@ type ProgressSummary = {
 };
 
 type MonthlyMetricsDraft = {
-  views: string;
-  reach: string;
-  socialSellingViews: string;
   socialSellingCount: string;
-  testimonialsCount: string;
 };
 
 const storyGoalTarget = 168;
@@ -313,6 +309,10 @@ function computeCalendarProgress(events: CalendarEvent[], memberId?: number) {
   };
 }
 
+function formatMetricFraction(current: number, total: number) {
+  return `${formatLongNumber(current)}/${formatLongNumber(total)}`;
+}
+
 function isStoryMember(memberId: number) {
   return memberId === 1;
 }
@@ -384,8 +384,8 @@ function MonthlyMetricsModal({
         <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 sm:px-8">
           <div>
             <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Métricas do mês</p>
-            <h3 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Social selling e totais compartilhados</h3>
-            <p className="mt-1 text-sm leading-6 text-slate-500">Os valores salvos aqui ficam disponíveis para toda a equipe nas telas que usam os totais do mês.</p>
+            <h3 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Quantidade de social selling</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-500">Ajuste a quantidade e salve para manter esse total compartilhado para toda a equipe.</p>
           </div>
           <button
             type="button"
@@ -396,48 +396,12 @@ function MonthlyMetricsModal({
           </button>
         </div>
 
-        <div className="grid gap-4 px-6 py-6 sm:grid-cols-2 sm:px-8">
-          <label className="grid gap-2">
-            <span className="text-sm font-medium text-slate-800">Visualizações do mês</span>
-            <input
-              value={draft.views}
-              onChange={(event) => onChange({ ...draft, views: event.target.value })}
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
-              inputMode="numeric"
-            />
-          </label>
-          <label className="grid gap-2">
-            <span className="text-sm font-medium text-slate-800">Alcance do mês</span>
-            <input
-              value={draft.reach}
-              onChange={(event) => onChange({ ...draft, reach: event.target.value })}
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
-              inputMode="numeric"
-            />
-          </label>
-          <label className="grid gap-2">
-            <span className="text-sm font-medium text-slate-800">Visualizações de social selling</span>
-            <input
-              value={draft.socialSellingViews}
-              onChange={(event) => onChange({ ...draft, socialSellingViews: event.target.value })}
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
-              inputMode="numeric"
-            />
-          </label>
+        <div className="px-6 py-6 sm:px-8">
           <label className="grid gap-2">
             <span className="text-sm font-medium text-slate-800">Quantidade de social selling</span>
             <input
               value={draft.socialSellingCount}
               onChange={(event) => onChange({ ...draft, socialSellingCount: event.target.value })}
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
-              inputMode="numeric"
-            />
-          </label>
-          <label className="grid gap-2 sm:col-span-2">
-            <span className="text-sm font-medium text-slate-800">Quantidade de depoimentos</span>
-            <input
-              value={draft.testimonialsCount}
-              onChange={(event) => onChange({ ...draft, testimonialsCount: event.target.value })}
               className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
               inputMode="numeric"
             />
@@ -754,11 +718,7 @@ export function ContentPage() {
   const [editingPostId, setEditingPostId] = useState<number | null>(null);
   const [draft, setDraft] = useState<ContentDraft>(() => emptyDraft(teamMembers[0]?.id ?? 1));
   const [monthlyMetricsDraft, setMonthlyMetricsDraft] = useState<MonthlyMetricsDraft>({
-    views: "",
-    reach: "",
-    socialSellingViews: "",
     socialSellingCount: "",
-    testimonialsCount: "",
   });
   const [postToDelete, setPostToDelete] = useState<Post | null>(null);
   const currentMonthKey = getCurrentMonthKey();
@@ -817,9 +777,6 @@ export function ContentPage() {
 
   const totalReach = visiblePosts.reduce((sum, post) => sum + post.reach, 0);
   const socialSellingPosts = useMemo(() => visiblePosts.filter((post) => isSocialSellingPost(post)), [visiblePosts]);
-  const socialSellingReach = useSharedMonthlyTotals
-    ? monthlyPerformance.socialSellingViews
-    : socialSellingPosts.reduce((sum, post) => sum + post.reach, 0);
   const socialSellingCount = useSharedMonthlyTotals ? monthlyPerformance.socialSellingCount : socialSellingPosts.length;
   const testimonialCountFromCalendar = useMemo(
     () => visibleCalendarItems.filter((event) => event.visualization === "Depoimento").length,
@@ -828,6 +785,7 @@ export function ContentPage() {
   const testimonialCount = useSharedMonthlyTotals ? monthlyPerformance.testimonialsCount : testimonialCountFromCalendar;
   const displayedMonthViews = useSharedMonthlyTotals ? monthlyPerformance.views : totalReach;
   const completedCalendarUnits = visibleCalendarItems.reduce((sum, event) => sum + getCalendarCompletedUnits(event), 0);
+  const totalCalendarUnits = visibleCalendarItems.reduce((sum, event) => sum + getCalendarEventUnitCount(event), 0);
   const overallGoalProgress = computeGoalProgress(visibleGoals);
   const overallStoryProgress = computeStoryProgress(visibleStories);
   const previewPost = topPosts.find((post) => post.id === hoveredPostId) ?? topPosts[0] ?? visiblePosts[0] ?? null;
@@ -935,11 +893,7 @@ export function ContentPage() {
 
   const openMonthlyMetricsEditor = () => {
     setMonthlyMetricsDraft({
-      views: String(monthlyPerformance.views),
-      reach: String(monthlyPerformance.reach),
-      socialSellingViews: String(monthlyPerformance.socialSellingViews),
       socialSellingCount: String(monthlyPerformance.socialSellingCount),
-      testimonialsCount: String(monthlyPerformance.testimonialsCount ?? 0),
     });
     setMonthlyMetricsOpen(true);
   };
@@ -1013,12 +967,9 @@ export function ContentPage() {
     };
 
     setMonthlyPerformance({
+      ...monthlyPerformance,
       monthKey: currentMonthKey,
-      views: toNumber(monthlyMetricsDraft.views),
-      reach: toNumber(monthlyMetricsDraft.reach),
-      socialSellingViews: toNumber(monthlyMetricsDraft.socialSellingViews),
       socialSellingCount: toNumber(monthlyMetricsDraft.socialSellingCount),
-      testimonialsCount: toNumber(monthlyMetricsDraft.testimonialsCount),
       updatedAt: new Date().toISOString(),
     });
     setMonthlyMetricsOpen(false);
@@ -1029,7 +980,7 @@ export function ContentPage() {
     {
       id: "completed-activities",
       label: "Atividades concluídas",
-      value: formatLongNumber(completedCalendarUnits),
+      value: formatMetricFraction(completedCalendarUnits, totalCalendarUnits),
       detail: "Posts do calendário finalizados pela equipe neste mês.",
       icon: Sparkles,
       delta: 0,
@@ -1039,7 +990,7 @@ export function ContentPage() {
     {
       id: "testimonials",
       label: "Depoimentos",
-      value: formatLongNumber(testimonialCount),
+      value: formatMetricFraction(testimonialCount, testimonialCount),
       detail:
         useSharedMonthlyTotals
           ? `${formatLongNumber(testimonialCount)} depoimentos salvos no total compartilhado do mês.`
@@ -1054,7 +1005,7 @@ export function ContentPage() {
     {
       id: "published",
       label: "Conteúdos publicados",
-      value: String(visiblePosts.length),
+      value: formatMetricFraction(visiblePosts.length, visiblePosts.length),
       detail: "Quantidade total de conteúdos visíveis.",
       icon: FileText,
       delta: 0,
@@ -1076,7 +1027,7 @@ export function ContentPage() {
           {
             id: "social-selling",
             label: "Social Selling",
-            value: formatLongNumber(socialSellingReach),
+            value: formatMetricFraction(socialSellingCount, socialSellingCount),
             detail:
               socialSellingCount > 0
                 ? `${formatLongNumber(socialSellingCount)} conteúdos de social selling neste mês.`
