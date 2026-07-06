@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isDemoSession, useAuthSession } from "../auth";
+import { readLocalJson, writeLocalJson } from "./localStore";
 import { isSupabaseConfigured, supabase } from "./supabase";
 import { subscribeSharedChannel } from "./supabaseRealtime";
 
@@ -432,6 +433,14 @@ async function persistSharedStateValue<T>(key: string, value: T, currentUserId: 
   return { mode: currentUserId ? "user-scoped-insert" as const : "global-insert" as const };
 }
 
+function getSharedStateCacheKey(key: string, scope: SharedStateScope, currentUserId: string | null) {
+  if (scope === "global") {
+    return `great-organico:shared-state:global:${key}`;
+  }
+
+  return `great-organico:shared-state:${currentUserId ?? "anonymous"}:${key}`;
+}
+
 export function useSupabaseSharedState<T>(options: {
   key: string;
   fallback: T;
@@ -445,6 +454,13 @@ export function useSupabaseSharedState<T>(options: {
   const supabaseClient = supabase;
   const currentUserId = session?.user.id ?? null;
   const scope = options.scope ?? "auto";
+  const localCacheKey = getSharedStateCacheKey(options.key, scope, currentUserId);
+
+  useEffect(() => {
+    const cachedValue = readLocalJson(localCacheKey, options.fallback);
+    lastRemoteSnapshotRef.current = JSON.stringify(cachedValue);
+    setValue(cachedValue);
+  }, [localCacheKey, options.fallback]);
 
   useEffect(() => {
     if (!authReady) {
@@ -452,6 +468,9 @@ export function useSupabaseSharedState<T>(options: {
     }
 
     if (!isSupabaseConfigured() || !supabaseClient || !session || isDemoSession(session)) {
+      const cachedValue = readLocalJson(localCacheKey, options.fallback);
+      lastRemoteSnapshotRef.current = JSON.stringify(cachedValue);
+      setValue(cachedValue);
       hydratedRef.current = true;
       setHydrated(true);
       return;
@@ -472,6 +491,9 @@ export function useSupabaseSharedState<T>(options: {
           userId: currentUserId,
           error: error.message,
         });
+        const cachedValue = readLocalJson(localCacheKey, options.fallback);
+        lastRemoteSnapshotRef.current = JSON.stringify(cachedValue);
+        setValue(cachedValue);
         hydratedRef.current = true;
         setHydrated(true);
         return;
@@ -485,6 +507,7 @@ export function useSupabaseSharedState<T>(options: {
           userId: currentUserId,
         });
         lastRemoteSnapshotRef.current = JSON.stringify(remoteValue);
+        writeLocalJson(localCacheKey, remoteValue);
         setValue(remoteValue);
         hydratedRef.current = true;
         setHydrated(true);
@@ -513,6 +536,7 @@ export function useSupabaseSharedState<T>(options: {
       }
 
       lastRemoteSnapshotRef.current = JSON.stringify(options.fallback);
+      writeLocalJson(localCacheKey, options.fallback);
       setValue(options.fallback);
       hydratedRef.current = true;
       setHydrated(true);
@@ -523,7 +547,7 @@ export function useSupabaseSharedState<T>(options: {
     return () => {
       cancelled = true;
     };
-  }, [authReady, currentUserId, options.fallback, options.key, scope, session, supabaseClient]);
+  }, [authReady, currentUserId, localCacheKey, options.fallback, options.key, scope, session, supabaseClient]);
 
   useEffect(() => {
     if (
@@ -557,6 +581,7 @@ export function useSupabaseSharedState<T>(options: {
           userId: currentUserId,
         });
         lastRemoteSnapshotRef.current = snapshot;
+        writeLocalJson(localCacheKey, value);
       } catch (error) {
         if (cancelled) {
           return;
@@ -576,11 +601,13 @@ export function useSupabaseSharedState<T>(options: {
         if (typeof row?.value !== "undefined") {
           const remoteSnapshot = JSON.stringify(row.value);
           lastRemoteSnapshotRef.current = remoteSnapshot;
+          writeLocalJson(localCacheKey, row.value);
           setValue(row.value);
           return;
         }
 
         lastRemoteSnapshotRef.current = JSON.stringify(options.fallback);
+        writeLocalJson(localCacheKey, options.fallback);
         setValue(options.fallback);
       }
     };
@@ -590,7 +617,7 @@ export function useSupabaseSharedState<T>(options: {
     return () => {
       cancelled = true;
     };
-  }, [authReady, currentUserId, options.fallback, options.key, scope, session, supabaseClient, value]);
+  }, [authReady, currentUserId, localCacheKey, options.fallback, options.key, scope, session, supabaseClient, value]);
 
   useEffect(() => {
     if (!isSupabaseConfigured() || !supabaseClient || !session || isDemoSession(session)) {
@@ -630,6 +657,7 @@ export function useSupabaseSharedState<T>(options: {
           userId: currentUserId,
         });
         lastRemoteSnapshotRef.current = snapshot;
+        writeLocalJson(localCacheKey, nextValue);
         setValue(nextValue);
       }).catch((error) => {
         if (cancelled) {
@@ -664,7 +692,7 @@ export function useSupabaseSharedState<T>(options: {
       window.removeEventListener("pageshow", handleWindowFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [currentUserId, options.key, scope, session, supabaseClient]);
+  }, [currentUserId, localCacheKey, options.key, scope, session, supabaseClient]);
 
   return [value, setValue, hydrated] as const;
 }

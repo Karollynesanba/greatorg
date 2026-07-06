@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useSupabaseSharedState } from "./supabaseSync";
 import { getBrazilMonthKey } from "./brazilDate";
 
@@ -37,9 +37,10 @@ export function buildDefaultMonthlyPerformanceSnapshot(monthKey = getCurrentMont
 
 function useMonthlyPerformanceSnapshotState() {
   const currentMonthKey = getCurrentMonthKey();
+  const fallbackSnapshot = useMemo(() => buildDefaultMonthlyPerformanceSnapshot(currentMonthKey), [currentMonthKey]);
   const snapshotState = useSupabaseSharedState<MonthlyPerformanceSnapshot>({
     key: "monthly-performance-snapshot",
-    fallback: buildDefaultMonthlyPerformanceSnapshot(currentMonthKey),
+    fallback: fallbackSnapshot,
     scope: "global",
   });
   const [snapshot, setSnapshot, hydrated] = snapshotState;
@@ -71,9 +72,10 @@ function useMonthlyPerformanceSnapshotState() {
 export function useMonthlyPerformanceState(): MonthlyPerformanceState {
   const currentMonthKey = getCurrentMonthKey();
   const snapshotState = useMonthlyPerformanceSnapshotState();
+  const historyFallback = useMemo(() => ({}), []);
   const historyState = useSupabaseSharedState<MonthlyPerformanceHistory>({
     key: "monthly-performance-history",
-    fallback: {},
+    fallback: historyFallback,
     scope: "global",
   });
   const [, setHistory, historyHydrated] = historyState;
