@@ -347,13 +347,16 @@ export function useAuthSession() {
       });
     }
 
-    const cypressSession = readStoredSession();
-    if (cypressSession && isDemoSession(cypressSession) && isCypressRuntime()) {
-      console.info("[Init] Using Cypress-seeded demo session", {
-        userId: cypressSession.user.id,
-        email: cypressSession.user.email,
-      });
-      setState({ session: cypressSession, ready: true });
+    const localDemoSession = readStoredSession();
+    if (localDemoSession && isDemoSession(localDemoSession)) {
+      console.info(
+        isCypressRuntime() ? "[Init] Using Cypress-seeded demo session" : "[Init] Using local demo session fallback",
+        {
+          userId: localDemoSession.user.id,
+          email: localDemoSession.user.email,
+        },
+      );
+      setState({ session: localDemoSession, ready: true });
 
       return subscribeLocalKey(SESSION_KEY, () => {
         const nextSession = readStoredSession();
