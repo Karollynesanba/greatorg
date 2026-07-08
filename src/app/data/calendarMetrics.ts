@@ -7,11 +7,13 @@ import { subscribeSharedChannel } from "./supabaseRealtime";
 export const defaultMonthlyViewsGoal = 800000;
 const CALENDAR_DAY_METRICS_LOCAL_KEY = "great-organico:calendar-day-metrics";
 const seededCalendarDayMetrics: Record<string, { views?: number; reach?: number }> = {
-  "2026-07-01": { views: 33921 },
-  "2026-07-02": { views: 39389 },
-  "2026-07-03": { views: 51724 },
-  "2026-07-04": { views: 63115 },
-  "2026-07-05": { views: 45291 },
+  "2026-07-01": { views: 33921, reach: 25156 },
+  "2026-07-02": { views: 39389, reach: 29210 },
+  "2026-07-03": { views: 51724, reach: 38356 },
+  "2026-07-04": { views: 63115, reach: 46819 },
+  "2026-07-05": { views: 45291, reach: 33546 },
+  "2026-07-06": { views: 60228, reach: 44658 },
+  "2026-07-07": { views: 114588, reach: 84755 },
 };
 
 type CalendarDayMetricRow = {
