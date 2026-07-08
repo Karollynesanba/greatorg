@@ -282,7 +282,7 @@ function buildAuthErrorMessage(message: string, email?: string) {
 }
 
 function shouldFallbackToLocalDemoAuth(message: string) {
-  return /exceed_egress_quota|service .*restricted|spend caps|restore service|network|fetch|failed to fetch|load failed/i.test(
+  return /exceed_egress_quota|service .*restricted|spend caps|restore service|temporariamente restrito por cota|liberar o acesso local|network|fetch|failed to fetch|load failed|nao foi possivel conectar ao supabase novo/i.test(
     message.trim(),
   );
 }
