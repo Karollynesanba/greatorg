@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { CalendarDays, ChartColumnBig, Eye, EyeOff, LockKeyhole, Mail, PieChart, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "../components/ui";
 import { signInWithPassword } from "../auth";
+
+const quickAccessPassword = "Great2026!";
 
 const quickAccessMembers = [
   { id: 1, name: "Brenda", role: "Video Maker", email: "brendarayssa2706@gmail.com", color: "#833AB4" },
@@ -47,7 +49,6 @@ function GreatOrganicoMark({ className }: { className?: string }) {
 
 export function LoginPage({ onLogin }: { onLogin?: () => void }) {
   const navigate = useNavigate();
-  const passwordInputRef = useRef<HTMLInputElement | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -90,10 +91,21 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
   const handleQuickAccessLogin = async (memberEmail: string) => {
     setActiveProfileEmail(memberEmail);
     setEmail(memberEmail);
+    setPassword(quickAccessPassword);
     setErrorMessage(null);
-    window.requestAnimationFrame(() => {
-      passwordInputRef.current?.focus();
-    });
+    setLoading(true);
+
+    try {
+      await signInWithPassword(memberEmail, quickAccessPassword);
+      onLogin?.();
+      navigate("/dashboard", { replace: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Nao foi possivel iniciar a sessao.";
+      setErrorMessage(message);
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -184,7 +196,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                           <span className="block text-xs text-[#7a7f87]">{member.role}</span>
                         </span>
                         <span className="text-xs font-medium text-[#e50914]">
-                          {activeProfileEmail === member.email ? "Perfil selecionado" : "Selecionar perfil"}
+                          {loading && activeProfileEmail === member.email ? "Entrando..." : "Entrar com 1 clique"}
                         </span>
                       </button>
                     ))}
@@ -215,7 +227,6 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                       <div className="flex items-center gap-3 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-4 shadow-[0_2px_8px_rgba(15,23,42,0.03)]">
                         <LockKeyhole className="h-4 w-4 text-[#9ca3af]" />
                         <input
-                          ref={passwordInputRef}
                           value={password}
                           onChange={(event) => {
                             setPassword(event.target.value);
@@ -253,7 +264,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
                       <div>
                         <p className="text-sm font-semibold text-[#141414]">Acesso simplificado</p>
                         <p className="mt-1 text-sm leading-6 text-[#7a7f87]">
-                          Os perfis acima apenas preenchem o email da conta. A senha continua obrigatoria para entrar.
+                          Os perfis acima entram automaticamente com a senha padrao Great2026!. Voce ainda pode usar o formulario para acessar manualmente.
                         </p>
                       </div>
                     </div>
