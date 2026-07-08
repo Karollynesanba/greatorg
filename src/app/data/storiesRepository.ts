@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isDemoSession, useAuthSession } from "../auth";
+import { storyLogs } from "./mockData";
 import type { CalendarEvent, StoryLog } from "./mockData";
 import { buildStoryHistoryEvent, getStoryHistoryId } from "./historyEvents";
-import { readLocalJson, subscribeLocalKey, writeLocalJson } from "./localStore";
+import { readLocalJson, readLocalText, subscribeLocalKey, writeLocalJson } from "./localStore";
 import { getSupabaseDiagnostics, isSupabaseConfigured, supabase } from "./supabase";
 import { subscribeSharedChannel } from "./supabaseRealtime";
 
@@ -127,8 +128,18 @@ function getStoriesDashboardCacheKey(userId: string) {
   return `great-organico:stories-dashboard:${userId}`;
 }
 
+function getSeedStoryPosts() {
+  return [...storyLogs].sort((a, b) => `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`));
+}
+
 function readLocalStoryPosts() {
-  return readLocalJson<StoryLog[]>(STORY_LOGS_LOCAL_CACHE_KEY, []);
+  const rawValue = readLocalText(STORY_LOGS_LOCAL_CACHE_KEY);
+  if (rawValue === null) {
+    return getSeedStoryPosts();
+  }
+
+  const storedStories = readLocalJson<StoryLog[]>(STORY_LOGS_LOCAL_CACHE_KEY, []);
+  return storedStories.length > 0 ? storedStories : getSeedStoryPosts();
 }
 
 function writeLocalStoryPosts(stories: StoryLog[]) {
