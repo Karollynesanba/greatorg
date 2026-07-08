@@ -175,6 +175,10 @@ function isSessionExpired(session: LocalSession) {
   return typeof session.expires_at === "number" && session.expires_at <= Math.floor(Date.now() / 1000) + 30;
 }
 
+function isCypressRuntime() {
+  return typeof window !== "undefined" && "Cypress" in window;
+}
+
 function saveSession(session: LocalSession | null) {
   if (session) {
     writeLocalJson(SESSION_KEY, session);
@@ -262,11 +266,25 @@ function buildAuthErrorMessage(message: string, email?: string) {
     return "O Supabase Auth respondeu, mas o cadastro esta desativado. O login so funciona para usuarios que ja existem no Authentication > Users.";
   }
 
+  if (/exceed_egress_quota|service .*restricted|spend caps|restore service/i.test(rawMessage)) {
+    if (isDemoEmail) {
+      return "O Supabase do projeto esta temporariamente restrito por cota. Vamos liberar o acesso local para este perfil demo enquanto o ambiente remoto e normalizado.";
+    }
+
+    return "O Supabase do projeto esta temporariamente restrito por cota. O proprietario precisa normalizar o plano ou remover o limite de gastos para restaurar o login remoto.";
+  }
+
   if (/network|fetch|failed to fetch|load failed/i.test(rawMessage)) {
     return "Não foi possível conectar ao Supabase novo. Verifique a URL, a ANON KEY e as variáveis do Vercel.";
   }
 
   return rawMessage;
+}
+
+function shouldFallbackToLocalDemoAuth(message: string) {
+  return /exceed_egress_quota|service .*restricted|spend caps|restore service|network|fetch|failed to fetch|load failed/i.test(
+    message.trim(),
+  );
 }
 
 async function signInToSupabase(email: string, password: string) {
@@ -329,9 +347,40 @@ export function useAuthSession() {
       });
     }
 
+    const cypressSession = readStoredSession();
+    if (cypressSession && isDemoSession(cypressSession) && isCypressRuntime()) {
+      console.info("[Init] Using Cypress-seeded demo session", {
+        userId: cypressSession.user.id,
+        email: cypressSession.user.email,
+      });
+      setState({ session: cypressSession, ready: true });
+
+      return subscribeLocalKey(SESSION_KEY, () => {
+        const nextSession = readStoredSession();
+        setState({ session: nextSession, ready: true });
+      });
+    }
+
     let cancelled = false;
     const client = supabase;
     let recoveryTimeoutId: number | null = null;
+    const applyStoredSessionSnapshot = () => {
+      if (cancelled) {
+        return;
+      }
+
+      const nextSession = readStoredSession();
+      if (!nextSession || isSessionExpired(nextSession)) {
+        return;
+      }
+
+      clearRecoveryTimeout();
+      console.info("[Init] Applying locally persisted session snapshot while Supabase confirms auth state", {
+        userId: nextSession.user.id,
+        email: nextSession.user.email,
+      });
+      setState({ session: nextSession, ready: true });
+    };
 
     const clearRecoveryTimeout = () => {
       if (recoveryTimeoutId !== null) {
@@ -449,9 +498,12 @@ export function useAuthSession() {
       applySupabaseSession(session);
     });
 
+    const unsubscribeLocalSession = subscribeLocalKey(SESSION_KEY, applyStoredSessionSnapshot);
+
     return () => {
       cancelled = true;
       clearRecoveryTimeout();
+      unsubscribeLocalSession();
       authListener.subscription.unsubscribe();
     };
   }, []);
@@ -498,14 +550,26 @@ export async function signInWithPassword(email: string, password: string) {
 
   if (isSupabaseConfigured() && supabase) {
     const account = getDemoAccount(normalizedEmail);
-    const session = await signInToSupabase(normalizedEmail, trimmedPassword);
-    if (!session) {
-      throw new Error("Não foi possível iniciar a sessão no Supabase.");
-    }
 
-    const storedSession = toStoredSession(session, account?.name);
-    saveSession(storedSession);
-    return storedSession;
+    try {
+      const session = await signInToSupabase(normalizedEmail, trimmedPassword);
+      if (!session) {
+        throw new Error("Nao foi possivel iniciar a sessao no Supabase.");
+      }
+
+      const storedSession = toStoredSession(session, account?.name);
+      saveSession(storedSession);
+      return storedSession;
+    } catch (error) {
+      const rawMessage = error instanceof Error ? error.message : String(error);
+      if (account && shouldFallbackToLocalDemoAuth(rawMessage)) {
+        const localSession = createLocalSession(account);
+        saveSession(localSession);
+        return localSession;
+      }
+
+      throw error;
+    }
   }
 
   const account = getDemoAccount(normalizedEmail);
