@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isDemoSession, useAuthSession } from "../auth";
+import { readLocalJson, subscribeLocalKey, writeLocalJson } from "./localStore";
 import type { Goal } from "./mockData";
 import { getSupabaseDiagnostics, isSupabaseConfigured, supabase } from "./supabase";
 import { subscribeSharedChannel } from "./supabaseRealtime";
@@ -11,6 +13,8 @@ type GoalRow = {
   created_at?: string | null;
   updated_at?: string | null;
 };
+
+const GOALS_LOCAL_CACHE_KEY = "great-organico:list-state:global:goals";
 
 function snapshotOf<T>(value: T) {
   return JSON.stringify(value);
@@ -180,20 +184,31 @@ async function hardDeleteGoal(goalId: number) {
 }
 
 export function useSupabaseGoalsState(fallback: Goal[]) {
-  const [value, setValue] = useState<Goal[]>(isSupabaseConfigured() ? [] : fallback);
+  const { session, ready: authReady } = useAuthSession();
+  const [value, setValue] = useState<Goal[]>(readLocalJson(GOALS_LOCAL_CACHE_KEY, isSupabaseConfigured() ? [] : fallback));
   const [hydrated, setHydrated] = useState(false);
-  const lastPersistedValueRef = useRef<Goal[]>(isSupabaseConfigured() ? [] : fallback);
+  const lastPersistedValueRef = useRef<Goal[]>(readLocalJson(GOALS_LOCAL_CACHE_KEY, isSupabaseConfigured() ? [] : fallback));
   const lastSavedSnapshotRef = useRef<string | null>(null);
+  const isRemoteSourceAvailable = authReady && isSupabaseConfigured() && Boolean(supabase) && Boolean(session) && !isDemoSession(session);
 
   const commitValue = useCallback((nextValue: Goal[]) => {
     setValue(nextValue);
     lastPersistedValueRef.current = nextValue;
     lastSavedSnapshotRef.current = snapshotOf(nextValue);
+    writeLocalJson(GOALS_LOCAL_CACHE_KEY, nextValue);
     setHydrated(true);
     return nextValue;
   }, []);
 
   const reload = useCallback(async () => {
+    if (!authReady) {
+      return lastPersistedValueRef.current;
+    }
+
+    if (!isRemoteSourceAvailable) {
+      return commitValue(readLocalJson(GOALS_LOCAL_CACHE_KEY, fallback));
+    }
+
     const remote = await fetchGoals();
     const nextValue = !remote.hasRows ? lastPersistedValueRef.current : remote.items;
     logGoals("Reload completed", {
@@ -201,9 +216,27 @@ export function useSupabaseGoalsState(fallback: Goal[]) {
       count: nextValue.length,
     });
     return commitValue(nextValue);
-  }, [commitValue]);
+  }, [authReady, commitValue, fallback, isRemoteSourceAvailable]);
 
   useEffect(() => {
+    const cachedValue = readLocalJson(GOALS_LOCAL_CACHE_KEY, isSupabaseConfigured() ? [] : fallback);
+    lastPersistedValueRef.current = cachedValue;
+    lastSavedSnapshotRef.current = snapshotOf(cachedValue);
+    setValue(cachedValue);
+  }, [fallback]);
+
+  useEffect(() => {
+    if (!authReady) {
+      return;
+    }
+
+    if (!isRemoteSourceAvailable) {
+      commitValue(readLocalJson(GOALS_LOCAL_CACHE_KEY, fallback));
+      return subscribeLocalKey(GOALS_LOCAL_CACHE_KEY, () => {
+        commitValue(readLocalJson(GOALS_LOCAL_CACHE_KEY, fallback));
+      });
+    }
+
     let cancelled = false;
 
     const load = async () => {
@@ -242,10 +275,10 @@ export function useSupabaseGoalsState(fallback: Goal[]) {
       cancelled = true;
       unsubscribe();
     };
-  }, [commitValue, fallback]);
+  }, [authReady, commitValue, fallback, isRemoteSourceAvailable]);
 
   const createGoal = useCallback(async (goal: Goal, sortOrder: number) => {
-    if (!isSupabaseConfigured() || !supabase) {
+    if (!isRemoteSourceAvailable) {
       commitValue([goal, ...lastPersistedValueRef.current]);
       return goal;
     }
@@ -253,10 +286,10 @@ export function useSupabaseGoalsState(fallback: Goal[]) {
     await upsertGoal(goal, sortOrder);
     await reload();
     return goal;
-  }, [commitValue, reload]);
+  }, [commitValue, isRemoteSourceAvailable, reload]);
 
   const updateGoal = useCallback(async (goal: Goal, sortOrder: number) => {
-    if (!isSupabaseConfigured() || !supabase) {
+    if (!isRemoteSourceAvailable) {
       commitValue(lastPersistedValueRef.current.map((current) => (current.id === goal.id ? goal : current)));
       return goal;
     }
@@ -264,17 +297,17 @@ export function useSupabaseGoalsState(fallback: Goal[]) {
     await upsertGoal(goal, sortOrder);
     await reload();
     return goal;
-  }, [commitValue, reload]);
+  }, [commitValue, isRemoteSourceAvailable, reload]);
 
   const deleteGoal = useCallback(async (goalId: number) => {
-    if (!isSupabaseConfigured() || !supabase) {
+    if (!isRemoteSourceAvailable) {
       commitValue(lastPersistedValueRef.current.filter((goal) => goal.id !== goalId));
       return;
     }
 
     await hardDeleteGoal(goalId);
     await reload();
-  }, [commitValue, reload]);
+  }, [commitValue, isRemoteSourceAvailable, reload]);
 
   return [value, hydrated, { createGoal, updateGoal, deleteGoal, reload }] as const;
 }

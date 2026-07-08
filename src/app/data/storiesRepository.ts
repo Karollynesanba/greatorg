@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { isDemoSession, useAuthSession } from "../auth";
 import type { CalendarEvent, StoryLog } from "./mockData";
 import { buildStoryHistoryEvent, getStoryHistoryId } from "./historyEvents";
+import { readLocalJson, subscribeLocalKey, writeLocalJson } from "./localStore";
 import { getSupabaseDiagnostics, isSupabaseConfigured, supabase } from "./supabase";
 import { subscribeSharedChannel } from "./supabaseRealtime";
 
@@ -87,6 +88,17 @@ const defaultGoalValues: Record<StoryGoalCategory, number> = {
   photo: 63,
 };
 
+const STORY_LOGS_LOCAL_CACHE_KEY = "great-organico:list-state:global:story-logs";
+const HISTORY_LOCAL_CACHE_KEY = "great-organico:list-state:global:history";
+
+type LocalStoriesDashboardRecord = {
+  goals?: Partial<StoryGoalMetricMap>;
+  metrics?: Partial<Record<StoryMetricKey, number>>;
+  updatedAt?: string;
+};
+
+type LocalStoriesDashboardStore = Record<string, LocalStoriesDashboardRecord>;
+
 function snapshotOf<T>(value: T) {
   return JSON.stringify(value);
 }
@@ -105,6 +117,119 @@ function nextMonthKey(month: string) {
   const nextYear = nextDate.getFullYear();
   const nextMonth = String(nextDate.getMonth() + 1).padStart(2, "0");
   return `${nextYear}-${nextMonth}`;
+}
+
+function shouldUseLocalStories(userId: string | null | undefined) {
+  return !isSupabaseConfigured() || !supabase || !userId || userId.includes("@");
+}
+
+function getStoriesDashboardCacheKey(userId: string) {
+  return `great-organico:stories-dashboard:${userId}`;
+}
+
+function readLocalStoryPosts() {
+  return readLocalJson<StoryLog[]>(STORY_LOGS_LOCAL_CACHE_KEY, []);
+}
+
+function writeLocalStoryPosts(stories: StoryLog[]) {
+  writeLocalJson(STORY_LOGS_LOCAL_CACHE_KEY, stories);
+}
+
+function readLocalHistoryEvents() {
+  return readLocalJson<Array<Record<string, unknown>>>(HISTORY_LOCAL_CACHE_KEY, []);
+}
+
+function writeLocalHistoryEvents(events: Array<Record<string, unknown>>) {
+  writeLocalJson(HISTORY_LOCAL_CACHE_KEY, events);
+}
+
+function readLocalStoriesDashboardStore(userId: string) {
+  return readLocalJson<LocalStoriesDashboardStore>(getStoriesDashboardCacheKey(userId), {});
+}
+
+function writeLocalStoriesDashboardStore(userId: string, store: LocalStoriesDashboardStore) {
+  writeLocalJson(getStoriesDashboardCacheKey(userId), store);
+}
+
+function buildDefaultStoryGoals(stories: StoryLog[], month: string): StoryGoalMetricMap {
+  const monthlyStories = stories.filter((story) => story.date.startsWith(month));
+  const videoCurrent = monthlyStories
+    .filter((story) => story.mediaType === "video")
+    .reduce((sum, story) => sum + story.quantity, 0);
+  const photoCurrent = monthlyStories
+    .filter((story) => story.mediaType === "photo")
+    .reduce((sum, story) => sum + story.quantity, 0);
+
+  return {
+    total: {
+      currentValue: videoCurrent + photoCurrent,
+      goalValue: defaultGoalValues.total,
+    },
+    video: {
+      currentValue: videoCurrent,
+      goalValue: defaultGoalValues.video,
+    },
+    photo: {
+      currentValue: photoCurrent,
+      goalValue: defaultGoalValues.photo,
+    },
+  };
+}
+
+function buildLocalStoriesDashboard(userId: string, month: string): StoriesDashboardSnapshot {
+  const stories = readLocalStoryPosts();
+  const store = readLocalStoriesDashboardStore(userId);
+  const localRecord = store[month] ?? {};
+  const baseGoals = buildDefaultStoryGoals(stories, month);
+
+  return {
+    month,
+    goals: {
+      total: {
+        currentValue: localRecord.goals?.total?.currentValue ?? baseGoals.total.currentValue,
+        goalValue: localRecord.goals?.total?.goalValue ?? baseGoals.total.goalValue,
+      },
+      video: {
+        currentValue: localRecord.goals?.video?.currentValue ?? baseGoals.video.currentValue,
+        goalValue: localRecord.goals?.video?.goalValue ?? baseGoals.video.goalValue,
+      },
+      photo: {
+        currentValue: localRecord.goals?.photo?.currentValue ?? baseGoals.photo.currentValue,
+        goalValue: localRecord.goals?.photo?.goalValue ?? baseGoals.photo.goalValue,
+      },
+    },
+    metrics: {
+      views: localRecord.metrics?.views ?? 0,
+      reach: localRecord.metrics?.reach ?? 0,
+    },
+    stories: stories.filter((story) => story.date.startsWith(month)),
+    calendar: [],
+  };
+}
+
+function persistLocalStoriesDashboard(userId: string, month: string, record: LocalStoriesDashboardRecord) {
+  const nextStore = {
+    ...readLocalStoriesDashboardStore(userId),
+    [month]: {
+      ...record,
+      updatedAt: new Date().toISOString(),
+    },
+  };
+  writeLocalStoriesDashboardStore(userId, nextStore);
+}
+
+function upsertLocalStoryHistory(story: StoryLog, actorName: string, action: "created" | "updated") {
+  const nextHistoryEvent = buildStoryHistoryEvent(story, actorName, action);
+  const nextEvents = readLocalHistoryEvents()
+    .filter((event) => Number(event.id) !== nextHistoryEvent.id)
+    .concat(nextHistoryEvent as unknown as Record<string, unknown>)
+    .sort((left, right) => Number(right.id ?? 0) - Number(left.id ?? 0));
+
+  writeLocalHistoryEvents(nextEvents);
+}
+
+function deleteLocalStoryHistory(storyId: number) {
+  writeLocalHistoryEvents(readLocalHistoryEvents().filter((event) => Number(event.id) !== getStoryHistoryId(storyId)));
 }
 
 function getClient() {
@@ -335,6 +460,10 @@ async function fetchStoryLogById(userId: string, storyId: number) {
 }
 
 export async function fetchStoryPosts(userId: string) {
+  if (shouldUseLocalStories(userId)) {
+    return normalizeStories(readLocalStoryPosts().map((story, index) => toStoryRow({ ...story, userId }, index)));
+  }
+
   const client = getClient();
   const { data, error } = await client
     .from("story_logs")
@@ -350,6 +479,10 @@ export async function fetchStoryPosts(userId: string) {
 }
 
 export async function fetchMonthlyCalendar(userId: string, month: string) {
+  if (shouldUseLocalStories(userId)) {
+    return [];
+  }
+
   const client = getClient();
   const nextMonth = nextMonthKey(month);
   const { data, error } = await client
@@ -377,6 +510,18 @@ export async function fetchStoriesMonthlySummary(userId: string | null, month: s
       photoGoal: defaultGoalValues.photo,
       totalCurrent: 0,
       totalGoal: defaultGoalValues.total,
+    };
+  }
+
+  if (shouldUseLocalStories(userId)) {
+    const dashboard = buildLocalStoriesDashboard(userId, month);
+    return {
+      videoCurrent: dashboard.goals.video.currentValue,
+      videoGoal: dashboard.goals.video.goalValue,
+      photoCurrent: dashboard.goals.photo.currentValue,
+      photoGoal: dashboard.goals.photo.goalValue,
+      totalCurrent: dashboard.goals.total.currentValue,
+      totalGoal: dashboard.goals.total.goalValue,
     };
   }
 
@@ -449,6 +594,10 @@ export async function fetchStoriesMonthlySummary(userId: string | null, month: s
 }
 
 export async function fetchStoriesDashboard(userId: string, month: string): Promise<StoriesDashboardSnapshot> {
+  if (shouldUseLocalStories(userId)) {
+    return buildLocalStoriesDashboard(userId, month);
+  }
+
   const client = getClient();
   const [{ data: monthlyDataRow, error: monthlyDataError }, { data: metricRows, error: metricError }, stories, calendar] = await Promise.all([
     client
@@ -564,6 +713,19 @@ async function syncStoriesMonthlySummaryForMonths(userId: string, months: string
 }
 
 export async function updateStoriesMonthlyData(userId: string, month: string, summary: StoriesMonthlySummary) {
+  if (shouldUseLocalStories(userId)) {
+    const currentDashboard = buildLocalStoriesDashboard(userId, month);
+    persistLocalStoriesDashboard(userId, month, {
+      goals: {
+        total: { currentValue: summary.totalCurrent, goalValue: summary.totalGoal },
+        video: { currentValue: summary.videoCurrent, goalValue: summary.videoGoal },
+        photo: { currentValue: summary.photoCurrent, goalValue: summary.photoGoal },
+      },
+      metrics: currentDashboard.metrics,
+    });
+    return;
+  }
+
   const client = getClient();
   const payload = {
     user_id: userId,
@@ -594,6 +756,18 @@ export async function updateStoriesMonthlyData(userId: string, month: string, su
 }
 
 export async function updateStoryMetric(userId: string, metric: StoryMetricKey, value: number, month = new Date().toISOString().slice(0, 7)) {
+  if (shouldUseLocalStories(userId)) {
+    const currentDashboard = buildLocalStoriesDashboard(userId, month);
+    persistLocalStoriesDashboard(userId, month, {
+      goals: currentDashboard.goals,
+      metrics: {
+        ...currentDashboard.metrics,
+        [metric]: value,
+      },
+    });
+    return;
+  }
+
   const client = getClient();
   const { error } = await client.from("story_metrics").upsert(
     {
@@ -618,6 +792,25 @@ export async function updateGoalMetric(
   goalValue: number,
   month = new Date().toISOString().slice(0, 7),
 ) {
+  if (shouldUseLocalStories(userId)) {
+    const currentDashboard = buildLocalStoriesDashboard(userId, month);
+    persistLocalStoriesDashboard(userId, month, {
+      goals: {
+        ...currentDashboard.goals,
+        [category]: {
+          currentValue,
+          goalValue,
+        },
+        total:
+          category === "total"
+            ? { currentValue, goalValue }
+            : currentDashboard.goals.total,
+      },
+      metrics: currentDashboard.metrics,
+    });
+    return;
+  }
+
   const client = getClient();
   const { error } = await client.from("story_goal_metrics").upsert(
     {
@@ -685,6 +878,27 @@ async function upsertStoryLogRow(row: StoryListRow<StoryLog>, story: StoryLog) {
 }
 
 export async function createStoryPost(data: StoryPostPayload & { actorName: string }) {
+  if (shouldUseLocalStories(data.userId)) {
+    const nextStory: StoryLog = {
+      id: data.id ?? nextNumericId(),
+      date: data.date,
+      time: data.time,
+      quantity: data.quantity,
+      mediaType: data.mediaType,
+      status: data.status,
+      madeById: data.madeById,
+      postedById: data.postedById,
+      notes: data.notes,
+    };
+    const nextStories = normalizeStories(
+      [...readLocalStoryPosts(), nextStory].map((story, index) => toStoryRow({ ...story, userId: data.userId }, index)),
+    );
+    writeLocalStoryPosts(nextStories);
+    upsertLocalStoryHistory(nextStory, data.actorName, "created");
+    await syncStoriesMonthlySummaryForMonths(data.userId, [nextStory.date.slice(0, 7)]);
+    return nextStory;
+  }
+
   const sessionUserId = await requireAuthenticatedSession();
   const userId = data.userId || sessionUserId;
   if (!userId) {
@@ -699,6 +913,33 @@ export async function createStoryPost(data: StoryPostPayload & { actorName: stri
 }
 
 export async function updateStoryPost(id: number, data: StoryPostPayload & { actorName: string }) {
+  if (shouldUseLocalStories(data.userId)) {
+    const nextStory: StoryLog = {
+      id,
+      date: data.date,
+      time: data.time,
+      quantity: data.quantity,
+      mediaType: data.mediaType,
+      status: data.status,
+      madeById: data.madeById,
+      postedById: data.postedById,
+      notes: data.notes,
+    };
+    const previousStory = readLocalStoryPosts().find((story) => story.id === id) ?? null;
+    const nextStories = normalizeStories(
+      readLocalStoryPosts()
+        .map((story) => (story.id === id ? nextStory : story))
+        .map((story, index) => toStoryRow({ ...story, userId: data.userId }, index)),
+    );
+    writeLocalStoryPosts(nextStories);
+    upsertLocalStoryHistory(nextStory, data.actorName, "updated");
+    await syncStoriesMonthlySummaryForMonths(data.userId, [
+      previousStory?.date.slice(0, 7) ?? "",
+      nextStory.date.slice(0, 7),
+    ]);
+    return nextStory;
+  }
+
   const sessionUserId = await requireAuthenticatedSession();
   const userId = data.userId || sessionUserId;
   if (!userId) {
@@ -717,6 +958,14 @@ export async function updateStoryPost(id: number, data: StoryPostPayload & { act
 }
 
 export async function deleteStoryPost(id: number, userId: string) {
+  if (shouldUseLocalStories(userId)) {
+    const existingStory = readLocalStoryPosts().find((story) => story.id === id) ?? null;
+    writeLocalStoryPosts(readLocalStoryPosts().filter((story) => story.id !== id));
+    deleteLocalStoryHistory(id);
+    await syncStoriesMonthlySummaryForMonths(userId, [existingStory?.date.slice(0, 7) ?? ""]);
+    return;
+  }
+
   const client = getClient();
   const existingStory = await fetchStoryLogById(userId, id);
   const { error } = await client
@@ -736,9 +985,9 @@ export async function deleteStoryPost(id: number, userId: string) {
 
 export function useSupabaseStoryLogsState() {
   const { session, ready: authReady } = useAuthSession();
-  const [value, setValue] = useState<StoryLog[]>([]);
+  const [value, setValue] = useState<StoryLog[]>(readLocalStoryPosts());
   const [hydrated, setHydrated] = useState(false);
-  const lastPersistedValueRef = useRef<StoryLog[]>([]);
+  const lastPersistedValueRef = useRef<StoryLog[]>(readLocalStoryPosts());
   const lastSavedSnapshotRef = useRef<string | null>(null);
   const currentUserId = session?.user.id ?? null;
 
@@ -746,6 +995,7 @@ export function useSupabaseStoryLogsState() {
     setValue(nextValue);
     lastPersistedValueRef.current = nextValue;
     lastSavedSnapshotRef.current = snapshotOf(nextValue);
+    writeLocalStoryPosts(nextValue);
     setHydrated(true);
     return nextValue;
   }, []);
@@ -756,7 +1006,7 @@ export function useSupabaseStoryLogsState() {
     }
 
     if (!isSupabaseConfigured() || !supabase || !session || isDemoSession(session) || !currentUserId) {
-      return commitValue([]);
+      return commitValue(readLocalStoryPosts());
     }
 
     const nextValue = await fetchStoryPosts(currentUserId);
@@ -764,13 +1014,22 @@ export function useSupabaseStoryLogsState() {
   }, [authReady, commitValue, currentUserId, session]);
 
   useEffect(() => {
+    const cachedValue = readLocalStoryPosts();
+    lastPersistedValueRef.current = cachedValue;
+    lastSavedSnapshotRef.current = snapshotOf(cachedValue);
+    setValue(cachedValue);
+  }, []);
+
+  useEffect(() => {
     if (!authReady) {
       return;
     }
 
     if (!isSupabaseConfigured() || !supabase || !session || isDemoSession(session) || !currentUserId) {
-      commitValue([]);
-      return;
+      commitValue(readLocalStoryPosts());
+      return subscribeLocalKey(STORY_LOGS_LOCAL_CACHE_KEY, () => {
+        commitValue(readLocalStoryPosts());
+      });
     }
 
     let cancelled = false;
