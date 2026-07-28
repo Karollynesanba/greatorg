@@ -187,12 +187,30 @@ function isCypressRuntime() {
   return typeof window !== "undefined" && "Cypress" in window;
 }
 
+function writeLegacySessionMarkers(session: LocalSession | null) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (!session) {
+    window.localStorage.removeItem(authStorageKey);
+    window.localStorage.removeItem(authMemberIdKey);
+    return;
+  }
+
+  window.localStorage.setItem(authStorageKey, "true");
+  const demoAccountIndex = demoAccounts.findIndex((account) => normalizeEmail(account.email) === normalizeEmail(session.user.email));
+  window.localStorage.setItem(authMemberIdKey, demoAccountIndex >= 0 ? String(demoAccountIndex + 1) : session.user.email);
+}
+
 function saveSession(session: LocalSession | null) {
   if (session) {
     writeLocalJson(SESSION_KEY, session);
   } else {
     writeLocalText(SESSION_KEY, null);
   }
+
+  writeLegacySessionMarkers(session);
 }
 
 async function clearSupabaseSession() {
@@ -227,11 +245,21 @@ function readLocalSession() {
     return session;
   }
 
-  if (!isSupabaseConfigured() || !supabase) {
-    return readLegacyDemoSession();
+  const legacySession = readLegacyDemoSession();
+  if (legacySession) {
+    return legacySession;
   }
 
-  return null;
+  return !isSupabaseConfigured() || !supabase ? null : null;
+}
+
+function getDemoFallbackSessionFromStoredSession(session: LocalSession | null) {
+  const account = getDemoAccount(session?.user.email ?? "");
+  if (!account) {
+    return null;
+  }
+
+  return createLocalSession(account);
 }
 
 async function recoverSupabaseSession() {
@@ -434,6 +462,8 @@ export function useAuthSession() {
     };
 
     const tryRecoverPersistedSession = async () => {
+      const previousSession = readStoredSession();
+
       try {
         const recoveredSession = await recoverSupabaseSession();
         if (cancelled) {
@@ -457,6 +487,13 @@ export function useAuthSession() {
       }
 
       if (!cancelled) {
+        const fallbackSession = getDemoFallbackSessionFromStoredSession(previousSession);
+        if (fallbackSession) {
+          saveSession(fallbackSession);
+          setState({ session: fallbackSession, ready: true });
+          return;
+        }
+
         clearPersistedSession();
       }
     };
