@@ -36,7 +36,13 @@ export function useThemeMode() {
   const context = useContext(ThemeModeContext);
 
   if (!context) {
-    throw new Error("useThemeMode must be used within ThemeModeProvider");
+    return {
+      theme: "light" as ThemeMode,
+      isDark: false,
+      setTheme: () => {
+        // Theme updates are unavailable until the provider is mounted.
+      },
+    };
   }
 
   return context;

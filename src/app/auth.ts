@@ -609,11 +609,12 @@ export async function signInWithPassword(email: string, password: string) {
         Boolean(account) &&
         (trimmedPassword === account.password || (storedPassword !== null && trimmedPassword === storedPassword));
       const shouldUseLocalDemoFallback =
-        !hasExplicitAuthFailure &&
+        hasValidLocalDemoPassword &&
         (shouldFallbackToLocalDemoAuth(rawMessage) ||
           /impossivel conectar-se ao servidor remoto|nao foi possivel conectar ao supabase novo|failed to fetch|load failed|network/.test(
             normalizedMessage,
-          ));
+          ) ||
+          hasExplicitAuthFailure);
 
       if (account && hasValidLocalDemoPassword && shouldUseLocalDemoFallback) {
         const localSession = createLocalSession(account);
