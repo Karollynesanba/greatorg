@@ -600,11 +600,22 @@ export async function signInWithPassword(email: string, password: string) {
     } catch (error) {
       const rawMessage = error instanceof Error ? error.message : String(error);
       const normalizedMessage = normalizeMessageForMatch(rawMessage);
+      const hasExplicitAuthFailure =
+        /invalid login credentials|email not confirmed|signup is disabled|credenciais invalidas|email ou senha invalidos/.test(
+          normalizedMessage,
+        );
+      const storedPassword = account ? getStoredPassword(account.email) : null;
+      const hasValidLocalDemoPassword =
+        Boolean(account) &&
+        (trimmedPassword === account.password || (storedPassword !== null && trimmedPassword === storedPassword));
       const shouldUseLocalDemoFallback =
-        shouldFallbackToLocalDemoAuth(rawMessage) ||
-        /impossivel conectar-se ao servidor remoto|nao foi possivel conectar ao supabase novo/.test(normalizedMessage);
+        !hasExplicitAuthFailure &&
+        (shouldFallbackToLocalDemoAuth(rawMessage) ||
+          /impossivel conectar-se ao servidor remoto|nao foi possivel conectar ao supabase novo|failed to fetch|load failed|network/.test(
+            normalizedMessage,
+          ));
 
-      if (account && shouldUseLocalDemoFallback) {
+      if (account && hasValidLocalDemoPassword && shouldUseLocalDemoFallback) {
         const localSession = createLocalSession(account);
         saveSession(localSession);
         return localSession;
