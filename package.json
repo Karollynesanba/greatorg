@@ -7,6 +7,10 @@
     "dev": "vite --configLoader runner",
     "build": "tsc -b && vite build --configLoader runner",
     "preview": "vite preview --configLoader runner",
+    "supabase:login": "npx supabase login",
+    "supabase:link": "npx supabase link --project-ref tyutrxxoziewturcoclz",
+    "supabase:status": "npx supabase migration list",
+    "supabase:push": "npx supabase db push",
     "test:e2e": "cypress run",
     "test:e2e:open": "cypress open"
   },

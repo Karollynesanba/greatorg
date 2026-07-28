@@ -71,6 +71,14 @@ function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
+function normalizeMessageForMatch(message: string) {
+  return message
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 function getDemoAccount(email: string) {
   return demoAccounts.find((account) => account.email === normalizeEmail(email)) ?? null;
 }
@@ -249,8 +257,9 @@ function buildAuthErrorMessage(message: string, email?: string) {
   const normalizedEmail = normalizeEmail(email ?? "");
   const isDemoEmail = isDemoAccountEmail(normalizedEmail);
   const rawMessage = message.trim();
+  const comparableMessage = normalizeMessageForMatch(rawMessage);
 
-  if (/invalid login credentials/i.test(rawMessage)) {
+  if (/invalid login credentials/i.test(comparableMessage)) {
     if (isDemoEmail) {
       return "Email ou senha invalidos no Supabase novo. Se esta conta existia no projeto antigo, ela precisa ser recriada ou importada no Authentication > Users do projeto novo.";
     }
@@ -258,15 +267,15 @@ function buildAuthErrorMessage(message: string, email?: string) {
     return "Email ou senha invalidos. Se esta conta existia no Supabase antigo, ela ainda precisa ser recriada ou importada no Authentication > Users do projeto novo.";
   }
 
-  if (/email not confirmed/i.test(rawMessage)) {
+  if (/email not confirmed/i.test(comparableMessage)) {
     return "Seu email ainda nao foi confirmado no Supabase novo. Confirme o email ou habilite o fluxo apropriado no Auth.";
   }
 
-  if (/signup is disabled/i.test(rawMessage)) {
+  if (/signup is disabled/i.test(comparableMessage)) {
     return "O Supabase Auth respondeu, mas o cadastro esta desativado. O login so funciona para usuarios que ja existem no Authentication > Users.";
   }
 
-  if (/exceed_egress_quota|service .*restricted|spend caps|restore service/i.test(rawMessage)) {
+  if (/exceed_egress_quota|service .*restricted|spend caps|restore service/i.test(comparableMessage)) {
     if (isDemoEmail) {
       return "O Supabase do projeto esta temporariamente restrito por cota. Vamos liberar o acesso local para este perfil demo enquanto o ambiente remoto e normalizado.";
     }
@@ -310,6 +319,27 @@ async function signInToSupabase(email: string, password: string) {
   }
 
   return signInResult.data.session;
+}
+
+async function bootstrapDemoAccountInSupabase(email: string, password: string) {
+  if (!isSupabaseConfigured() || !supabase || !isDemoAccountEmail(email)) {
+    return;
+  }
+
+  const account = getDemoAccount(email);
+  const { error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        name: account?.name ?? "",
+      },
+    },
+  });
+
+  if (error && !/already registered|already exists|user already registered/i.test(error.message)) {
+    throw new Error(buildAuthErrorMessage(error.message, email));
+  }
 }
 
 export function isDemoSession(session: LocalSession | null | undefined) {
@@ -555,6 +585,10 @@ export async function signInWithPassword(email: string, password: string) {
     const account = getDemoAccount(normalizedEmail);
 
     try {
+      if (account) {
+        await bootstrapDemoAccountInSupabase(normalizedEmail, trimmedPassword);
+      }
+
       const session = await signInToSupabase(normalizedEmail, trimmedPassword);
       if (!session) {
         throw new Error("Nao foi possivel iniciar a sessao no Supabase.");
@@ -565,7 +599,12 @@ export async function signInWithPassword(email: string, password: string) {
       return storedSession;
     } catch (error) {
       const rawMessage = error instanceof Error ? error.message : String(error);
-      if (account && shouldFallbackToLocalDemoAuth(rawMessage)) {
+      const normalizedMessage = normalizeMessageForMatch(rawMessage);
+      const shouldUseLocalDemoFallback =
+        shouldFallbackToLocalDemoAuth(rawMessage) ||
+        /impossivel conectar-se ao servidor remoto|nao foi possivel conectar ao supabase novo/.test(normalizedMessage);
+
+      if (account && shouldUseLocalDemoFallback) {
         const localSession = createLocalSession(account);
         saveSession(localSession);
         return localSession;

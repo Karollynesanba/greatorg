@@ -2,7 +2,7 @@ import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { useEffect, useRef } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { Toaster } from "sonner";
+import { toast, Toaster } from "sonner";
 import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
 import { CalendarPage } from "./pages/Calendar";
@@ -35,6 +35,10 @@ export default function App() {
       authenticatedAtBoot: authenticated,
       supabaseConfigured: Boolean(supabase),
     });
+
+    if (authenticated) {
+      toast.dismiss();
+    }
   }, [authenticated]);
 
   if (!ready) {
