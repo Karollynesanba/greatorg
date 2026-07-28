@@ -30,6 +30,8 @@ const typeIcons = {
   schedule: CalendarClock,
 } as const;
 
+const fallbackTypeLabel = "Registro";
+
 type PeriodFilter = "all" | "7d" | "30d" | "90d";
 
 const periodLabels: Record<PeriodFilter, string> = {
@@ -94,6 +96,14 @@ function formatHistoryFullDate(date: string) {
 function extractHistoryTime(description: string) {
   const match = description.match(/(\d{2}:\d{2})/);
   return match?.[1] ?? "--:--";
+}
+
+function resolveTypeLabel(type: string) {
+  return typeLabels[type as keyof typeof typeLabels] ?? fallbackTypeLabel;
+}
+
+function resolveTypeIcon(type: string) {
+  return typeIcons[type as keyof typeof typeIcons] ?? Clock3;
 }
 
 function getPeriodRangeLabel(items: Array<{ date: string }>) {
@@ -215,6 +225,13 @@ export function HistoryPage() {
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [pendingDelete, setPendingDelete] = useState<{ historyId: number; historyTitle: string } | null>(null);
+  const fallbackMember = teamMembers[0] ?? {
+    id: 0,
+    name: "Equipe Great",
+    role: "Time",
+    color: "#E30613",
+    avatarUrl: "",
+  };
 
   const items = itemsState.filter((item) => {
     const matchesPerson = personFilter === "todos" || item.authorId === personFilter;
@@ -457,8 +474,8 @@ export function HistoryPage() {
 
                     <div className="mt-4 space-y-3">
                       {group.entries.map((item) => {
-                        const member = teamMembers.find((person) => person.id === item.authorId)!;
-                        const Icon = typeIcons[item.type];
+                        const member = teamMembers.find((person) => person.id === item.authorId) ?? fallbackMember;
+                        const Icon = resolveTypeIcon(item.type);
 
                         return (
                           <div key={item.id} className="group flex gap-4">
@@ -472,7 +489,7 @@ export function HistoryPage() {
                                   <div className="min-w-0">
                                     <div className="flex flex-wrap items-center gap-2">
                                       <h4 className="text-base font-semibold text-foreground">{item.title}</h4>
-                                      <span className="rounded-full bg-[rgb(255,234,234)] px-3 py-1 text-xs font-semibold text-primary">{typeLabels[item.type]}</span>
+                                      <span className="rounded-full bg-[rgb(255,234,234)] px-3 py-1 text-xs font-semibold text-primary">{resolveTypeLabel(item.type)}</span>
                                     </div>
                                     <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.description}</p>
                                     <div className="mt-3 flex flex-wrap items-center gap-3 text-xs font-medium text-muted-foreground">
@@ -534,8 +551,8 @@ export function HistoryPage() {
                   </thead>
                   <tbody>
                     {latestTableItems.map((item) => {
-                      const member = teamMembers.find((person) => person.id === item.authorId)!;
-                      const Icon = typeIcons[item.type];
+                      const member = teamMembers.find((person) => person.id === item.authorId) ?? fallbackMember;
+                      const Icon = resolveTypeIcon(item.type);
 
                       return (
                         <tr key={item.id} className="border-t border-border/60">
@@ -556,7 +573,7 @@ export function HistoryPage() {
                             <MemberChip name={member.name} role={member.role} color={member.color} src={member.avatarUrl} />
                           </td>
                           <td className="px-5 py-4">
-                            <span className="rounded-full bg-[rgb(255,234,234)] px-3 py-1 text-xs font-semibold text-primary">{typeLabels[item.type]}</span>
+                            <span className="rounded-full bg-[rgb(255,234,234)] px-3 py-1 text-xs font-semibold text-primary">{resolveTypeLabel(item.type)}</span>
                           </td>
                           <td className="px-5 py-4 text-right">
                             <div className="flex justify-end">
