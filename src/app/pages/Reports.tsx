@@ -103,12 +103,17 @@ type ReportCardItem = {
   metric: string;
   accent: string;
   image: string;
+  badge?: string;
+  caption?: string;
 };
 type ReportCardRow = {
   title: string;
   description: string;
   action: string;
   items: ReportCardItem[];
+};
+type DisplayReportCardRow = ReportCardRow & {
+  isComputed?: boolean;
 };
 type ReportOverview = {
   badge: string;
@@ -161,6 +166,12 @@ function stripLegacyReportExamples(rows: ReportCardRow[]) {
 
 const monthlyContentTarget = 120;
 const finalContentStatuses = new Set<PostStatus | "Concluído" | "Finalizado">(["Aprovado", "Publicado", "Concluído", "Finalizado"]);
+const storyCardImages = {
+  video: "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=900&q=80",
+  photo: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80",
+  summary: "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=900&q=80",
+  published: "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=900&q=80",
+};
 
 function isFinalContentStatus(status?: string) {
   return Boolean(status && finalContentStatuses.has(status as PostStatus | "Concluído" | "Finalizado"));
@@ -625,6 +636,49 @@ function MetricSparkline({ values }: { values: number[] }) {
       <svg viewBox="0 0 220 58" className="h-14 w-full" fill="none" aria-hidden="true">
         <path d={path} stroke="rgba(255,126,168,0.22)" strokeWidth="10" strokeLinecap="round" />
         <path d={path} stroke="#FF7EA8" strokeWidth="3" strokeLinecap="round" />
+      </svg>
+    </div>
+  );
+}
+
+function ReportHistorySparkline({
+  items,
+}: {
+  items: Array<{ label: string; score: number; fullLabel: string }>;
+}) {
+  const scores = items.map((item) => item.score);
+  const linePath = buildSparklinePath(scores, 620, 180);
+  const areaPath = `${linePath} L 620 180 L 0 180 Z`;
+  const safeItems = items.length > 1 ? items : [...items, items[0] ?? { label: "", score: 0, fullLabel: "" }];
+
+  return (
+    <div className="h-[240px] w-full rounded-[20px] bg-[linear-gradient(180deg,rgba(255,250,251,0.92),rgba(255,241,245,0.86))] p-4">
+      <svg viewBox="0 0 620 200" className="h-full w-full" fill="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="reports-history-svg-fill" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#ff7ea2" stopOpacity="0.30" />
+            <stop offset="100%" stopColor="#ff7ea2" stopOpacity="0.04" />
+          </linearGradient>
+        </defs>
+        <path d={areaPath} fill="url(#reports-history-svg-fill)" />
+        <path d={linePath} stroke="rgba(255,126,168,0.22)" strokeWidth="10" strokeLinecap="round" />
+        <path d={linePath} stroke="#ff6d93" strokeWidth="3" strokeLinecap="round" />
+        {safeItems.map((item, index) => {
+          const x = (index / Math.max(safeItems.length - 1, 1)) * 620;
+          const min = Math.min(...scores, 0);
+          const max = Math.max(...scores, 1);
+          const range = max - min || 1;
+          const y = 180 - ((item.score - min) / range) * 180;
+
+          return (
+            <g key={`${item.label}-${index}`}>
+              <circle cx={x} cy={y} r="4.5" fill="#ff6d93" />
+              <text x={x} y="196" textAnchor={index === 0 ? "start" : index === safeItems.length - 1 ? "end" : "middle"} fontSize="12" fill="#64748b">
+                {item.label}
+              </text>
+            </g>
+          );
+        })}
       </svg>
     </div>
   );
@@ -1351,6 +1405,37 @@ export function ReportsPage() {
   };
 
   const periodDays = diffDays(currentRange.start, currentRange.end) + 1;
+  const useCurrentMonthlyStoriesCards =
+    responsibleFilter === "todos" && teamScope === "todos" && isExactMonthRange(currentRange, monthKeyFromDate(currentRange.start));
+  const currentStoriesBreakdown = useMemo(() => {
+    const computedVideo = filteredStoryLogs
+      .filter((story) => story.mediaType === "video")
+      .reduce((sum, story) => sum + Math.max(story.quantity, 0), 0);
+    const computedPhoto = filteredStoryLogs
+      .filter((story) => story.mediaType === "photo")
+      .reduce((sum, story) => sum + Math.max(story.quantity, 0), 0);
+
+    if (useCurrentMonthlyStoriesCards) {
+      return {
+        video: Math.max(currentMonthlyStoriesSummary?.videoCurrent ?? 0, computedVideo),
+        photo: Math.max(currentMonthlyStoriesSummary?.photoCurrent ?? 0, computedPhoto),
+        totalGoal: currentMonthlyStoriesSummary?.totalGoal ?? 168,
+      };
+    }
+
+    return {
+      video: computedVideo,
+      photo: computedPhoto,
+      totalGoal: computedVideo + computedPhoto,
+    };
+  }, [currentMonthlyStoriesSummary, filteredStoryLogs, useCurrentMonthlyStoriesCards]);
+  const recentStoryLogs = useMemo(
+    () =>
+      [...filteredStoryLogs]
+        .sort((a, b) => `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`))
+        .slice(0, 2),
+    [filteredStoryLogs],
+  );
   const currentBuckets = groupPostsByDate(filteredPosts);
   const previousBuckets = groupPostsByDate(previousPosts);
   const comparisonSeries = Array.from({ length: periodDays }, (_, index) => {
@@ -1890,6 +1975,60 @@ export function ReportsPage() {
       tone: "#2563EB",
     },
   ];
+  const storiesReportRow = useMemo<DisplayReportCardRow>(() => {
+    const storyCards: ReportCardItem[] = [
+      {
+        title: "Stories do período",
+        metric: formatLongNumber(currentSummary.storiesCount),
+        accent: "#EA580C",
+        image: storyCardImages.summary,
+        badge: "Stories",
+        caption: useCurrentMonthlyStoriesCards
+          ? `Meta do mês: ${formatLongNumber(currentStoriesBreakdown.totalGoal)} stories`
+          : "Total de stories dentro do filtro atual",
+      },
+      {
+        title: "Stories em vídeo",
+        metric: formatLongNumber(currentStoriesBreakdown.video),
+        accent: "#DC2626",
+        image: storyCardImages.video,
+        badge: "Vídeo",
+        caption: "Quantidade registrada em vídeo no período",
+      },
+      {
+        title: "Stories em foto",
+        metric: formatLongNumber(currentStoriesBreakdown.photo),
+        accent: "#2563EB",
+        image: storyCardImages.photo,
+        badge: "Foto",
+        caption: "Quantidade registrada em foto no período",
+      },
+    ];
+
+    if (recentStoryLogs[0]) {
+      const latestStory = recentStoryLogs[0];
+      storyCards.push({
+        title: `${latestStory.quantity} ${latestStory.quantity === 1 ? "story" : "stories"} em ${latestStory.date}`,
+        metric: latestStory.time,
+        accent: latestStory.mediaType === "video" ? "#BE123C" : "#1D4ED8",
+        image: latestStory.mediaType === "video" ? storyCardImages.video : storyCardImages.published,
+        badge: latestStory.mediaType === "video" ? "Último vídeo" : "Última foto",
+        caption: latestStory.notes?.trim() || "Último lançamento registrado em Stories",
+      });
+    }
+
+    return {
+      title: "Stories",
+      description: "Resumo em cards da operação de Stories dentro do mesmo período filtrado do relatório.",
+      action: "Sincronizado com Stories",
+      items: storyCards,
+      isComputed: true,
+    };
+  }, [currentStoriesBreakdown.photo, currentStoriesBreakdown.totalGoal, currentStoriesBreakdown.video, currentSummary.storiesCount, recentStoryLogs, useCurrentMonthlyStoriesCards]);
+  const displayReportRows = useMemo<DisplayReportCardRow[]>(
+    () => [...reportRows, storiesReportRow],
+    [reportRows, storiesReportRow],
+  );
   const savedReportsTimeline = (savedReports.length > 0 ? savedReports : [
     {
       id: "current",
@@ -2574,41 +2713,7 @@ export function ReportsPage() {
 
           <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_360px]">
             <div className="rounded-[24px] border border-[rgba(255,180,200,.35)] bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(255,245,248,0.88))] px-4 py-5 shadow-[0_12px_40px_rgba(255,120,160,.08)] sm:px-6">
-              <div className="h-[250px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={savedReportsTimeline} margin={{ top: 24, right: 12, left: -16, bottom: 4 }}>
-                    <defs>
-                      <linearGradient id="reports-history-fill" x1="0" x2="0" y1="0" y2="1">
-                        <stop offset="0%" stopColor="#ff7ea2" stopOpacity={0.28} />
-                        <stop offset="100%" stopColor="#ff7ea2" stopOpacity={0.02} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid vertical={false} stroke="rgba(148,163,184,0.18)" strokeDasharray="4 6" />
-                    <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "#64748b", fontSize: 12 }} />
-                    <YAxis tickLine={false} axisLine={false} tick={{ fill: "#64748b", fontSize: 12 }} />
-                    <Tooltip
-                      cursor={{ stroke: "rgba(255,126,162,0.4)", strokeWidth: 1.5, strokeDasharray: "4 4" }}
-                      contentStyle={{
-                        borderRadius: "18px",
-                        border: "1px solid rgba(255,228,236,0.95)",
-                        boxShadow: "0 18px 45px rgba(244,114,144,0.14)",
-                        background: "rgba(255,255,255,0.96)",
-                      }}
-                      formatter={(value) => [formatLongNumber(Number(value ?? 0)), "Índice"]}
-                      labelFormatter={(label) => `Período: ${label}`}
-                    />
-                    <Area type="monotone" dataKey="score" stroke="none" fill="url(#reports-history-fill)" />
-                    <Line
-                      type="monotone"
-                      dataKey="score"
-                      stroke="#ff6d93"
-                      strokeWidth={2.5}
-                      dot={{ r: 4, strokeWidth: 0, fill: "#ff6d93" }}
-                      activeDot={{ r: 6, strokeWidth: 0, fill: "#ff4f7d" }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+              <ReportHistorySparkline items={savedReportsTimeline} />
             </div>
 
             <div className="grid gap-4">
@@ -2666,7 +2771,7 @@ export function ReportsPage() {
         </section>
 
         <div className="space-y-6">
-              {reportRows.map((row, rowIndex) => (
+              {displayReportRows.map((row, rowIndex) => (
                 <section key={row.title} data-cy={`reports-row-${rowIndex}`} className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.05)] print-avoid-break">
                   <div className="flex items-center justify-between gap-4">
                     <div>
@@ -2674,28 +2779,36 @@ export function ReportsPage() {
                       <p className="mt-1 text-sm text-muted-foreground">{row.description}</p>
                     </div>
                     <div className="flex items-center gap-2 print:hidden">
-                      <button
-                        type="button"
-                        onClick={() => openRowSectionEditor(rowIndex)}
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 bg-white text-muted-foreground transition hover:border-primary/25 hover:text-foreground hover:shadow-sm"
-                        aria-label={`Editar ${row.title}`}
-                      >
-                        <PencilLine className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => openAddReportCard(rowIndex)}
-                        data-cy={`reports-row-${rowIndex}-add-card`}
-                        className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-white px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/25 hover:shadow-md"
-                      >
-                    <Plus className="h-4 w-4" />
-                    Adicionar card
-                  </button>
-                  <button type="button" className="text-sm font-medium text-muted-foreground transition hover:text-foreground">
-                    {row.action}
-                  </button>
-                </div>
-              </div>
+                      {row.isComputed ? (
+                        <span className="rounded-full border border-orange-200 bg-orange-50 px-4 py-2 text-sm font-medium text-orange-700">
+                          {row.action}
+                        </span>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openRowSectionEditor(rowIndex)}
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 bg-white text-muted-foreground transition hover:border-primary/25 hover:text-foreground hover:shadow-sm"
+                            aria-label={`Editar ${row.title}`}
+                          >
+                            <PencilLine className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openAddReportCard(rowIndex)}
+                            data-cy={`reports-row-${rowIndex}-add-card`}
+                            className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-white px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/25 hover:shadow-md"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Adicionar card
+                          </button>
+                          <button type="button" className="text-sm font-medium text-muted-foreground transition hover:text-foreground">
+                            {row.action}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
 
               <div className="mt-5 flex gap-4 overflow-x-auto pb-1">
                 {row.items.map((item, itemIndex) => (
@@ -2717,7 +2830,7 @@ export function ReportsPage() {
                     />
                     <div className="absolute left-4 right-4 top-4 flex items-center justify-between">
                       <span className="rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/90 backdrop-blur">
-                        Destaque
+                        {item.badge ?? "Destaque"}
                       </span>
                       <span className="rounded-full bg-black/20 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur">
                         {item.metric}
@@ -2725,28 +2838,30 @@ export function ReportsPage() {
                     </div>
                     <div className="absolute inset-x-0 bottom-0 p-4 text-white">
                       <p className="text-sm font-semibold leading-5">{item.title}</p>
-                      <p className="mt-1 text-xs text-white/75">Conteúdo pronto para publicação</p>
+                      <p className="mt-1 text-xs text-white/75">{item.caption ?? "Conteúdo pronto para publicação"}</p>
                     </div>
-                    <div className="absolute right-3 top-3 flex gap-2 print:hidden">
-                      <button
-                        type="button"
-                        onClick={() => openEditReportCard(rowIndex, itemIndex)}
-                        data-cy={`reports-row-${rowIndex}-card-${itemIndex}-edit`}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/92 text-foreground shadow-md transition hover:bg-white hover:text-primary"
-                        aria-label={`Editar ${item.title}`}
-                      >
-                        <PencilLine className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteReportCard(rowIndex, itemIndex)}
-                        data-cy={`reports-row-${rowIndex}-card-${itemIndex}-delete`}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/92 text-destructive shadow-md transition hover:bg-white"
-                        aria-label={`Apagar ${item.title}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
+                    {!row.isComputed ? (
+                      <div className="absolute right-3 top-3 flex gap-2 print:hidden">
+                        <button
+                          type="button"
+                          onClick={() => openEditReportCard(rowIndex, itemIndex)}
+                          data-cy={`reports-row-${rowIndex}-card-${itemIndex}-edit`}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/92 text-foreground shadow-md transition hover:bg-white hover:text-primary"
+                          aria-label={`Editar ${item.title}`}
+                        >
+                          <PencilLine className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteReportCard(rowIndex, itemIndex)}
+                          data-cy={`reports-row-${rowIndex}-card-${itemIndex}-delete`}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/92 text-destructive shadow-md transition hover:bg-white"
+                          aria-label={`Apagar ${item.title}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : null}
                   </article>
                 ))}
               </div>
