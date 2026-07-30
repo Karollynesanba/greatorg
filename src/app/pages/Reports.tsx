@@ -121,6 +121,53 @@ type ReportSectionEditor = {
   rowIndex?: number;
 } | null;
 
+function toFiniteNumber(value: unknown, fallback = 0) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : fallback;
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  return fallback;
+}
+
+function normalizeResponsibleId(value: unknown): number | "todos" {
+  if (value === "todos") {
+    return "todos";
+  }
+
+  const parsed = toFiniteNumber(value, Number.NaN);
+  return Number.isFinite(parsed) ? parsed : "todos";
+}
+
+function normalizeSavedReportHistory(reports: SavedReport[]) {
+  if (!Array.isArray(reports)) {
+    return [];
+  }
+
+  return reports.map((report, index) => ({
+    id: typeof report?.id === "string" && report.id.trim().length > 0 ? report.id : `saved-report-${index}`,
+    label: typeof report?.label === "string" && report.label.trim().length > 0 ? report.label : `Relatório ${index + 1}`,
+    generatedAt: typeof report?.generatedAt === "string" ? report.generatedAt : "",
+    period: report?.period === "7" || report?.period === "30" || report?.period === "custom" ? report.period : "30",
+    days: report?.days == null ? undefined : toFiniteNumber(report.days),
+    typeFilter:
+      report?.typeFilter === "todos" || report?.typeFilter === "Reels" || report?.typeFilter === "Stories" || report?.typeFilter === "Carrossel" || report?.typeFilter === "Feed"
+        ? report.typeFilter
+        : "todos",
+    responsibleId: normalizeResponsibleId(report?.responsibleId),
+    startDate: typeof report?.startDate === "string" ? report.startDate : "",
+    endDate: typeof report?.endDate === "string" ? report.endDate : "",
+    views: toFiniteNumber(report?.views),
+    reach: toFiniteNumber(report?.reach),
+    engagement: toFiniteNumber(report?.engagement),
+    postsCount: Math.max(0, Math.round(toFiniteNumber(report?.postsCount))),
+  }));
+}
+
 const legacyReportExamplesBySection: Record<string, Set<string>> = {
   "Capas em destaque": new Set([
     "Dra. Alessandra",
@@ -996,6 +1043,7 @@ export function ReportsPage() {
     fallback: savedReportsFallback,
     legacySharedStateKey: "great-organico-reports-history",
   });
+  const safeSavedReports = useMemo(() => normalizeSavedReportHistory(savedReports), [savedReports]);
   const [selectedMetric, setSelectedMetric] = useState<MetricKey>("reach");
   const [overviewDraft, setOverviewDraft, overviewHydrated] = useSupabaseReportState<ReportOverview>({
     reportKind: "overview",
@@ -1581,7 +1629,7 @@ export function ReportsPage() {
       postsCount: currentSummary.postsCount,
     };
 
-    setSavedReports((previous) => [snapshot, ...previous].slice(0, 8));
+    setSavedReports((previous) => normalizeSavedReportHistory([snapshot, ...previous]).slice(0, 8));
     toast.success("Relatório salvo no histórico.");
   };
 
@@ -1890,7 +1938,7 @@ export function ReportsPage() {
       tone: "#2563EB",
     },
   ];
-  const savedReportsTimeline = (savedReports.length > 0 ? savedReports : [
+  const savedReportsTimeline = (safeSavedReports.length > 0 ? safeSavedReports : [
     {
       id: "current",
       label: describeReportPeriod({
@@ -1935,7 +1983,7 @@ export function ReportsPage() {
         ),
       ),
       fullLabel: snapshot.label,
-      accent: index === (savedReports.length > 0 ? savedReports : [{ id: "current" }]).slice(-8).length - 1,
+      accent: index === (safeSavedReports.length > 0 ? safeSavedReports : [{ id: "current" }]).slice(-8).length - 1,
     }));
   const openAddReportCard = (rowIndex: number) => {
     if (!reportSharedReady) {
@@ -2612,8 +2660,8 @@ export function ReportsPage() {
             </div>
 
             <div className="grid gap-4">
-              {savedReports.length > 0 ? (
-                savedReports.slice(0, 3).map((snapshot) => (
+              {safeSavedReports.length > 0 ? (
+                safeSavedReports.slice(0, 3).map((snapshot) => (
                   <div key={snapshot.id} className="rounded-[24px] border border-[rgba(255,180,200,.35)] bg-white/94 p-5 shadow-[0_12px_40px_rgba(255,120,160,.08)] transition duration-250 hover:shadow-[0_16px_48px_rgba(255,120,160,.14)]">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-start gap-3">
