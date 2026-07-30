@@ -207,10 +207,13 @@ const julyStoriesTeamByWeek = [
   { week: "3 semana", members: "Brayton, Karol, Cleriston, Isaque e Amanda" },
   { week: "4 semana", members: "Kauan, Isaque, Thiago, Hannah" },
 ] as const;
-const julyStoriesMonthTotals = [
-  { label: "Visualizacoes", value: "2.255.225" },
-  { label: "Alcances", value: "1.145.989" },
-] as const;
+const julySiteTotals = {
+  views: 2_255_225,
+  reach: 1_145_989,
+} as const;
+const julyStoriesTotal = julyStoriesSheetTotals[0].stories;
+const julyStoriesGoal = julyStoriesSheetTotals[1].stories;
+const julyStoriesMonthlyProgress = Math.round((julyStoriesTotal / Math.max(julyStoriesGoal, 1)) * 100);
 
 function isFinalContentStatus(status?: string) {
   return Boolean(status && finalContentStatuses.has(status as PostStatus | "Concluído" | "Finalizado"));
@@ -1891,11 +1894,11 @@ export function ReportsPage() {
   );
   const displaySummary = {
     health: healthScore,
-    views: currentSummary.views,
-    reach: currentSummary.reach,
-    stories: currentSummary.storiesCount,
+    views: julySiteTotals.views,
+    reach: julySiteTotals.reach,
+    stories: julyStoriesTotal,
     posts: currentSummary.postsCount,
-    monthlyProgress: currentSummary.monthlyProgress,
+    monthlyProgress: julyStoriesMonthlyProgress,
   };
   const heroSummaryCards = [
     {
@@ -1943,7 +1946,7 @@ export function ReportsPage() {
     {
       label: "Progresso mensal",
       value: `${displaySummary.monthlyProgress}%`,
-      delta: formatPercent(currentSummary.monthlyProgress - previousSummary.monthlyProgress, 1),
+      delta: formatPercent(displaySummary.monthlyProgress - previousSummary.monthlyProgress, 1),
       icon: CheckCircle2,
       tone: "good" as const,
       note: "Calculado por visualizações, alcance e conteúdos finalizados.",
@@ -1962,19 +1965,19 @@ export function ReportsPage() {
     },
   ];
   const executiveHeroCards = [
-    heroSummaryCards[0],
     heroSummaryCards[1],
+    heroSummaryCards[2],
     heroSummaryCards[3],
     heroSummaryCards[4],
   ].filter(Boolean);
   const bottomSummary = [
     { label: "Saúde total", value: `${healthScore}`, icon: Sparkles, tone: "#B91C1C" },
-    { label: "Visualizações do mês", value: formatLongNumber(currentSummary.views), icon: BarChart3, tone: "#7C3AED" },
-    { label: "Alcance total", value: formatLongNumber(currentSummary.reach), icon: Eye, tone: "#D10000" },
-    { label: "Stories do mês", value: formatLongNumber(currentSummary.storiesCount), icon: Share2, tone: "#EA580C" },
+    { label: "Visualizações do mês", value: formatLongNumber(julySiteTotals.views), icon: BarChart3, tone: "#7C3AED" },
+    { label: "Alcance total", value: formatLongNumber(julySiteTotals.reach), icon: Eye, tone: "#D10000" },
+    { label: "Stories do mês", value: formatLongNumber(julyStoriesTotal), icon: Share2, tone: "#EA580C" },
     {
       label: "Progresso mensal",
-      value: `${currentSummary.monthlyProgress}%`,
+      value: `${julyStoriesMonthlyProgress}%`,
       icon: CheckCircle2,
       tone: "#16A34A",
     },
@@ -2886,17 +2889,6 @@ export function ReportsPage() {
                     </table>
                   </div>
                 </div>
-
-                <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                  {julyStoriesMonthTotals.map((item) => (
-                    <div key={item.label} className="rounded-[1.7rem] border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.995),rgba(250,244,246,0.98))] p-5 shadow-[0_14px_32px_rgba(15,23,42,0.05)]">
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Total do mes</p>
-                      <h3 className="mt-2 text-sm font-medium text-foreground">{item.label}</h3>
-                      <p className="mt-3 text-[clamp(1.8rem,2.5vw,2.4rem)] font-semibold tracking-tight text-primary">{item.value}</p>
-                    </div>
-                  ))}
-                </div>
-
                 <div className="mt-5 rounded-[1.9rem] border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.995),rgba(252,244,246,0.98))] p-5 shadow-[0_18px_42px_rgba(15,23,42,0.05)]">
                   <div className="flex flex-col gap-2 border-b border-border/60 pb-4 sm:flex-row sm:items-end sm:justify-between">
                     <div>
