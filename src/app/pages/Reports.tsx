@@ -2643,8 +2643,13 @@ export function ReportsPage() {
           <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_360px]">
             <div className="rounded-[24px] border border-[rgba(255,180,200,.35)] bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(255,245,248,0.88))] px-4 py-5 shadow-[0_12px_40px_rgba(255,120,160,.08)] sm:px-6">
               <div className="h-[250px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={savedReportsTimeline} margin={{ top: 24, right: 12, left: -16, bottom: 4 }}>
+                <div className="h-full overflow-x-auto overflow-y-hidden">
+                  <LineChart
+                    width={Math.max(savedReportsTimeline.length * 110, 640)}
+                    height={250}
+                    data={savedReportsTimeline}
+                    margin={{ top: 24, right: 12, left: -16, bottom: 4 }}
+                  >
                     <defs>
                       <linearGradient id="reports-history-fill" x1="0" x2="0" y1="0" y2="1">
                         <stop offset="0%" stopColor="#ff7ea2" stopOpacity={0.28} />
@@ -2676,7 +2681,7 @@ export function ReportsPage() {
                       activeDot={{ r: 6, strokeWidth: 0, fill: "#ff4f7d" }}
                     />
                   </LineChart>
-                </ResponsiveContainer>
+                </div>
               </div>
             </div>
 
