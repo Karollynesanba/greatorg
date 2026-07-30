@@ -1938,36 +1938,38 @@ export function ReportsPage() {
       tone: "#2563EB",
     },
   ];
-  const savedReportsTimeline = (safeSavedReports.length > 0 ? safeSavedReports : [
-    {
-      id: "current",
-      label: describeReportPeriod({
+  const savedReportsTimeline = useMemo(() => {
+    const historySource = safeSavedReports.length > 0 ? safeSavedReports : [
+      {
+        id: "current",
+        label: describeReportPeriod({
+          period,
+          customMode: customPeriodMode,
+          customMonth,
+          customYear,
+          customStart: customStartDate,
+          customEnd: customEndDate,
+          customPastMonths,
+          currentRange,
+        }),
+        generatedAt: new Intl.DateTimeFormat("pt-BR", {
+          day: "2-digit",
+          month: "2-digit",
+        }).format(anchorDate),
         period,
-        customMode: customPeriodMode,
-        customMonth,
-        customYear,
-        customStart: customStartDate,
-        customEnd: customEndDate,
-        customPastMonths,
-        currentRange,
-      }),
-      generatedAt: new Intl.DateTimeFormat("pt-BR", {
-        day: "2-digit",
-        month: "2-digit",
-      }).format(anchorDate),
-      period,
-      startDate: formatDateKey(currentRange.start),
-      endDate: formatDateKey(currentRange.end),
-      views: currentSummary.views,
-      reach: currentSummary.reach,
-      engagement: currentSummary.engagement,
-      postsCount: currentSummary.postsCount,
-      responsibleId: responsibleFilter,
-      typeFilter,
-    },
-  ])
-    .slice(-8)
-    .map((snapshot, index) => ({
+        startDate: formatDateKey(currentRange.start),
+        endDate: formatDateKey(currentRange.end),
+        views: currentSummary.views,
+        reach: currentSummary.reach,
+        engagement: currentSummary.engagement,
+        postsCount: currentSummary.postsCount,
+        responsibleId: responsibleFilter,
+        typeFilter,
+      },
+    ];
+
+    const trimmedHistory = historySource.slice(-8);
+    return trimmedHistory.map((snapshot, index) => ({
       id: snapshot.id,
       label:
         snapshot.label.length > 16
@@ -1983,8 +1985,26 @@ export function ReportsPage() {
         ),
       ),
       fullLabel: snapshot.label,
-      accent: index === (safeSavedReports.length > 0 ? safeSavedReports : [{ id: "current" }]).slice(-8).length - 1,
+      accent: index === trimmedHistory.length - 1,
     }));
+  }, [
+    anchorDate,
+    currentRange,
+    currentSummary.engagement,
+    currentSummary.postsCount,
+    currentSummary.reach,
+    currentSummary.views,
+    customEndDate,
+    customMonth,
+    customPastMonths,
+    customPeriodMode,
+    customStartDate,
+    customYear,
+    period,
+    responsibleFilter,
+    safeSavedReports,
+    typeFilter,
+  ]);
   const openAddReportCard = (rowIndex: number) => {
     if (!reportSharedReady) {
       toast.loading("Carregando relatório compartilhado...");
@@ -2645,12 +2665,13 @@ export function ReportsPage() {
                       formatter={(value) => [formatLongNumber(Number(value ?? 0)), "Índice"]}
                       labelFormatter={(label) => `Período: ${label}`}
                     />
-                    <Area type="monotone" dataKey="score" stroke="none" fill="url(#reports-history-fill)" />
+                    <Area type="monotone" dataKey="score" stroke="none" fill="url(#reports-history-fill)" isAnimationActive={false} />
                     <Line
                       type="monotone"
                       dataKey="score"
                       stroke="#ff6d93"
                       strokeWidth={2.5}
+                      isAnimationActive={false}
                       dot={{ r: 4, strokeWidth: 0, fill: "#ff6d93" }}
                       activeDot={{ r: 6, strokeWidth: 0, fill: "#ff4f7d" }}
                     />
