@@ -642,9 +642,10 @@ export async function signInWithPassword(email: string, password: string) {
           normalizedMessage,
         );
       const storedPassword = account ? getStoredPassword(account.email) : null;
+      const accountPassword = account?.password ?? null;
       const hasValidLocalDemoPassword =
-        Boolean(account) &&
-        (trimmedPassword === account.password || (storedPassword !== null && trimmedPassword === storedPassword));
+        accountPassword !== null &&
+        (trimmedPassword === accountPassword || (storedPassword !== null && trimmedPassword === storedPassword));
       const shouldUseLocalDemoFallback =
         hasValidLocalDemoPassword &&
         (shouldFallbackToLocalDemoAuth(rawMessage) ||
