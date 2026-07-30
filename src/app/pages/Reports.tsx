@@ -112,9 +112,6 @@ type ReportCardRow = {
   action: string;
   items: ReportCardItem[];
 };
-type DisplayReportCardRow = ReportCardRow & {
-  isComputed?: boolean;
-};
 type ReportOverview = {
   badge: string;
   title: string;
@@ -213,12 +210,54 @@ function stripLegacyReportExamples(rows: ReportCardRow[]) {
 
 const monthlyContentTarget = 120;
 const finalContentStatuses = new Set<PostStatus | "Concluído" | "Finalizado">(["Aprovado", "Publicado", "Concluído", "Finalizado"]);
-const storyCardImages = {
-  video: "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=900&q=80",
-  photo: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80",
-  summary: "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=900&q=80",
-  published: "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=900&q=80",
-};
+const storiesRowTitle = "Stories";
+const julyStoriesSheet = [
+  { date: "01/07", stories: 8, photos: 3, videos: 5 },
+  { date: "02/07", stories: 9, photos: 4, videos: 5 },
+  { date: "03/07", stories: 8, photos: 3, videos: 5 },
+  { date: "04/07", stories: 0, photos: 0, videos: 0 },
+  { date: "05/07", stories: 0, photos: 0, videos: 0 },
+  { date: "06/07", stories: 8, photos: 3, videos: 5 },
+  { date: "07/07", stories: 9, photos: 4, videos: 5 },
+  { date: "08/07", stories: 9, photos: 3, videos: 6 },
+  { date: "09/07", stories: 9, photos: 4, videos: 5 },
+  { date: "10/07", stories: 8, photos: 3, videos: 5 },
+  { date: "11/07", stories: 0, photos: 0, videos: 0 },
+  { date: "12/07", stories: 0, photos: 0, videos: 0 },
+  { date: "13/07", stories: 8, photos: 3, videos: 5 },
+  { date: "14/07", stories: 8, photos: 3, videos: 5 },
+  { date: "15/07", stories: 8, photos: 3, videos: 5 },
+  { date: "16/07", stories: 2, photos: 1, videos: 1 },
+  { date: "17/07", stories: 8, photos: 3, videos: 5 },
+  { date: "18/07", stories: 0, photos: 0, videos: 0 },
+  { date: "19/07", stories: 0, photos: 0, videos: 0 },
+  { date: "20/07", stories: 10, photos: 5, videos: 5 },
+  { date: "21/07", stories: 8, photos: 3, videos: 5 },
+  { date: "22/07", stories: 10, photos: 4, videos: 6 },
+  { date: "23/07", stories: 10, photos: 4, videos: 6 },
+  { date: "24/07", stories: 8, photos: 3, videos: 5 },
+  { date: "25/07", stories: 2, photos: 2, videos: 0 },
+  { date: "26/07", stories: 0, photos: 0, videos: 0 },
+  { date: "27/07", stories: 13, photos: 7, videos: 6 },
+  { date: "28/07", stories: 8, photos: 3, videos: 5 },
+  { date: "29/07", stories: 9, photos: 3, videos: 6 },
+  { date: "30/07", stories: 8, photos: 3, videos: 5 },
+  { date: "31/07", stories: 8, photos: 3, videos: 5 },
+] as const;
+const julyStoriesSheetTotals = [
+  { label: "TOTAL", stories: 196, photos: 80, videos: 116 },
+  { label: "", stories: 168, photos: 63, videos: 105 },
+] as const;
+const julyStoriesTeamByWeek = [
+  { week: "1 semana", members: "Kauan, Karol e Brayton" },
+  { week: "2 semana", members: "Kauan, Isaque, Hannah e Karol" },
+  { week: "3 semana", members: "Brayton, Karol, Cleriston, Isaque e Amanda" },
+  { week: "4 semana", members: "Kauan, Isaque, Thiago, Hannah" },
+] as const;
+const julyStoriesMonthTotals = [
+  { label: "Visualizacoes", value: "2.255.225" },
+  { label: "Alcances", value: "1.145.989" },
+] as const;
 
 function isFinalContentStatus(status?: string) {
   return Boolean(status && finalContentStatuses.has(status as PostStatus | "Concluído" | "Finalizado"));
@@ -1120,6 +1159,8 @@ export function ReportsPage() {
     accent: string;
     image: string;
     imageName: string;
+    badge: string;
+    caption: string;
   } | null>(null);
   const [reportRows, setReportRows, reportRowsHydrated] = useSupabaseReportState<ReportCardRow[]>({
     reportKind: "layout",
@@ -1453,37 +1494,6 @@ export function ReportsPage() {
   };
 
   const periodDays = diffDays(currentRange.start, currentRange.end) + 1;
-  const useCurrentMonthlyStoriesCards =
-    responsibleFilter === "todos" && teamScope === "todos" && isExactMonthRange(currentRange, monthKeyFromDate(currentRange.start));
-  const currentStoriesBreakdown = useMemo(() => {
-    const computedVideo = filteredStoryLogs
-      .filter((story) => story.mediaType === "video")
-      .reduce((sum, story) => sum + Math.max(story.quantity, 0), 0);
-    const computedPhoto = filteredStoryLogs
-      .filter((story) => story.mediaType === "photo")
-      .reduce((sum, story) => sum + Math.max(story.quantity, 0), 0);
-
-    if (useCurrentMonthlyStoriesCards) {
-      return {
-        video: Math.max(currentMonthlyStoriesSummary?.videoCurrent ?? 0, computedVideo),
-        photo: Math.max(currentMonthlyStoriesSummary?.photoCurrent ?? 0, computedPhoto),
-        totalGoal: currentMonthlyStoriesSummary?.totalGoal ?? 168,
-      };
-    }
-
-    return {
-      video: computedVideo,
-      photo: computedPhoto,
-      totalGoal: computedVideo + computedPhoto,
-    };
-  }, [currentMonthlyStoriesSummary, filteredStoryLogs, useCurrentMonthlyStoriesCards]);
-  const recentStoryLogs = useMemo(
-    () =>
-      [...filteredStoryLogs]
-        .sort((a, b) => `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`))
-        .slice(0, 2),
-    [filteredStoryLogs],
-  );
   const currentBuckets = groupPostsByDate(filteredPosts);
   const previousBuckets = groupPostsByDate(previousPosts);
   const comparisonSeries = Array.from({ length: periodDays }, (_, index) => {
@@ -2023,59 +2033,9 @@ export function ReportsPage() {
       tone: "#2563EB",
     },
   ];
-  const storiesReportRow = useMemo<DisplayReportCardRow>(() => {
-    const storyCards: ReportCardItem[] = [
-      {
-        title: "Stories do período",
-        metric: formatLongNumber(currentSummary.storiesCount),
-        accent: "#EA580C",
-        image: storyCardImages.summary,
-        badge: "Stories",
-        caption: useCurrentMonthlyStoriesCards
-          ? `Meta do mês: ${formatLongNumber(currentStoriesBreakdown.totalGoal)} stories`
-          : "Total de stories dentro do filtro atual",
-      },
-      {
-        title: "Stories em vídeo",
-        metric: formatLongNumber(currentStoriesBreakdown.video),
-        accent: "#DC2626",
-        image: storyCardImages.video,
-        badge: "Vídeo",
-        caption: "Quantidade registrada em vídeo no período",
-      },
-      {
-        title: "Stories em foto",
-        metric: formatLongNumber(currentStoriesBreakdown.photo),
-        accent: "#2563EB",
-        image: storyCardImages.photo,
-        badge: "Foto",
-        caption: "Quantidade registrada em foto no período",
-      },
-    ];
-
-    if (recentStoryLogs[0]) {
-      const latestStory = recentStoryLogs[0];
-      storyCards.push({
-        title: `${latestStory.quantity} ${latestStory.quantity === 1 ? "story" : "stories"} em ${latestStory.date}`,
-        metric: latestStory.time,
-        accent: latestStory.mediaType === "video" ? "#BE123C" : "#1D4ED8",
-        image: latestStory.mediaType === "video" ? storyCardImages.video : storyCardImages.published,
-        badge: latestStory.mediaType === "video" ? "Último vídeo" : "Última foto",
-        caption: latestStory.notes?.trim() || "Último lançamento registrado em Stories",
-      });
-    }
-
-    return {
-      title: "Stories",
-      description: "Resumo em cards da operação de Stories dentro do mesmo período filtrado do relatório.",
-      action: "Sincronizado com Stories",
-      items: storyCards,
-      isComputed: true,
-    };
-  }, [currentStoriesBreakdown.photo, currentStoriesBreakdown.totalGoal, currentStoriesBreakdown.video, currentSummary.storiesCount, recentStoryLogs, useCurrentMonthlyStoriesCards]);
-  const displayReportRows = useMemo<DisplayReportCardRow[]>(
-    () => [...reportRows, storiesReportRow],
-    [reportRows, storiesReportRow],
+  const genericReportRows = useMemo(
+    () => reportRows.filter((row) => row.title !== storiesRowTitle),
+    [reportRows],
   );
   const savedReportsTimeline = useMemo(() => {
     const historySource = safeSavedReports.length > 0 ? safeSavedReports : [
@@ -2159,6 +2119,8 @@ export function ReportsPage() {
       accent,
       image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=900&q=80",
       imageName: "",
+      badge: "",
+      caption: "",
     });
   };
   const openEditReportCard = (rowIndex: number, itemIndex: number) => {
@@ -2180,6 +2142,8 @@ export function ReportsPage() {
       accent: target.accent,
       image: target.image,
       imageName: "",
+      badge: target.badge ?? "",
+      caption: target.caption ?? "",
     });
   };
   const saveCardDraft = () => {
@@ -2212,6 +2176,8 @@ export function ReportsPage() {
                         metric: cardDraft.metric.trim() || "0",
                         accent: cardDraft.accent.trim() || "#D10000",
                         image: cardDraft.image.trim(),
+                        badge: cardDraft.badge.trim() || undefined,
+                        caption: cardDraft.caption.trim() || undefined,
                       },
                     ]
                   : row.items.map((item, itemIndex) =>
@@ -2222,6 +2188,8 @@ export function ReportsPage() {
                             metric: cardDraft.metric.trim() || item.metric,
                             accent: cardDraft.accent.trim() || item.accent,
                             image: cardDraft.image.trim(),
+                            badge: cardDraft.badge.trim() || undefined,
+                            caption: cardDraft.caption.trim() || undefined,
                           }
                         : item,
                     ),
@@ -2839,7 +2807,7 @@ export function ReportsPage() {
         </section>
 
         <div className="space-y-6">
-              {displayReportRows.map((row, rowIndex) => (
+              {genericReportRows.map((row, rowIndex) => (
                 <section key={row.title} data-cy={`reports-row-${rowIndex}`} className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.05)] print-avoid-break">
                   <div className="flex items-center justify-between gap-4">
                     <div>
@@ -2847,34 +2815,26 @@ export function ReportsPage() {
                       <p className="mt-1 text-sm text-muted-foreground">{row.description}</p>
                     </div>
                     <div className="flex items-center gap-2 print:hidden">
-                      {row.isComputed ? (
-                        <span className="rounded-full border border-orange-200 bg-orange-50 px-4 py-2 text-sm font-medium text-orange-700">
-                          {row.action}
-                        </span>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => openRowSectionEditor(rowIndex)}
-                            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 bg-white text-muted-foreground transition hover:border-primary/25 hover:text-foreground hover:shadow-sm"
-                            aria-label={`Editar ${row.title}`}
-                          >
-                            <PencilLine className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => openAddReportCard(rowIndex)}
-                            data-cy={`reports-row-${rowIndex}-add-card`}
-                            className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-white px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/25 hover:shadow-md"
-                          >
-                            <Plus className="h-4 w-4" />
-                            Adicionar card
-                          </button>
-                          <button type="button" className="text-sm font-medium text-muted-foreground transition hover:text-foreground">
-                            {row.action}
-                          </button>
-                        </>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => openRowSectionEditor(rowIndex)}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 bg-white text-muted-foreground transition hover:border-primary/25 hover:text-foreground hover:shadow-sm"
+                        aria-label={`Editar ${row.title}`}
+                      >
+                        <PencilLine className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openAddReportCard(rowIndex)}
+                        data-cy={`reports-row-${rowIndex}-add-card`}
+                        className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-white px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/25 hover:shadow-md"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Adicionar card
+                      </button>
+                      <button type="button" className="text-sm font-medium text-muted-foreground transition hover:text-foreground">
+                        {row.action}
+                      </button>
                     </div>
                   </div>
 
@@ -2908,33 +2868,124 @@ export function ReportsPage() {
                       <p className="text-sm font-semibold leading-5">{item.title}</p>
                       <p className="mt-1 text-xs text-white/75">{item.caption ?? "Conteúdo pronto para publicação"}</p>
                     </div>
-                    {!row.isComputed ? (
-                      <div className="absolute right-3 top-3 flex gap-2 print:hidden">
-                        <button
-                          type="button"
-                          onClick={() => openEditReportCard(rowIndex, itemIndex)}
-                          data-cy={`reports-row-${rowIndex}-card-${itemIndex}-edit`}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/92 text-foreground shadow-md transition hover:bg-white hover:text-primary"
-                          aria-label={`Editar ${item.title}`}
-                        >
-                          <PencilLine className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteReportCard(rowIndex, itemIndex)}
-                          data-cy={`reports-row-${rowIndex}-card-${itemIndex}-delete`}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/92 text-destructive shadow-md transition hover:bg-white"
-                          aria-label={`Apagar ${item.title}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ) : null}
+                    <div className="absolute right-3 top-3 flex gap-2 print:hidden">
+                      <button
+                        type="button"
+                        onClick={() => openEditReportCard(rowIndex, itemIndex)}
+                        data-cy={`reports-row-${rowIndex}-card-${itemIndex}-edit`}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/92 text-foreground shadow-md transition hover:bg-white hover:text-primary"
+                        aria-label={`Editar ${item.title}`}
+                      >
+                        <PencilLine className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteReportCard(rowIndex, itemIndex)}
+                        data-cy={`reports-row-${rowIndex}-card-${itemIndex}-delete`}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/92 text-destructive shadow-md transition hover:bg-white"
+                        aria-label={`Apagar ${item.title}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </article>
                 ))}
               </div>
                 </section>
               ))}
+
+              <section className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.05)] print-avoid-break">
+                <div className="flex flex-col gap-4 border-b border-border/60 pb-5 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold tracking-tight text-foreground">Stories</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Planilha mensal de julho com a distribuicao diaria de Stories, fotos e videos.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary">
+                      Julho
+                    </span>
+                    <span className="rounded-full border border-border/60 bg-white px-4 py-2 text-sm font-medium text-muted-foreground">
+                      31 dias
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-5 overflow-hidden rounded-[1.9rem] border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.995),rgba(248,250,252,0.98))] shadow-[0_18px_42px_rgba(15,23,42,0.05)]">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full border-separate border-spacing-0">
+                      <thead>
+                        <tr className="bg-primary/[0.06] text-left">
+                          <th className="px-5 py-4 text-sm font-semibold text-foreground">Data</th>
+                          <th className="px-5 py-4 text-sm font-semibold text-foreground">Stories</th>
+                          <th className="px-5 py-4 text-sm font-semibold text-foreground">Fotos</th>
+                          <th className="px-5 py-4 text-sm font-semibold text-foreground">Videos</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {julyStoriesSheet.map((item, index) => (
+                          <tr
+                            key={item.date}
+                            className={cn(
+                              "transition hover:bg-primary/[0.03]",
+                              index % 2 === 0 ? "bg-white" : "bg-slate-50/70",
+                            )}
+                          >
+                            <td className="border-t border-border/50 px-5 py-3 text-sm font-medium text-foreground">{item.date}</td>
+                            <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.stories}</td>
+                            <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.photos}</td>
+                            <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.videos}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        {julyStoriesSheetTotals.map((item, index) => (
+                          <tr key={`${item.label || "extra"}-${index}`} className={index === 0 ? "bg-primary/[0.08]" : "bg-primary/[0.03]"}>
+                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold uppercase tracking-[0.14em] text-foreground">
+                              {item.label || " "}
+                            </td>
+                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{item.stories}</td>
+                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{item.photos}</td>
+                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{item.videos}</td>
+                          </tr>
+                        ))}
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                  {julyStoriesMonthTotals.map((item) => (
+                    <div key={item.label} className="rounded-[1.7rem] border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.995),rgba(250,244,246,0.98))] p-5 shadow-[0_14px_32px_rgba(15,23,42,0.05)]">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Total do mes</p>
+                      <h3 className="mt-2 text-sm font-medium text-foreground">{item.label}</h3>
+                      <p className="mt-3 text-[clamp(1.8rem,2.5vw,2.4rem)] font-semibold tracking-tight text-primary">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-5 rounded-[1.9rem] border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.995),rgba(252,244,246,0.98))] p-5 shadow-[0_18px_42px_rgba(15,23,42,0.05)]">
+                  <div className="flex flex-col gap-2 border-b border-border/60 pb-4 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Perfil</p>
+                      <h3 className="mt-1 text-lg font-semibold tracking-tight text-foreground">Membros da equipe no perfil</h3>
+                    </div>
+                    <span className="rounded-full border border-border/60 bg-white px-4 py-2 text-sm font-medium text-muted-foreground">
+                      Escala semanal de julho
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                    {julyStoriesTeamByWeek.map((item) => (
+                      <div key={item.week} className="rounded-[1.4rem] border border-border/60 bg-white px-4 py-4 shadow-[0_10px_22px_rgba(15,23,42,0.04)]">
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{item.week}</p>
+                        <p className="mt-2 text-sm font-medium leading-6 text-foreground">{item.members}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
             </div>
 
         <section className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.06)] print-avoid-break">
@@ -3180,6 +3231,27 @@ export function ReportsPage() {
                 </label>
 
                 <label className="grid gap-2">
+                  <span className="text-sm font-medium text-foreground">Etiqueta</span>
+                  <input
+                    value={cardDraft.badge}
+                    onChange={(event) => setCardDraft((previous) => (previous ? { ...previous, badge: event.target.value } : previous))}
+                    className="rounded-2xl border border-border/60 bg-white px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary/30"
+                    placeholder="Ex.: Stories, Vídeo, Foto"
+                  />
+                </label>
+
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-foreground">Descrição curta</span>
+                  <textarea
+                    value={cardDraft.caption}
+                    onChange={(event) => setCardDraft((previous) => (previous ? { ...previous, caption: event.target.value } : previous))}
+                    rows={3}
+                    className="rounded-2xl border border-border/60 bg-white px-4 py-3 text-sm leading-6 text-foreground outline-none transition focus:border-primary/30"
+                    placeholder="Texto exibido abaixo do título do card."
+                  />
+                </label>
+
+                <label className="grid gap-2">
                   <span className="text-sm font-medium text-foreground">Cor de destaque</span>
                   <input
                     data-cy="reports-card-accent"
@@ -3236,8 +3308,10 @@ export function ReportsPage() {
                     }}
                   />
                   <div className="p-4 text-white" style={{ backgroundColor: cardDraft.accent || "#D10000" }}>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/80">{cardDraft.badge || "Destaque"}</p>
                     <p className="text-sm font-semibold">{cardDraft.title || "Título do card"}</p>
                     <p className="mt-1 text-xs text-white/80">Métrica: {cardDraft.metric || "0"}</p>
+                    <p className="mt-1 text-xs text-white/80">{cardDraft.caption || "Descrição curta do card."}</p>
                   </div>
                 </div>
               </div>
