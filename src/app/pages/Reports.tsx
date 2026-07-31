@@ -241,12 +241,12 @@ const julyStoriesSheet = [
   { date: "27/07", stories: 13, photos: 7, videos: 6 },
   { date: "28/07", stories: 8, photos: 3, videos: 5 },
   { date: "29/07", stories: 9, photos: 3, videos: 6 },
-  { date: "30/07", stories: 8, photos: 3, videos: 5 },
+  { date: "30/07", stories: 8, photos: 2, videos: 6 },
   { date: "31/07", stories: 8, photos: 3, videos: 5 },
 ] as const;
 const julyStoriesSheetTotals = [
-  { label: "TOTAL", stories: 196, photos: 80, videos: 116 },
-  { label: "", stories: 168, photos: 63, videos: 105 },
+  { label: "TOTAL", stories: 196, photos: 79, videos: 117 },
+  { label: "", stories: 168, photos: 62, videos: 106 },
 ] as const;
 const julyStoriesTeamByWeek = [
   { week: "1 semana", members: "Kauan, Karol e Brayton" },
