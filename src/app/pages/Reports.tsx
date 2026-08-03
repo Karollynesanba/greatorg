@@ -18,7 +18,6 @@ import {
   Download,
   Eye,
   ChevronDown,
-  FileDown,
   FileImage,
   Printer,
   Rocket,
@@ -211,56 +210,6 @@ function stripLegacyReportExamples(rows: ReportCardRow[]) {
 const monthlyContentTarget = 120;
 const finalContentStatuses = new Set<PostStatus | "Concluído" | "Finalizado">(["Aprovado", "Publicado", "Concluído", "Finalizado"]);
 const storiesRowTitle = "Stories";
-const julyStoriesSheet = [
-  { date: "01/07", stories: 8, photos: 3, videos: 5 },
-  { date: "02/07", stories: 9, photos: 4, videos: 5 },
-  { date: "03/07", stories: 8, photos: 3, videos: 5 },
-  { date: "04/07", stories: 0, photos: 0, videos: 0 },
-  { date: "05/07", stories: 0, photos: 0, videos: 0 },
-  { date: "06/07", stories: 8, photos: 3, videos: 5 },
-  { date: "07/07", stories: 9, photos: 4, videos: 5 },
-  { date: "08/07", stories: 9, photos: 3, videos: 6 },
-  { date: "09/07", stories: 9, photos: 4, videos: 5 },
-  { date: "10/07", stories: 8, photos: 3, videos: 5 },
-  { date: "11/07", stories: 0, photos: 0, videos: 0 },
-  { date: "12/07", stories: 0, photos: 0, videos: 0 },
-  { date: "13/07", stories: 8, photos: 3, videos: 5 },
-  { date: "14/07", stories: 8, photos: 3, videos: 5 },
-  { date: "15/07", stories: 8, photos: 3, videos: 5 },
-  { date: "16/07", stories: 2, photos: 1, videos: 1 },
-  { date: "17/07", stories: 8, photos: 3, videos: 5 },
-  { date: "18/07", stories: 0, photos: 0, videos: 0 },
-  { date: "19/07", stories: 0, photos: 0, videos: 0 },
-  { date: "20/07", stories: 10, photos: 5, videos: 5 },
-  { date: "21/07", stories: 8, photos: 3, videos: 5 },
-  { date: "22/07", stories: 10, photos: 4, videos: 6 },
-  { date: "23/07", stories: 10, photos: 4, videos: 6 },
-  { date: "24/07", stories: 8, photos: 3, videos: 5 },
-  { date: "25/07", stories: 2, photos: 2, videos: 0 },
-  { date: "26/07", stories: 0, photos: 0, videos: 0 },
-  { date: "27/07", stories: 13, photos: 7, videos: 6 },
-  { date: "28/07", stories: 8, photos: 3, videos: 5 },
-  { date: "29/07", stories: 9, photos: 3, videos: 6 },
-  { date: "30/07", stories: 8, photos: 2, videos: 6 },
-  { date: "31/07", stories: 8, photos: 3, videos: 5 },
-] as const;
-const julyStoriesSheetTotals = [
-  { label: "TOTAL", stories: 196, photos: 79, videos: 117 },
-  { label: "", stories: 168, photos: 62, videos: 106 },
-] as const;
-const julyStoriesTeamByWeek = [
-  { week: "1 semana", members: "Kauan, Karol e Brayton" },
-  { week: "2 semana", members: "Kauan, Isaque, Hannah e Karol" },
-  { week: "3 semana", members: "Brayton, Karol, Cleriston, Isaque e Amanda" },
-  { week: "4 semana", members: "Kauan, Isaque, Thiago, Hannah" },
-] as const;
-const julySiteTotals = {
-  views: 2_255_225,
-  reach: 1_145_989,
-} as const;
-const julyStoriesTotal = julyStoriesSheetTotals[0].stories;
-const julyStoriesGoal = julyStoriesSheetTotals[1].stories;
-const julyStoriesMonthlyProgress = Math.round((julyStoriesTotal / Math.max(julyStoriesGoal, 1)) * 100);
 
 function isFinalContentStatus(status?: string) {
   return Boolean(status && finalContentStatuses.has(status as PostStatus | "Concluído" | "Finalizado"));
@@ -730,49 +679,6 @@ function MetricSparkline({ values }: { values: number[] }) {
   );
 }
 
-function ReportHistorySparkline({
-  items,
-}: {
-  items: Array<{ label: string; score: number; fullLabel: string }>;
-}) {
-  const scores = items.map((item) => item.score);
-  const linePath = buildSparklinePath(scores, 620, 180);
-  const areaPath = `${linePath} L 620 180 L 0 180 Z`;
-  const safeItems = items.length > 1 ? items : [...items, items[0] ?? { label: "", score: 0, fullLabel: "" }];
-
-  return (
-    <div className="h-[240px] w-full rounded-[20px] bg-[linear-gradient(180deg,rgba(255,250,251,0.92),rgba(255,241,245,0.86))] p-4">
-      <svg viewBox="0 0 620 200" className="h-full w-full" fill="none" aria-hidden="true">
-        <defs>
-          <linearGradient id="reports-history-svg-fill" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#ff7ea2" stopOpacity="0.30" />
-            <stop offset="100%" stopColor="#ff7ea2" stopOpacity="0.04" />
-          </linearGradient>
-        </defs>
-        <path d={areaPath} fill="url(#reports-history-svg-fill)" />
-        <path d={linePath} stroke="rgba(255,126,168,0.22)" strokeWidth="10" strokeLinecap="round" />
-        <path d={linePath} stroke="#ff6d93" strokeWidth="3" strokeLinecap="round" />
-        {safeItems.map((item, index) => {
-          const x = (index / Math.max(safeItems.length - 1, 1)) * 620;
-          const min = Math.min(...scores, 0);
-          const max = Math.max(...scores, 1);
-          const range = max - min || 1;
-          const y = 180 - ((item.score - min) / range) * 180;
-
-          return (
-            <g key={`${item.label}-${index}`}>
-              <circle cx={x} cy={y} r="4.5" fill="#ff6d93" />
-              <text x={x} y="196" textAnchor={index === 0 ? "start" : index === safeItems.length - 1 ? "end" : "middle"} fontSize="12" fill="#64748b">
-                {item.label}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
-
 function loadImage(src: string) {
   return new Promise<HTMLImageElement | null>((resolve) => {
     const image = new Image();
@@ -1060,7 +966,6 @@ export function ReportsPage() {
   const reportFiltersRef = useRef<HTMLElement | null>(null);
   const { isDark } = useThemeMode();
   const anchorDate = useMemo(() => new Date(), []);
-  const reportReferenceMonth = useMemo(() => monthKeyFromDate(anchorDate), [anchorDate]);
   const monthlyArchiveFallback = useMemo(() => createEmptyMonthlyArchive(), []);
   const savedReportsFallback = useMemo<SavedReport[]>(() => [], []);
   const reportsOverviewFallback = useMemo<ReportOverview>(
@@ -1105,6 +1010,26 @@ export function ReportsPage() {
   const [customPastMonths, setCustomPastMonths] = useState(3);
   const [typeFilter, setTypeFilter] = useState<ContentType | "todos">("todos");
   const [responsibleFilter, setResponsibleFilter] = useState<number | "todos">("todos");
+  const currentRange = useMemo(() => {
+    return resolveReportRange({
+      period,
+      anchorDate,
+      customMode: customPeriodMode,
+      customMonth,
+      customYear,
+      customStart: customStartDate,
+      customEnd: customEndDate,
+      customPastMonths,
+    });
+  }, [anchorDate, customEndDate, customMonth, customPastMonths, customPeriodMode, customStartDate, customYear, period]);
+  const previousRange = useMemo(() => shiftRange(currentRange.start, currentRange.end), [currentRange]);
+  const reportReferenceMonth = useMemo(() => {
+    if (isExactMonthRange(currentRange, monthKeyFromDate(currentRange.start))) {
+      return monthKeyFromDate(currentRange.start);
+    }
+
+    return monthKeyFromDate(currentRange.end);
+  }, [currentRange]);
   const [teamMembers] = useTeamProfiles();
   const [posts] = usePosts();
   const [calendarItems] = useSupabaseSyncedListState<CalendarEvent>({
@@ -1139,7 +1064,6 @@ export function ReportsPage() {
     fallback: savedReportsFallback,
     legacySharedStateKey: "great-organico-reports-history",
   });
-  const safeSavedReports = useMemo(() => normalizeSavedReportHistory(savedReports), [savedReports]);
   const [selectedMetric, setSelectedMetric] = useState<MetricKey>("reach");
   const [overviewDraft, setOverviewDraft, overviewHydrated] = useSupabaseReportState<ReportOverview>({
     reportKind: "overview",
@@ -1230,19 +1154,6 @@ export function ReportsPage() {
     return { label: String(year), value: year, color: year === customYear ? "#D10000" : "#64748B" };
   });
 
-  const currentRange = useMemo(() => {
-    return resolveReportRange({
-      period,
-      anchorDate,
-      customMode: customPeriodMode,
-      customMonth,
-      customYear,
-      customStart: customStartDate,
-      customEnd: customEndDate,
-      customPastMonths,
-    });
-  }, [anchorDate, customEndDate, customMonth, customPastMonths, customPeriodMode, customStartDate, customYear, period]);
-  const previousRange = useMemo(() => shiftRange(currentRange.start, currentRange.end), [currentRange]);
   const [currentMonthlyStoriesSummary, setCurrentMonthlyStoriesSummary] = useState<StoriesMonthlySummary | null>(null);
   const [previousMonthlyStoriesSummary, setPreviousMonthlyStoriesSummary] = useState<StoriesMonthlySummary | null>(null);
 
@@ -1731,18 +1642,6 @@ export function ReportsPage() {
     toast.success("Relatório salvo no histórico.");
   };
 
-  const handleRestoreReport = (snapshot: SavedReport) => {
-    setPeriod(snapshot.period);
-    if (snapshot.period === "custom") {
-      setCustomPeriodMode("range");
-      setCustomStartDate(snapshot.startDate);
-      setCustomEndDate(snapshot.endDate);
-    }
-    setTypeFilter(snapshot.typeFilter);
-    setResponsibleFilter(snapshot.responsibleId);
-    toast.success("Relatório antigo carregado.");
-  };
-
   const handleExportPdf = () => window.print();
 
   const handleExportImage = async () => {
@@ -1885,6 +1784,85 @@ export function ReportsPage() {
     URL.revokeObjectURL(url);
     toast.success("Imagem exportada com sucesso.");
   };
+  const isCurrentRangeExactMonth = isExactMonthRange(currentRange, monthKeyFromDate(currentRange.start));
+  const storiesMonthLabel = formatMonthYear(currentRange.start);
+  const storiesDateLabel = isCurrentRangeExactMonth
+    ? `Planilha mensal de ${storiesMonthLabel} com a distribuicao diaria de Stories, fotos e videos.`
+    : `Distribuicao diaria de Stories, fotos e videos entre ${formatDateKey(currentRange.start)} e ${formatDateKey(currentRange.end)}.`;
+  const storiesSheet = useMemo(() => {
+    const totalDays = diffDays(currentRange.start, currentRange.end) + 1;
+
+    return Array.from({ length: totalDays }, (_, index) => {
+      const date = addDays(currentRange.start, index);
+      const dateKey = formatDateKey(date);
+      const dayStories = filteredStoryLogs.filter((story) => story.date === dateKey);
+      const photos = dayStories
+        .filter((story) => story.mediaType === "photo")
+        .reduce((sum, story) => sum + Math.max(story.quantity, 0), 0);
+      const videos = dayStories
+        .filter((story) => story.mediaType === "video")
+        .reduce((sum, story) => sum + Math.max(story.quantity, 0), 0);
+
+      return {
+        date: new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" }).format(date),
+        stories: photos + videos,
+        photos,
+        videos,
+      };
+    });
+  }, [currentRange, filteredStoryLogs]);
+  const storiesSheetTotal = useMemo(
+    () =>
+      storiesSheet.reduce(
+        (totals, item) => ({
+          stories: totals.stories + item.stories,
+          photos: totals.photos + item.photos,
+          videos: totals.videos + item.videos,
+        }),
+        { stories: 0, photos: 0, videos: 0 },
+      ),
+    [storiesSheet],
+  );
+  const storiesGoalRow = useMemo(() => {
+    if (!(responsibleFilter === "todos" && teamScope === "todos" && isCurrentRangeExactMonth) || !currentMonthlyStoriesSummary) {
+      return null;
+    }
+
+    return {
+      stories: currentMonthlyStoriesSummary.totalGoal,
+      photos: currentMonthlyStoriesSummary.photoGoal,
+      videos: currentMonthlyStoriesSummary.videoGoal,
+    };
+  }, [currentMonthlyStoriesSummary, isCurrentRangeExactMonth, responsibleFilter, teamScope]);
+  const storiesTeamByWeek = useMemo(() => {
+    const memberNameById = new Map(teamMembers.map((member) => [member.id, member.name]));
+    const weeklyMembers = new Map<number, Set<string>>();
+
+    filteredStoryLogs.forEach((story) => {
+      const storyDate = parseDate(story.date);
+      const weekIndex = Math.floor((storyDate.getDate() - 1) / 7) + 1;
+      const members = weeklyMembers.get(weekIndex) ?? new Set<string>();
+      const madeByName = memberNameById.get(story.madeById);
+      const postedByName = memberNameById.get(story.postedById);
+
+      if (madeByName) {
+        members.add(madeByName);
+      }
+
+      if (postedByName) {
+        members.add(postedByName);
+      }
+
+      weeklyMembers.set(weekIndex, members);
+    });
+
+    return Array.from(weeklyMembers.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([weekIndex, members]) => ({
+        week: `${weekIndex} semana`,
+        members: Array.from(members).join(", "),
+      }));
+  }, [filteredStoryLogs, teamMembers]);
 
   const selectedMetricDetails = {
     reach: {
@@ -1942,11 +1920,11 @@ export function ReportsPage() {
   );
   const displaySummary = {
     health: healthScore,
-    views: julySiteTotals.views,
-    reach: julySiteTotals.reach,
-    stories: julyStoriesTotal,
+    views: currentSummary.views,
+    reach: currentSummary.reach,
+    stories: currentSummary.storiesCount,
     posts: currentSummary.postsCount,
-    monthlyProgress: julyStoriesMonthlyProgress,
+    monthlyProgress: currentSummary.monthlyProgress,
   };
   const heroSummaryCards = [
     {
@@ -2020,12 +1998,12 @@ export function ReportsPage() {
   ].filter(Boolean);
   const bottomSummary = [
     { label: "Saúde total", value: `${healthScore}`, icon: Sparkles, tone: "#B91C1C" },
-    { label: "Visualizações do mês", value: formatLongNumber(julySiteTotals.views), icon: BarChart3, tone: "#7C3AED" },
-    { label: "Alcance total", value: formatLongNumber(julySiteTotals.reach), icon: Eye, tone: "#D10000" },
-    { label: "Stories do mês", value: formatLongNumber(julyStoriesTotal), icon: Share2, tone: "#EA580C" },
+    { label: "Visualizações do mês", value: formatLongNumber(currentSummary.views), icon: BarChart3, tone: "#7C3AED" },
+    { label: "Alcance total", value: formatLongNumber(currentSummary.reach), icon: Eye, tone: "#D10000" },
+    { label: "Stories do mês", value: formatLongNumber(currentSummary.storiesCount), icon: Share2, tone: "#EA580C" },
     {
       label: "Progresso mensal",
-      value: `${julyStoriesMonthlyProgress}%`,
+      value: `${currentSummary.monthlyProgress}%`,
       icon: CheckCircle2,
       tone: "#16A34A",
     },
@@ -2040,73 +2018,6 @@ export function ReportsPage() {
     () => reportRows.filter((row) => row.title !== storiesRowTitle),
     [reportRows],
   );
-  const savedReportsTimeline = useMemo(() => {
-    const historySource = safeSavedReports.length > 0 ? safeSavedReports : [
-      {
-        id: "current",
-        label: describeReportPeriod({
-          period,
-          customMode: customPeriodMode,
-          customMonth,
-          customYear,
-          customStart: customStartDate,
-          customEnd: customEndDate,
-          customPastMonths,
-          currentRange,
-        }),
-        generatedAt: new Intl.DateTimeFormat("pt-BR", {
-          day: "2-digit",
-          month: "2-digit",
-        }).format(anchorDate),
-        period,
-        startDate: formatDateKey(currentRange.start),
-        endDate: formatDateKey(currentRange.end),
-        views: currentSummary.views,
-        reach: currentSummary.reach,
-        engagement: currentSummary.engagement,
-        postsCount: currentSummary.postsCount,
-        responsibleId: responsibleFilter,
-        typeFilter,
-      },
-    ];
-
-    const trimmedHistory = historySource.slice(-8);
-    return trimmedHistory.map((snapshot, index) => ({
-      id: snapshot.id,
-      label:
-        snapshot.label.length > 16
-          ? snapshot.label.replace(/^Últimos\s+/i, "").replace(/\s+/g, " ").slice(0, 16)
-          : snapshot.label,
-      score: Math.max(
-        0,
-        Math.round(
-          snapshot.views * 0.00003 +
-            snapshot.reach * 0.00005 +
-            snapshot.engagement * 0.04 +
-            snapshot.postsCount * 1.8,
-        ),
-      ),
-      fullLabel: snapshot.label,
-      accent: index === trimmedHistory.length - 1,
-    }));
-  }, [
-    anchorDate,
-    currentRange,
-    currentSummary.engagement,
-    currentSummary.postsCount,
-    currentSummary.reach,
-    currentSummary.views,
-    customEndDate,
-    customMonth,
-    customPastMonths,
-    customPeriodMode,
-    customStartDate,
-    customYear,
-    period,
-    responsibleFilter,
-    safeSavedReports,
-    typeFilter,
-  ]);
   const openAddReportCard = (rowIndex: number) => {
     if (!reportSharedReady) {
       toast.loading("Carregando relatório compartilhado...");
@@ -2332,7 +2243,6 @@ export function ReportsPage() {
     AreaChart,
     AlertTriangle,
     CartesianGrid,
-    FileDown,
     FileImage,
     Line,
     LineChart,
@@ -2363,7 +2273,6 @@ export function ReportsPage() {
     alerts,
     automaticInsights,
     handleSaveReport,
-    handleRestoreReport,
     selectedMetricDetails,
     openAddReportCard,
     openEditReportCard,
@@ -2724,91 +2633,6 @@ export function ReportsPage() {
           </div>
         </section>
 
-        <section className="overflow-hidden rounded-[24px] border border-[rgba(255,180,200,.35)] bg-[linear-gradient(180deg,#FFFDFD,rgba(255,248,250,0.98))] p-7 shadow-[0_12px_40px_rgba(255,120,160,.08)]">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div className="flex items-start gap-4">
-              <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#FFE8EF] text-primary shadow-[0_12px_26px_rgba(244,114,144,0.14)]">
-                <CalendarRange className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="text-[12px] font-semibold uppercase tracking-[0.22em] text-[#6B7280]">Histórico salvo</p>
-                <h2 className="mt-2 text-[clamp(2rem,2.9vw,3rem)] font-bold tracking-tight text-[#1F2937]">Relatórios anteriores</h2>
-                <p className="mt-2 max-w-2xl text-[16px] leading-7 text-[#6B7280]">
-                  Acompanhe a evolução do seu conteúdo em uma leitura visual rápida, com os recortes mais recentes já salvos.
-                </p>
-              </div>
-            </div>
-
-            <ActionButton
-              dataCy="reports-filter-period-shortcut"
-              variant="secondary"
-              onClick={() => reportFiltersRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
-              className="border-[rgba(255,180,200,.35)] bg-white/90 text-primary shadow-[0_12px_24px_rgba(244,114,144,0.08)]"
-            >
-              <CalendarRange className="h-4 w-4" />
-              Filtrar período
-            </ActionButton>
-          </div>
-
-          <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_360px]">
-            <div className="rounded-[24px] border border-[rgba(255,180,200,.35)] bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(255,245,248,0.88))] px-4 py-5 shadow-[0_12px_40px_rgba(255,120,160,.08)] sm:px-6">
-              <ReportHistorySparkline items={savedReportsTimeline} />
-            </div>
-
-            <div className="grid gap-4">
-              {safeSavedReports.length > 0 ? (
-                safeSavedReports.slice(0, 3).map((snapshot) => (
-                  <div key={snapshot.id} className="rounded-[24px] border border-[rgba(255,180,200,.35)] bg-white/94 p-5 shadow-[0_12px_40px_rgba(255,120,160,.08)] transition duration-250 hover:shadow-[0_16px_48px_rgba(255,120,160,.14)]">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-start gap-3">
-                        <div className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#FFE8EF] text-primary">
-                          <FileDown className="h-4.5 w-4.5" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-slate-800">{snapshot.label}</p>
-                          <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-400">{snapshot.generatedAt}</p>
-                        </div>
-                      </div>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-[#22C55E]">
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        Pronto
-                      </span>
-                    </div>
-                    <div className="mt-4 grid grid-cols-3 gap-2">
-                      <div className="rounded-2xl bg-rose-50/70 px-3 py-2">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Views</p>
-                        <p className="mt-1 text-sm font-semibold text-slate-700">{formatLongNumber(snapshot.views)}</p>
-                      </div>
-                      <div className="rounded-2xl bg-rose-50/70 px-3 py-2">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Alcance</p>
-                        <p className="mt-1 text-sm font-semibold text-slate-700">{formatLongNumber(snapshot.reach)}</p>
-                      </div>
-                      <div className="rounded-2xl bg-rose-50/70 px-3 py-2">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Posts</p>
-                        <p className="mt-1 text-sm font-semibold text-slate-700">{formatLongNumber(snapshot.postsCount)}</p>
-                      </div>
-                    </div>
-                    <div className="mt-4 flex justify-end">
-                      <ActionButton
-                        dataCy="reports-history-restore"
-                        variant="secondary"
-                        onClick={() => handleRestoreReport(snapshot)}
-                        className="border-[rgba(255,180,200,.35)] bg-rose-50/70 px-3 py-2 text-xs text-primary shadow-none"
-                      >
-                        Restaurar
-                      </ActionButton>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="rounded-[1.8rem] border border-dashed border-rose-200 bg-white/70 px-5 py-8 text-sm text-slate-500">
-                  Nenhum relatório salvo ainda.
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-
         <div className="space-y-6">
               {genericReportRows.map((row, rowIndex) => (
                 <section key={row.title} data-cy={`reports-row-${rowIndex}`} className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.05)] print-avoid-break">
@@ -2902,15 +2726,15 @@ export function ReportsPage() {
                   <div>
                     <h2 className="text-lg font-semibold tracking-tight text-foreground">Stories</h2>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Planilha mensal de julho com a distribuicao diaria de Stories, fotos e videos.
+                      {storiesDateLabel}
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary">
-                      Julho
+                      {isCurrentRangeExactMonth ? storiesMonthLabel : "Período atual"}
                     </span>
                     <span className="rounded-full border border-border/60 bg-white px-4 py-2 text-sm font-medium text-muted-foreground">
-                      31 dias
+                      {`${diffDays(currentRange.start, currentRange.end) + 1} dias`}
                     </span>
                   </div>
                 </div>
@@ -2927,7 +2751,7 @@ export function ReportsPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {julyStoriesSheet.map((item, index) => (
+                        {storiesSheet.map((item, index) => (
                           <tr
                             key={item.date}
                             className={cn(
@@ -2943,16 +2767,24 @@ export function ReportsPage() {
                         ))}
                       </tbody>
                       <tfoot>
-                        {julyStoriesSheetTotals.map((item, index) => (
-                          <tr key={`${item.label || "extra"}-${index}`} className={index === 0 ? "bg-primary/[0.08]" : "bg-primary/[0.03]"}>
+                        <tr className="bg-primary/[0.08]">
+                          <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold uppercase tracking-[0.14em] text-foreground">
+                            TOTAL
+                          </td>
+                          <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{storiesSheetTotal.stories}</td>
+                          <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{storiesSheetTotal.photos}</td>
+                          <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{storiesSheetTotal.videos}</td>
+                        </tr>
+                        {storiesGoalRow ? (
+                          <tr className="bg-primary/[0.03]">
                             <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold uppercase tracking-[0.14em] text-foreground">
-                              {item.label || " "}
+                              META
                             </td>
-                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{item.stories}</td>
-                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{item.photos}</td>
-                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{item.videos}</td>
+                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{storiesGoalRow.stories}</td>
+                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{storiesGoalRow.photos}</td>
+                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{storiesGoalRow.videos}</td>
                           </tr>
-                        ))}
+                        ) : null}
                       </tfoot>
                     </table>
                   </div>
@@ -2964,17 +2796,21 @@ export function ReportsPage() {
                       <h3 className="mt-1 text-lg font-semibold tracking-tight text-foreground">Membros da equipe no perfil</h3>
                     </div>
                     <span className="rounded-full border border-border/60 bg-white px-4 py-2 text-sm font-medium text-muted-foreground">
-                      Escala semanal de julho
+                      {isCurrentRangeExactMonth ? `Escala semanal de ${storiesMonthLabel}` : "Escala semanal do período"}
                     </span>
                   </div>
 
                   <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                    {julyStoriesTeamByWeek.map((item) => (
+                    {storiesTeamByWeek.length > 0 ? storiesTeamByWeek.map((item) => (
                       <div key={item.week} className="rounded-[1.4rem] border border-border/60 bg-white px-4 py-4 shadow-[0_10px_22px_rgba(15,23,42,0.04)]">
                         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{item.week}</p>
                         <p className="mt-2 text-sm font-medium leading-6 text-foreground">{item.members}</p>
                       </div>
-                    ))}
+                    )) : (
+                      <div className="rounded-[1.4rem] border border-dashed border-border/60 bg-white px-4 py-4 text-sm text-muted-foreground lg:col-span-2">
+                        Nenhum membro com Stories registrado neste período.
+                      </div>
+                    )}
                   </div>
                 </div>
               </section>

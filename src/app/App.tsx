@@ -147,11 +147,11 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
 }
 
 function MonthlyCycleManager() {
-  const [lastProcessedMonth, , hydrated] = useSupabaseSharedState<string>({
+  const [lastProcessedMonth, setLastProcessedMonth, hydrated] = useSupabaseSharedState<string>({
     key: createStorageKey("monthly-cycle-last-month"),
     fallback: "",
   });
-  const [cypressCleanupMarker, , cypressCleanupHydrated] = useSupabaseSharedState<string>({
+  const [cypressCleanupMarker, setCypressCleanupMarker, cypressCleanupHydrated] = useSupabaseSharedState<string>({
     key: createStorageKey("cypress-cleanup-done"),
     fallback: "",
   });
@@ -191,6 +191,8 @@ function MonthlyCycleManager() {
             console.error("Failed to clean Cypress data", cleanupError);
             return;
           }
+
+          setCypressCleanupMarker("done");
         }
 
         if (lastProcessedMonth !== currentMonthKey) {
@@ -216,6 +218,10 @@ function MonthlyCycleManager() {
 
           if (currentMonthError) {
             console.error("Failed to archive current monthly data", currentMonthError);
+          }
+
+          if (!previousMonthError && !currentMonthError) {
+            setLastProcessedMonth(currentMonthKey);
           }
         }
       } catch (error) {
@@ -254,7 +260,7 @@ function MonthlyCycleManager() {
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [cypressCleanupHydrated, cypressCleanupMarker, hydrated, lastProcessedMonth]);
+  }, [cypressCleanupHydrated, cypressCleanupMarker, hydrated, lastProcessedMonth, setCypressCleanupMarker, setLastProcessedMonth]);
 
   return null;
 }
