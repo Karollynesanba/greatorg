@@ -1,4 +1,5 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Area,
   AreaChart,
@@ -210,6 +211,56 @@ function stripLegacyReportExamples(rows: ReportCardRow[]) {
 const monthlyContentTarget = 120;
 const finalContentStatuses = new Set<PostStatus | "Concluído" | "Finalizado">(["Aprovado", "Publicado", "Concluído", "Finalizado"]);
 const storiesRowTitle = "Stories";
+const julyStoriesSheet = [
+  { date: "01/07", stories: 8, photos: 3, videos: 5 },
+  { date: "02/07", stories: 9, photos: 4, videos: 5 },
+  { date: "03/07", stories: 8, photos: 3, videos: 5 },
+  { date: "04/07", stories: 0, photos: 0, videos: 0 },
+  { date: "05/07", stories: 0, photos: 0, videos: 0 },
+  { date: "06/07", stories: 8, photos: 3, videos: 5 },
+  { date: "07/07", stories: 9, photos: 4, videos: 5 },
+  { date: "08/07", stories: 9, photos: 3, videos: 6 },
+  { date: "09/07", stories: 9, photos: 4, videos: 5 },
+  { date: "10/07", stories: 8, photos: 3, videos: 5 },
+  { date: "11/07", stories: 0, photos: 0, videos: 0 },
+  { date: "12/07", stories: 0, photos: 0, videos: 0 },
+  { date: "13/07", stories: 8, photos: 3, videos: 5 },
+  { date: "14/07", stories: 8, photos: 3, videos: 5 },
+  { date: "15/07", stories: 8, photos: 3, videos: 5 },
+  { date: "16/07", stories: 2, photos: 1, videos: 1 },
+  { date: "17/07", stories: 8, photos: 3, videos: 5 },
+  { date: "18/07", stories: 0, photos: 0, videos: 0 },
+  { date: "19/07", stories: 0, photos: 0, videos: 0 },
+  { date: "20/07", stories: 10, photos: 5, videos: 5 },
+  { date: "21/07", stories: 8, photos: 3, videos: 5 },
+  { date: "22/07", stories: 10, photos: 4, videos: 6 },
+  { date: "23/07", stories: 10, photos: 4, videos: 6 },
+  { date: "24/07", stories: 8, photos: 3, videos: 5 },
+  { date: "25/07", stories: 2, photos: 2, videos: 0 },
+  { date: "26/07", stories: 0, photos: 0, videos: 0 },
+  { date: "27/07", stories: 13, photos: 7, videos: 6 },
+  { date: "28/07", stories: 8, photos: 3, videos: 5 },
+  { date: "29/07", stories: 9, photos: 3, videos: 6 },
+  { date: "30/07", stories: 8, photos: 3, videos: 5 },
+  { date: "31/07", stories: 8, photos: 3, videos: 5 },
+] as const;
+const julyStoriesSheetTotals = [
+  { label: "TOTAL", stories: 196, photos: 80, videos: 116 },
+  { label: "", stories: 168, photos: 63, videos: 105 },
+] as const;
+const julyStoriesTeamByWeek = [
+  { week: "1 semana", members: "Kauan, Karol e Brayton" },
+  { week: "2 semana", members: "Kauan, Isaque, Hannah e Karol" },
+  { week: "3 semana", members: "Brayton, Karol, Cleriston, Isaque e Amanda" },
+  { week: "4 semana", members: "Kauan, Isaque, Thiago, Hannah" },
+] as const;
+const julySiteTotals = {
+  views: 2_255_225,
+  reach: 1_145_989,
+} as const;
+const julyStoriesTotal = julyStoriesSheetTotals[0].stories;
+const julyStoriesGoal = julyStoriesSheetTotals[1].stories;
+const julyStoriesMonthlyProgress = Math.round((julyStoriesTotal / Math.max(julyStoriesGoal, 1)) * 100);
 
 function isFinalContentStatus(status?: string) {
   return Boolean(status && finalContentStatuses.has(status as PostStatus | "Concluído" | "Finalizado"));
@@ -303,30 +354,162 @@ function RoundedDropdown<T extends string | number>({
   options,
   onChange,
   placeholder,
+  usePortal = false,
 }: {
   label: string;
   value: T;
   options: Array<{ label: string; value: T; color?: string }>;
   onChange: (value: T) => void;
   placeholder?: string;
+  usePortal?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const [portalPosition, setPortalPosition] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+  } | null>(null);
   const selected = options.find((option) => option.value === value) ?? options[0];
   const { isDark } = useThemeMode();
   const surfaceColor = isDark ? "rgb(var(--sidebar) / 1)" : "#ffffff";
   const menuColor = isDark ? "rgb(var(--background) / 1)" : "#ffffff";
 
   useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
     const handlePointerDown = (event: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const isInsideTrigger = rootRef.current?.contains(target);
+      const isInsidePopover = popoverRef.current?.contains(target);
+
+      if (!isInsideTrigger && !isInsidePopover) {
+        setOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
         setOpen(false);
       }
     };
 
     document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, []);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !usePortal) {
+      setPortalPosition(null);
+      return undefined;
+    }
+
+    const updatePosition = () => {
+      const anchorNode = rootRef.current;
+
+      if (!anchorNode || typeof window === "undefined") {
+        return;
+      }
+
+      const rect = anchorNode.getBoundingClientRect();
+      const viewportPadding = 12;
+      const width = Math.min(rect.width, window.innerWidth - viewportPadding * 2);
+      const left = Math.min(Math.max(rect.left, viewportPadding), window.innerWidth - width - viewportPadding);
+      const availableBelow = window.innerHeight - rect.bottom - viewportPadding - 4;
+      const maxHeight = Math.max(Math.min(320, availableBelow), 120);
+
+      setPortalPosition({
+        top: rect.bottom + 4,
+        left,
+        width,
+        maxHeight,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open, usePortal]);
+
+  const dropdownMenu = (
+    <div
+      ref={popoverRef}
+      className="overflow-hidden rounded-[1.75rem] border border-border/70 p-2 shadow-[0_24px_60px_rgba(15,23,42,0.14)] dark:border-white/8 dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]"
+      style={{
+        backgroundColor: menuColor,
+        ...(usePortal && portalPosition
+          ? {
+              position: "fixed" as const,
+              top: portalPosition.top,
+              left: portalPosition.left,
+              width: portalPosition.width,
+              zIndex: 999999,
+            }
+          : {}),
+      }}
+      onWheelCapture={(event) => {
+        if (usePortal) {
+          event.stopPropagation();
+        }
+      }}
+    >
+      <div
+        className={cn("space-y-1", usePortal ? "overflow-y-auto pr-1" : "")}
+        style={usePortal && portalPosition ? { maxHeight: portalPosition.maxHeight } : undefined}
+      >
+        {options.map((option) => {
+          const active = option.value === value;
+
+          return (
+            <button
+              key={String(option.value)}
+              type="button"
+              onClick={() => {
+                onChange(option.value);
+                setOpen(false);
+              }}
+              className={cn(
+                "flex w-full items-center justify-between rounded-full px-4 py-3 text-left text-sm transition",
+                active
+                  ? "bg-primary text-primary-foreground shadow-sm dark:bg-[#ff3b4e]"
+                  : "text-foreground hover:bg-primary/8 dark:text-slate-200 dark:hover:bg-card/98",
+              )}
+              style={{
+                backgroundColor: active ? "rgb(var(--primary) / 1)" : surfaceColor,
+                color: active ? "rgb(var(--primary-foreground) / 1)" : "rgb(var(--foreground) / 1)",
+              }}
+            >
+              <span
+                className="font-medium"
+                style={
+                  !active && option.color
+                    ? { color: option.color }
+                    : undefined
+                }
+              >
+                {option.label}
+              </span>
+              {active ? <span className="text-xs font-semibold opacity-80">Ativo</span> : null}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   return (
     <div ref={rootRef} className="relative z-[80]">
@@ -359,53 +542,17 @@ function RoundedDropdown<T extends string | number>({
         </span>
       </button>
 
-      {open ? (
-        <div
-          className="absolute left-0 top-full z-[90] mt-2 w-full overflow-hidden rounded-[1.75rem] border border-border/70 p-2 shadow-[0_24px_60px_rgba(15,23,42,0.14)] dark:border-white/8 dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]"
-          style={{
-            backgroundColor: menuColor,
-          }}
-        >
-          <div className="space-y-1">
-            {options.map((option) => {
-              const active = option.value === value;
-
-              return (
-                <button
-                  key={String(option.value)}
-                  type="button"
-                  onClick={() => {
-                    onChange(option.value);
-                    setOpen(false);
-                  }}
-                  className={cn(
-                    "flex w-full items-center justify-between rounded-full px-4 py-3 text-left text-sm transition",
-                    active
-                      ? "bg-primary text-primary-foreground shadow-sm dark:bg-[#ff3b4e]"
-                      : "text-foreground hover:bg-primary/8 dark:text-slate-200 dark:hover:bg-card/98",
-                  )}
-                  style={{
-                    backgroundColor: active ? "rgb(var(--primary) / 1)" : surfaceColor,
-                    color: active ? "rgb(var(--primary-foreground) / 1)" : "rgb(var(--foreground) / 1)",
-                  }}
-                >
-                  <span
-                    className="font-medium"
-                    style={
-                      !active && option.color
-                        ? { color: option.color }
-                        : undefined
-                    }
-                  >
-                    {option.label}
-                  </span>
-                  {active ? <span className="text-xs font-semibold opacity-80">Ativo</span> : null}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      ) : null}
+      {open
+        ? usePortal
+          ? portalPosition
+            ? createPortal(dropdownMenu, document.body)
+            : null
+          : (
+              <div className="absolute left-0 top-full z-[90] mt-2 w-full">
+                {dropdownMenu}
+              </div>
+            )
+        : null}
     </div>
   );
 }
@@ -1327,10 +1474,10 @@ export function ReportsPage() {
     const shares = filteredPosts.reduce((sum, post) => sum + post.metrics.shares, 0);
     const likes = filteredPosts.reduce((sum, post) => sum + post.metrics.likes, 0);
     const comments = filteredPosts.reduce((sum, post) => sum + post.metrics.comments, 0);
-    const avgEngagement = filteredPosts.length > 0 ? engagement / filteredPosts.length : 0;
     const finalizedPosts = filteredPosts.filter((post) => isFinalContentStatus(post.status)).length;
     const finalizedCalendarItems = filteredCalendarItems.filter((event) => isCompletedCalendarEvent(event)).length;
     const postsCount = finalizedPosts + finalizedCalendarItems;
+    const avgEngagement = filteredPosts.length > 0 ? engagement / filteredPosts.length : 0;
     const computedStoriesCount = filteredStoryLogs.reduce((sum, story) => sum + Math.max(story.quantity, 0), 0);
     const storiesCount =
       responsibleFilter === "todos" && teamScope === "todos" && isExactMonthRange(currentRange, currentMonthKey)
@@ -2443,6 +2590,7 @@ export function ReportsPage() {
                           options={monthOptions}
                           onChange={(value) => setCustomMonth(Number(value))}
                           placeholder="Selecionar mês"
+                          usePortal
                         />
                         <RoundedDropdown
                           label="Ano"
@@ -2634,6 +2782,102 @@ export function ReportsPage() {
         </section>
 
         <div className="space-y-6">
+              <section className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.05)] print-avoid-break">
+                <div className="flex flex-col gap-4 border-b border-border/60 pb-5 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold tracking-tight text-foreground">Stories</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Planilha mensal de julho com a distribuicao diaria de Stories, fotos e videos.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary">
+                      Julho
+                    </span>
+                    <span className="rounded-full border border-border/60 bg-white px-4 py-2 text-sm font-medium text-muted-foreground">
+                      31 dias
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-5 overflow-hidden rounded-[1.9rem] border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.995),rgba(248,250,252,0.98))] shadow-[0_18px_42px_rgba(15,23,42,0.05)]">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full border-separate border-spacing-0">
+                      <thead>
+                        <tr className="bg-primary/[0.06] text-left">
+                          <th className="px-5 py-4 text-sm font-semibold text-foreground">Data</th>
+                          <th className="px-5 py-4 text-sm font-semibold text-foreground">Stories</th>
+                          <th className="px-5 py-4 text-sm font-semibold text-foreground">Fotos</th>
+                          <th className="px-5 py-4 text-sm font-semibold text-foreground">Videos</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {julyStoriesSheet.map((item, index) => (
+                          <tr
+                            key={item.date}
+                            className={cn(
+                              "transition hover:bg-primary/[0.03]",
+                              index % 2 === 0 ? "bg-white" : "bg-slate-50/70",
+                            )}
+                          >
+                            <td className="border-t border-border/50 px-5 py-3 text-sm font-medium text-foreground">{item.date}</td>
+                            <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.stories}</td>
+                            <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.photos}</td>
+                            <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.videos}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        {julyStoriesSheetTotals.map((item, index) => (
+                          <tr key={`${item.label || "extra"}-${index}`} className={index === 0 ? "bg-primary/[0.08]" : "bg-primary/[0.03]"}>
+                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold uppercase tracking-[0.14em] text-foreground">
+                              {item.label || " "}
+                            </td>
+                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{item.stories}</td>
+                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{item.photos}</td>
+                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{item.videos}</td>
+                          </tr>
+                        ))}
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-[1.4rem] border border-border/60 bg-white px-4 py-4 shadow-[0_10px_22px_rgba(15,23,42,0.04)]">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Visualizações</p>
+                    <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{formatLongNumber(julySiteTotals.views)}</p>
+                  </div>
+                  <div className="rounded-[1.4rem] border border-border/60 bg-white px-4 py-4 shadow-[0_10px_22px_rgba(15,23,42,0.04)]">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Alcances</p>
+                    <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{formatLongNumber(julySiteTotals.reach)}</p>
+                  </div>
+                  <div className="rounded-[1.4rem] border border-border/60 bg-white px-4 py-4 shadow-[0_10px_22px_rgba(15,23,42,0.04)]">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Progresso base</p>
+                    <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{julyStoriesMonthlyProgress}%</p>
+                  </div>
+                </div>
+                <div className="mt-5 rounded-[1.9rem] border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.995),rgba(252,244,246,0.98))] p-5 shadow-[0_18px_42px_rgba(15,23,42,0.05)]">
+                  <div className="flex flex-col gap-2 border-b border-border/60 pb-4 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Perfil</p>
+                      <h3 className="mt-1 text-lg font-semibold tracking-tight text-foreground">Membros da equipe no perfil</h3>
+                    </div>
+                    <span className="rounded-full border border-border/60 bg-white px-4 py-2 text-sm font-medium text-muted-foreground">
+                      Escala semanal de julho
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                    {julyStoriesTeamByWeek.map((item) => (
+                      <div key={item.week} className="rounded-[1.4rem] border border-border/60 bg-white px-4 py-4 shadow-[0_10px_22px_rgba(15,23,42,0.04)]">
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{item.week}</p>
+                        <p className="mt-2 text-sm font-medium leading-6 text-foreground">{item.members}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
+
               {genericReportRows.map((row, rowIndex) => (
                 <section key={row.title} data-cy={`reports-row-${rowIndex}`} className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.05)] print-avoid-break">
                   <div className="flex items-center justify-between gap-4">
