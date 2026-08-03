@@ -261,6 +261,7 @@ const julySiteTotals = {
 const julyStoriesTotal = julyStoriesSheetTotals[0].stories;
 const julyStoriesGoal = julyStoriesSheetTotals[1].stories;
 const julyStoriesMonthlyProgress = Math.round((julyStoriesTotal / Math.max(julyStoriesGoal, 1)) * 100);
+const julyReferenceMonthKey = "2026-07";
 
 function isFinalContentStatus(status?: string) {
   return Boolean(status && finalContentStatuses.has(status as PostStatus | "Concluído" | "Finalizado"));
@@ -1452,8 +1453,30 @@ export function ReportsPage() {
       }),
     [allStoryLogs, previousRange.end, previousRange.start, responsibleFilter, teamScope],
   );
+  const isJuly2026RangeActive =
+    responsibleFilter === "todos" &&
+    teamScope === "todos" &&
+    isExactMonthRange(currentRange, julyReferenceMonthKey);
 
   const currentSummary = useMemo(() => {
+    if (isJuly2026RangeActive) {
+      return {
+        views: julySiteTotals.views,
+        reach: julySiteTotals.reach,
+        engagement: 0,
+        saves: 0,
+        shares: 0,
+        likes: 0,
+        comments: 0,
+        avgEngagement: 0,
+        postsCount: monthlyContentTarget,
+        finalizedPosts: monthlyContentTarget,
+        finalizedCalendarItems: 0,
+        storiesCount: julyStoriesTotal,
+        monthlyProgress: julyStoriesMonthlyProgress,
+      };
+    }
+
     const currentMonthKey = monthKeyFromDate(currentRange.start);
     const useSharedMonthlyTotals = shouldUseMonthlyPerformanceSnapshot(
       monthlyPerformance,
@@ -1494,7 +1517,7 @@ export function ReportsPage() {
         : 0;
 
     return { views, reach, engagement, saves, shares, likes, comments, avgEngagement, postsCount, finalizedPosts, finalizedCalendarItems, storiesCount, monthlyProgress };
-  }, [currentMonthlyStoriesSummary, currentRange, dashboardMetricGoals.reach, filteredCalendarItems, filteredPosts, filteredStoryLogs, monthlyPerformance, monthlyPerformanceHistory, monthlyViewsGoal, responsibleFilter, teamScope]);
+  }, [currentMonthlyStoriesSummary, currentRange, dashboardMetricGoals.reach, filteredCalendarItems, filteredPosts, filteredStoryLogs, isJuly2026RangeActive, monthlyPerformance, monthlyPerformanceHistory, monthlyViewsGoal, responsibleFilter, teamScope]);
 
   const previousSummary = useMemo(() => {
     const previousMonthKey = monthKeyFromDate(previousRange.start);
@@ -1933,10 +1956,16 @@ export function ReportsPage() {
   };
   const isCurrentRangeExactMonth = isExactMonthRange(currentRange, monthKeyFromDate(currentRange.start));
   const storiesMonthLabel = formatMonthYear(currentRange.start);
-  const storiesDateLabel = isCurrentRangeExactMonth
+  const storiesDateLabel = isJuly2026RangeActive
+    ? "Planilha mensal de julho de 2026 com a distribuicao diaria de Stories, fotos e videos."
+    : isCurrentRangeExactMonth
     ? `Planilha mensal de ${storiesMonthLabel} com a distribuicao diaria de Stories, fotos e videos.`
     : `Distribuicao diaria de Stories, fotos e videos entre ${formatDateKey(currentRange.start)} e ${formatDateKey(currentRange.end)}.`;
   const storiesSheet = useMemo(() => {
+    if (isJuly2026RangeActive) {
+      return julyStoriesSheet;
+    }
+
     const totalDays = diffDays(currentRange.start, currentRange.end) + 1;
 
     return Array.from({ length: totalDays }, (_, index) => {
@@ -1957,7 +1986,7 @@ export function ReportsPage() {
         videos,
       };
     });
-  }, [currentRange, filteredStoryLogs]);
+  }, [currentRange, filteredStoryLogs, isJuly2026RangeActive]);
   const storiesSheetTotal = useMemo(
     () =>
       storiesSheet.reduce(
@@ -1971,6 +2000,10 @@ export function ReportsPage() {
     [storiesSheet],
   );
   const storiesGoalRow = useMemo(() => {
+    if (isJuly2026RangeActive) {
+      return julyStoriesSheetTotals[1];
+    }
+
     if (!(responsibleFilter === "todos" && teamScope === "todos" && isCurrentRangeExactMonth) || !currentMonthlyStoriesSummary) {
       return null;
     }
@@ -1980,8 +2013,12 @@ export function ReportsPage() {
       photos: currentMonthlyStoriesSummary.photoGoal,
       videos: currentMonthlyStoriesSummary.videoGoal,
     };
-  }, [currentMonthlyStoriesSummary, isCurrentRangeExactMonth, responsibleFilter, teamScope]);
+  }, [currentMonthlyStoriesSummary, isCurrentRangeExactMonth, isJuly2026RangeActive, responsibleFilter, teamScope]);
   const storiesTeamByWeek = useMemo(() => {
+    if (isJuly2026RangeActive) {
+      return julyStoriesTeamByWeek;
+    }
+
     const memberNameById = new Map(teamMembers.map((member) => [member.id, member.name]));
     const weeklyMembers = new Map<number, Set<string>>();
 
@@ -2009,7 +2046,7 @@ export function ReportsPage() {
         week: `${weekIndex} semana`,
         members: Array.from(members).join(", "),
       }));
-  }, [filteredStoryLogs, teamMembers]);
+  }, [filteredStoryLogs, isJuly2026RangeActive, teamMembers]);
 
   const selectedMetricDetails = {
     reach: {
@@ -2782,102 +2819,6 @@ export function ReportsPage() {
         </section>
 
         <div className="space-y-6">
-              <section className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.05)] print-avoid-break">
-                <div className="flex flex-col gap-4 border-b border-border/60 pb-5 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <h2 className="text-lg font-semibold tracking-tight text-foreground">Stories</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Planilha mensal de julho com a distribuicao diaria de Stories, fotos e videos.
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary">
-                      Julho
-                    </span>
-                    <span className="rounded-full border border-border/60 bg-white px-4 py-2 text-sm font-medium text-muted-foreground">
-                      31 dias
-                    </span>
-                  </div>
-                </div>
-
-                <div className="mt-5 overflow-hidden rounded-[1.9rem] border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.995),rgba(248,250,252,0.98))] shadow-[0_18px_42px_rgba(15,23,42,0.05)]">
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full border-separate border-spacing-0">
-                      <thead>
-                        <tr className="bg-primary/[0.06] text-left">
-                          <th className="px-5 py-4 text-sm font-semibold text-foreground">Data</th>
-                          <th className="px-5 py-4 text-sm font-semibold text-foreground">Stories</th>
-                          <th className="px-5 py-4 text-sm font-semibold text-foreground">Fotos</th>
-                          <th className="px-5 py-4 text-sm font-semibold text-foreground">Videos</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {julyStoriesSheet.map((item, index) => (
-                          <tr
-                            key={item.date}
-                            className={cn(
-                              "transition hover:bg-primary/[0.03]",
-                              index % 2 === 0 ? "bg-white" : "bg-slate-50/70",
-                            )}
-                          >
-                            <td className="border-t border-border/50 px-5 py-3 text-sm font-medium text-foreground">{item.date}</td>
-                            <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.stories}</td>
-                            <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.photos}</td>
-                            <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.videos}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        {julyStoriesSheetTotals.map((item, index) => (
-                          <tr key={`${item.label || "extra"}-${index}`} className={index === 0 ? "bg-primary/[0.08]" : "bg-primary/[0.03]"}>
-                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold uppercase tracking-[0.14em] text-foreground">
-                              {item.label || " "}
-                            </td>
-                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{item.stories}</td>
-                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{item.photos}</td>
-                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{item.videos}</td>
-                          </tr>
-                        ))}
-                      </tfoot>
-                    </table>
-                  </div>
-                </div>
-                <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-[1.4rem] border border-border/60 bg-white px-4 py-4 shadow-[0_10px_22px_rgba(15,23,42,0.04)]">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Visualizações</p>
-                    <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{formatLongNumber(julySiteTotals.views)}</p>
-                  </div>
-                  <div className="rounded-[1.4rem] border border-border/60 bg-white px-4 py-4 shadow-[0_10px_22px_rgba(15,23,42,0.04)]">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Alcances</p>
-                    <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{formatLongNumber(julySiteTotals.reach)}</p>
-                  </div>
-                  <div className="rounded-[1.4rem] border border-border/60 bg-white px-4 py-4 shadow-[0_10px_22px_rgba(15,23,42,0.04)]">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Progresso base</p>
-                    <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{julyStoriesMonthlyProgress}%</p>
-                  </div>
-                </div>
-                <div className="mt-5 rounded-[1.9rem] border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.995),rgba(252,244,246,0.98))] p-5 shadow-[0_18px_42px_rgba(15,23,42,0.05)]">
-                  <div className="flex flex-col gap-2 border-b border-border/60 pb-4 sm:flex-row sm:items-end sm:justify-between">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Perfil</p>
-                      <h3 className="mt-1 text-lg font-semibold tracking-tight text-foreground">Membros da equipe no perfil</h3>
-                    </div>
-                    <span className="rounded-full border border-border/60 bg-white px-4 py-2 text-sm font-medium text-muted-foreground">
-                      Escala semanal de julho
-                    </span>
-                  </div>
-
-                  <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                    {julyStoriesTeamByWeek.map((item) => (
-                      <div key={item.week} className="rounded-[1.4rem] border border-border/60 bg-white px-4 py-4 shadow-[0_10px_22px_rgba(15,23,42,0.04)]">
-                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{item.week}</p>
-                        <p className="mt-2 text-sm font-medium leading-6 text-foreground">{item.members}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </section>
-
               {genericReportRows.map((row, rowIndex) => (
                 <section key={row.title} data-cy={`reports-row-${rowIndex}`} className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.05)] print-avoid-break">
                   <div className="flex items-center justify-between gap-4">
