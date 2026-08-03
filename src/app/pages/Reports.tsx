@@ -1,4 +1,5 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Area,
   AreaChart,
@@ -307,30 +308,156 @@ function RoundedDropdown<T extends string | number>({
   options,
   onChange,
   placeholder,
+  usePortal = false,
 }: {
   label: string;
   value: T;
   options: Array<{ label: string; value: T; color?: string }>;
   onChange: (value: T) => void;
   placeholder?: string;
+  usePortal?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const [portalPosition, setPortalPosition] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+  } | null>(null);
   const selected = options.find((option) => option.value === value) ?? options[0];
   const { isDark } = useThemeMode();
   const surfaceColor = isDark ? "rgb(var(--sidebar) / 1)" : "#ffffff";
   const menuColor = isDark ? "rgb(var(--background) / 1)" : "#ffffff";
 
   useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
     const handlePointerDown = (event: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const isInsideTrigger = rootRef.current?.contains(target);
+      const isInsidePopover = popoverRef.current?.contains(target);
+
+      if (!isInsideTrigger && !isInsidePopover) {
+        setOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
         setOpen(false);
       }
     };
 
     document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, []);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !usePortal) {
+      setPortalPosition(null);
+      return undefined;
+    }
+
+    const updatePosition = () => {
+      const anchorNode = rootRef.current;
+
+      if (!anchorNode || typeof window === "undefined") {
+        return;
+      }
+
+      const rect = anchorNode.getBoundingClientRect();
+      const viewportPadding = 12;
+      const width = Math.min(rect.width, window.innerWidth - viewportPadding * 2);
+      const left = Math.min(Math.max(rect.left, viewportPadding), window.innerWidth - width - viewportPadding);
+      const maxHeight = Math.max(window.innerHeight - rect.bottom - viewportPadding - 8, 96);
+
+      setPortalPosition({
+        top: rect.bottom + 8,
+        left,
+        width,
+        maxHeight,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open, usePortal]);
+
+  const optionsMaxHeight = portalPosition ? Math.max(portalPosition.maxHeight - 16, 80) : undefined;
+
+  const dropdownMenu = (
+    <div
+      ref={popoverRef}
+      className="overflow-hidden rounded-[1.75rem] border border-border/70 p-2 shadow-[0_24px_60px_rgba(15,23,42,0.14)] dark:border-white/8 dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]"
+      style={{
+        backgroundColor: menuColor,
+        ...(usePortal && portalPosition
+          ? {
+              position: "fixed" as const,
+              top: portalPosition.top,
+              left: portalPosition.left,
+              width: portalPosition.width,
+              zIndex: 9999,
+            }
+          : {}),
+      }}
+      onWheelCapture={(event) => {
+        if (usePortal) {
+          event.stopPropagation();
+        }
+      }}
+    >
+      <div className={cn("space-y-1", optionsMaxHeight ? "overflow-auto pr-1" : "")} style={optionsMaxHeight ? { maxHeight: optionsMaxHeight } : undefined}>
+        {options.map((option) => {
+          const active = option.value === value;
+
+          return (
+            <button
+              key={String(option.value)}
+              type="button"
+              onClick={() => {
+                onChange(option.value);
+                setOpen(false);
+              }}
+              className={cn(
+                "flex w-full items-center justify-between rounded-full px-4 py-3 text-left text-sm transition",
+                active
+                  ? "bg-primary text-primary-foreground shadow-sm dark:bg-[#ff3b4e]"
+                  : "text-foreground hover:bg-primary/8 dark:text-slate-200 dark:hover:bg-card/98",
+              )}
+              style={{
+                backgroundColor: active ? "rgb(var(--primary) / 1)" : surfaceColor,
+                color: active ? "rgb(var(--primary-foreground) / 1)" : "rgb(var(--foreground) / 1)",
+              }}
+            >
+              <span
+                className="font-medium"
+                style={!active && option.color ? { color: option.color } : undefined}
+              >
+                {option.label}
+              </span>
+              {active ? <span className="text-xs font-semibold opacity-80">Ativo</span> : null}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   return (
     <div ref={rootRef} className="relative z-[80]">
@@ -363,53 +490,17 @@ function RoundedDropdown<T extends string | number>({
         </span>
       </button>
 
-      {open ? (
-        <div
-          className="absolute left-0 top-full z-[90] mt-2 w-full overflow-hidden rounded-[1.75rem] border border-border/70 p-2 shadow-[0_24px_60px_rgba(15,23,42,0.14)] dark:border-white/8 dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]"
-          style={{
-            backgroundColor: menuColor,
-          }}
-        >
-          <div className="space-y-1">
-            {options.map((option) => {
-              const active = option.value === value;
-
-              return (
-                <button
-                  key={String(option.value)}
-                  type="button"
-                  onClick={() => {
-                    onChange(option.value);
-                    setOpen(false);
-                  }}
-                  className={cn(
-                    "flex w-full items-center justify-between rounded-full px-4 py-3 text-left text-sm transition",
-                    active
-                      ? "bg-primary text-primary-foreground shadow-sm dark:bg-[#ff3b4e]"
-                      : "text-foreground hover:bg-primary/8 dark:text-slate-200 dark:hover:bg-card/98",
-                  )}
-                  style={{
-                    backgroundColor: active ? "rgb(var(--primary) / 1)" : surfaceColor,
-                    color: active ? "rgb(var(--primary-foreground) / 1)" : "rgb(var(--foreground) / 1)",
-                  }}
-                >
-                  <span
-                    className="font-medium"
-                    style={
-                      !active && option.color
-                        ? { color: option.color }
-                        : undefined
-                    }
-                  >
-                    {option.label}
-                  </span>
-                  {active ? <span className="text-xs font-semibold opacity-80">Ativo</span> : null}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      ) : null}
+      {open
+        ? usePortal
+          ? portalPosition
+            ? createPortal(dropdownMenu, document.body)
+            : null
+          : (
+              <div className="absolute left-0 top-full z-[90] mt-2 w-full">
+                {dropdownMenu}
+              </div>
+            )
+        : null}
     </div>
   );
 }
@@ -2466,6 +2557,7 @@ export function ReportsPage() {
                           options={monthOptions}
                           onChange={(value) => setCustomMonth(Number(value))}
                           placeholder="Selecionar mês"
+                          usePortal
                         />
                         <RoundedDropdown
                           label="Ano"
@@ -3257,3 +3349,4 @@ export function ReportsPage() {
     </PageTransition>
   );
 }
+
