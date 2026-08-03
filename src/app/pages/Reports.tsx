@@ -378,10 +378,11 @@ function RoundedDropdown<T extends string | number>({
       const viewportPadding = 12;
       const width = Math.min(rect.width, window.innerWidth - viewportPadding * 2);
       const left = Math.min(Math.max(rect.left, viewportPadding), window.innerWidth - width - viewportPadding);
-      const maxHeight = Math.max(window.innerHeight - rect.bottom - viewportPadding - 8, 96);
+      const availableBelow = window.innerHeight - rect.bottom - viewportPadding - 4;
+      const maxHeight = Math.max(Math.min(320, availableBelow), 120);
 
       setPortalPosition({
-        top: rect.bottom + 8,
+        top: rect.bottom + 4,
         left,
         width,
         maxHeight,
@@ -398,8 +399,6 @@ function RoundedDropdown<T extends string | number>({
     };
   }, [open, usePortal]);
 
-  const optionsMaxHeight = portalPosition ? Math.max(portalPosition.maxHeight - 16, 80) : undefined;
-
   const dropdownMenu = (
     <div
       ref={popoverRef}
@@ -412,7 +411,7 @@ function RoundedDropdown<T extends string | number>({
               top: portalPosition.top,
               left: portalPosition.left,
               width: portalPosition.width,
-              zIndex: 9999,
+              zIndex: 999999,
             }
           : {}),
       }}
@@ -422,7 +421,10 @@ function RoundedDropdown<T extends string | number>({
         }
       }}
     >
-      <div className={cn("space-y-1", optionsMaxHeight ? "overflow-auto pr-1" : "")} style={optionsMaxHeight ? { maxHeight: optionsMaxHeight } : undefined}>
+      <div
+        className={cn("space-y-1", usePortal ? "overflow-y-auto pr-1" : "")}
+        style={usePortal && portalPosition ? { maxHeight: portalPosition.maxHeight } : undefined}
+      >
         {options.map((option) => {
           const active = option.value === value;
 
@@ -2834,6 +2836,88 @@ export function ReportsPage() {
         </section>
 
         <div className="space-y-6">
+              <section className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.05)] print-avoid-break">
+                <div className="flex flex-col gap-4 border-b border-border/60 pb-5 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold tracking-tight text-foreground">Stories</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Planilha mensal de julho com a distribuicao diaria de Stories, fotos e videos.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary">
+                      Julho
+                    </span>
+                    <span className="rounded-full border border-border/60 bg-white px-4 py-2 text-sm font-medium text-muted-foreground">
+                      31 dias
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-5 overflow-hidden rounded-[1.9rem] border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.995),rgba(248,250,252,0.98))] shadow-[0_18px_42px_rgba(15,23,42,0.05)]">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full border-separate border-spacing-0">
+                      <thead>
+                        <tr className="bg-primary/[0.06] text-left">
+                          <th className="px-5 py-4 text-sm font-semibold text-foreground">Data</th>
+                          <th className="px-5 py-4 text-sm font-semibold text-foreground">Stories</th>
+                          <th className="px-5 py-4 text-sm font-semibold text-foreground">Fotos</th>
+                          <th className="px-5 py-4 text-sm font-semibold text-foreground">Videos</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {julyStoriesSheet.map((item, index) => (
+                          <tr
+                            key={item.date}
+                            className={cn(
+                              "transition hover:bg-primary/[0.03]",
+                              index % 2 === 0 ? "bg-white" : "bg-slate-50/70",
+                            )}
+                          >
+                            <td className="border-t border-border/50 px-5 py-3 text-sm font-medium text-foreground">{item.date}</td>
+                            <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.stories}</td>
+                            <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.photos}</td>
+                            <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.videos}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        {julyStoriesSheetTotals.map((item, index) => (
+                          <tr key={`${item.label || "extra"}-${index}`} className={index === 0 ? "bg-primary/[0.08]" : "bg-primary/[0.03]"}>
+                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold uppercase tracking-[0.14em] text-foreground">
+                              {item.label || " "}
+                            </td>
+                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{item.stories}</td>
+                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{item.photos}</td>
+                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{item.videos}</td>
+                          </tr>
+                        ))}
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+                <div className="mt-5 rounded-[1.9rem] border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.995),rgba(252,244,246,0.98))] p-5 shadow-[0_18px_42px_rgba(15,23,42,0.05)]">
+                  <div className="flex flex-col gap-2 border-b border-border/60 pb-4 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Perfil</p>
+                      <h3 className="mt-1 text-lg font-semibold tracking-tight text-foreground">Membros da equipe no perfil</h3>
+                    </div>
+                    <span className="rounded-full border border-border/60 bg-white px-4 py-2 text-sm font-medium text-muted-foreground">
+                      Escala semanal de julho
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                    {julyStoriesTeamByWeek.map((item) => (
+                      <div key={item.week} className="rounded-[1.4rem] border border-border/60 bg-white px-4 py-4 shadow-[0_10px_22px_rgba(15,23,42,0.04)]">
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{item.week}</p>
+                        <p className="mt-2 text-sm font-medium leading-6 text-foreground">{item.members}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
+
               {genericReportRows.map((row, rowIndex) => (
                 <section key={row.title} data-cy={`reports-row-${rowIndex}`} className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.05)] print-avoid-break">
                   <div className="flex items-center justify-between gap-4">
@@ -2921,87 +3005,6 @@ export function ReportsPage() {
                 </section>
               ))}
 
-              <section className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.05)] print-avoid-break">
-                <div className="flex flex-col gap-4 border-b border-border/60 pb-5 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <h2 className="text-lg font-semibold tracking-tight text-foreground">Stories</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Planilha mensal de julho com a distribuicao diaria de Stories, fotos e videos.
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary">
-                      Julho
-                    </span>
-                    <span className="rounded-full border border-border/60 bg-white px-4 py-2 text-sm font-medium text-muted-foreground">
-                      31 dias
-                    </span>
-                  </div>
-                </div>
-
-                <div className="mt-5 overflow-hidden rounded-[1.9rem] border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.995),rgba(248,250,252,0.98))] shadow-[0_18px_42px_rgba(15,23,42,0.05)]">
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full border-separate border-spacing-0">
-                      <thead>
-                        <tr className="bg-primary/[0.06] text-left">
-                          <th className="px-5 py-4 text-sm font-semibold text-foreground">Data</th>
-                          <th className="px-5 py-4 text-sm font-semibold text-foreground">Stories</th>
-                          <th className="px-5 py-4 text-sm font-semibold text-foreground">Fotos</th>
-                          <th className="px-5 py-4 text-sm font-semibold text-foreground">Videos</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {julyStoriesSheet.map((item, index) => (
-                          <tr
-                            key={item.date}
-                            className={cn(
-                              "transition hover:bg-primary/[0.03]",
-                              index % 2 === 0 ? "bg-white" : "bg-slate-50/70",
-                            )}
-                          >
-                            <td className="border-t border-border/50 px-5 py-3 text-sm font-medium text-foreground">{item.date}</td>
-                            <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.stories}</td>
-                            <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.photos}</td>
-                            <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.videos}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        {julyStoriesSheetTotals.map((item, index) => (
-                          <tr key={`${item.label || "extra"}-${index}`} className={index === 0 ? "bg-primary/[0.08]" : "bg-primary/[0.03]"}>
-                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold uppercase tracking-[0.14em] text-foreground">
-                              {item.label || " "}
-                            </td>
-                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{item.stories}</td>
-                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{item.photos}</td>
-                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{item.videos}</td>
-                          </tr>
-                        ))}
-                      </tfoot>
-                    </table>
-                  </div>
-                </div>
-                <div className="mt-5 rounded-[1.9rem] border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.995),rgba(252,244,246,0.98))] p-5 shadow-[0_18px_42px_rgba(15,23,42,0.05)]">
-                  <div className="flex flex-col gap-2 border-b border-border/60 pb-4 sm:flex-row sm:items-end sm:justify-between">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Perfil</p>
-                      <h3 className="mt-1 text-lg font-semibold tracking-tight text-foreground">Membros da equipe no perfil</h3>
-                    </div>
-                    <span className="rounded-full border border-border/60 bg-white px-4 py-2 text-sm font-medium text-muted-foreground">
-                      Escala semanal de julho
-                    </span>
-                  </div>
-
-                  <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                    {julyStoriesTeamByWeek.map((item) => (
-                      <div key={item.week} className="rounded-[1.4rem] border border-border/60 bg-white px-4 py-4 shadow-[0_10px_22px_rgba(15,23,42,0.04)]">
-                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{item.week}</p>
-                        <p className="mt-2 text-sm font-medium leading-6 text-foreground">{item.members}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </section>
             </div>
 
         <section className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.06)] print-avoid-break">
@@ -3349,4 +3352,3 @@ export function ReportsPage() {
     </PageTransition>
   );
 }
-
