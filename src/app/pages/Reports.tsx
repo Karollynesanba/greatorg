@@ -118,8 +118,12 @@ type ReportOverview = {
   description: string;
   note: string;
 };
+type StoriesTeamWeek = {
+  week: string;
+  members: string;
+};
 type ReportSectionEditor = {
-  scope: "overview" | "row";
+  scope: "overview" | "row" | "storiesTeam";
   rowIndex?: number;
 } | null;
 
@@ -1156,6 +1160,7 @@ export function ReportsPage() {
     ],
     [],
   );
+  const storiesTeamByWeekFallback = useMemo<StoriesTeamWeek[]>(() => [], []);
   const [period, setPeriod] = useState<ReportPeriod>("30");
   const [customPeriodMode, setCustomPeriodMode] = useState<CustomPeriodMode>("month");
   const [customMonth, setCustomMonth] = useState(anchorDate.getMonth());
@@ -1233,6 +1238,7 @@ export function ReportsPage() {
   const [isOverviewModalOpen, setIsOverviewModalOpen] = useState(false);
   const [editingSection, setEditingSection] = useState<ReportSectionEditor>(null);
   const [sectionForm, setSectionForm] = useState<{ title: string; description: string; action: string } | null>(null);
+  const [storiesTeamForm, setStoriesTeamForm] = useState<StoriesTeamWeek[]>([]);
   const [cardDraft, setCardDraft] = useState<{
     rowIndex: number;
     itemIndex: number | null;
@@ -1253,7 +1259,16 @@ export function ReportsPage() {
     category: "rows",
     legacySharedStateKey: "great-organico-reports-rows",
   });
-  const reportSharedReady = savedReportsHydrated && overviewHydrated && reportRowsHydrated;
+  const [storiesTeamByWeekDraft, setStoriesTeamByWeekDraft, storiesTeamByWeekHydrated] = useSupabaseReportState<StoriesTeamWeek[]>({
+    reportKind: "stories_team",
+    referenceMonth: reportReferenceMonth,
+    externalKey: "great-organico-reports-stories-team",
+    title: "Escala semanal de participacoes",
+    fallback: storiesTeamByWeekFallback,
+    category: "profile",
+    legacySharedStateKey: "great-organico-reports-stories-team",
+  });
+  const reportSharedReady = savedReportsHydrated && overviewHydrated && reportRowsHydrated && storiesTeamByWeekHydrated;
 
   useEffect(() => {
     if (!reportSharedReady) {
@@ -2024,9 +2039,9 @@ export function ReportsPage() {
       cta: currentMonthlyStoriesSummary.ctaGoal,
     };
   }, [currentMonthlyStoriesSummary, isCurrentRangeExactMonth, isJuly2026RangeActive, responsibleFilter, teamScope]);
-  const storiesTeamByWeek = useMemo(() => {
+  const computedStoriesTeamByWeek = useMemo<StoriesTeamWeek[]>(() => {
     if (isJuly2026RangeActive) {
-      return julyStoriesTeamByWeek;
+      return julyStoriesTeamByWeek.map((item) => ({ ...item }));
     }
 
     const memberNameById = new Map(teamMembers.map((member) => [member.id, member.name]));
@@ -2057,6 +2072,13 @@ export function ReportsPage() {
         members: Array.from(members).join(", "),
       }));
   }, [filteredStoryLogs, isJuly2026RangeActive, teamMembers]);
+  const storiesTeamByWeek = useMemo<StoriesTeamWeek[]>(() => {
+    if (storiesTeamByWeekDraft.length === 0) {
+      return computedStoriesTeamByWeek;
+    }
+
+    return storiesTeamByWeekDraft;
+  }, [computedStoriesTeamByWeek, storiesTeamByWeekDraft]);
 
   const selectedMetricDetails = {
     reach: {
@@ -2364,17 +2386,35 @@ export function ReportsPage() {
       action: target.action,
     });
   };
+  const openStoriesTeamEditor = () => {
+    if (!reportSharedReady) {
+      toast.loading("Carregando relatório compartilhado...");
+      return;
+    }
+
+    const source = storiesTeamByWeek.length > 0
+      ? storiesTeamByWeek
+      : [{ week: "1 semana", members: "" }];
+
+    setEditingSection({ scope: "storiesTeam" });
+    setSectionForm(null);
+    setStoriesTeamForm(source.map((item) => ({ ...item })));
+  };
   const saveSectionForm = () => {
     if (!reportSharedReady) {
       toast.error("Aguarde carregar o relatório compartilhado antes de salvar.");
       return;
     }
 
-    if (!editingSection || !sectionForm) {
+    if (!editingSection) {
       return;
     }
 
     if (editingSection.scope === "row" && typeof editingSection.rowIndex === "number") {
+      if (!sectionForm) {
+        return;
+      }
+
       setReportRows((previous) =>
         previous.map((row, rowIndex) =>
           rowIndex === editingSection.rowIndex
@@ -2388,6 +2428,19 @@ export function ReportsPage() {
         ),
       );
       toast.success("Seção atualizada.");
+    }
+
+    if (editingSection.scope === "storiesTeam") {
+      setStoriesTeamByWeekDraft(
+        storiesTeamForm
+          .map((item) => ({
+            week: item.week.trim() || "Semana",
+            members: item.members.trim(),
+          }))
+          .filter((item) => item.week.length > 0 || item.members.length > 0),
+      );
+      setStoriesTeamForm([]);
+      toast.success("Participações atualizadas.");
     }
 
     setEditingSection(null);
@@ -2431,6 +2484,20 @@ export function ReportsPage() {
     );
     setSectionForm(fallback);
     toast.success("Título restaurado para o padrão.");
+  };
+  const restoreStoriesTeamDefaults = () => {
+    if (!reportSharedReady) {
+      toast.error("Aguarde carregar o relatório compartilhado antes de restaurar.");
+      return;
+    }
+
+    const fallback = computedStoriesTeamByWeek.length > 0
+      ? computedStoriesTeamByWeek
+      : [{ week: "1 semana", members: "" }];
+
+    setStoriesTeamByWeekDraft(fallback.map((item) => ({ ...item })));
+    setStoriesTeamForm(fallback.map((item) => ({ ...item })));
+    toast.success("Escala semanal restaurada.");
   };
   void [
     Area,
@@ -2860,11 +2927,11 @@ export function ReportsPage() {
                     </div>
                   </div>
 
-              <div className="mt-5 flex gap-4 overflow-x-auto pb-1">
+              <div className="mt-5 flex gap-4 overflow-x-auto pb-1 print:grid print:grid-cols-2 print:gap-4 print:overflow-visible print:pb-0">
                 {row.items.map((item, itemIndex) => (
                   <article
                     key={`${row.title}-${item.title}`}
-                    className="group relative h-[170px] min-w-[250px] overflow-hidden rounded-[1.8rem] border border-border/60 bg-slate-100 shadow-[0_14px_34px_rgba(15,23,42,0.08)]"
+                    className="group relative h-[170px] min-w-[250px] overflow-hidden rounded-[1.8rem] border border-border/60 bg-slate-100 shadow-[0_14px_34px_rgba(15,23,42,0.08)] print:h-[220px] print:min-w-0 print:break-inside-avoid"
                   >
                     <div
                       className="absolute inset-0 bg-cover bg-center transition duration-500 group-hover:scale-105"
@@ -2994,9 +3061,19 @@ export function ReportsPage() {
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Perfil</p>
                       <h3 className="mt-1 text-lg font-semibold tracking-tight text-foreground">Membros da equipe no perfil</h3>
                     </div>
-                    <span className="rounded-full border border-border/60 bg-white px-4 py-2 text-sm font-medium text-muted-foreground">
-                      {isCurrentRangeExactMonth ? `Escala semanal de ${storiesMonthLabel}` : "Escala semanal do período"}
-                    </span>
+                    <div className="flex items-center gap-2 print:hidden">
+                      <button
+                        type="button"
+                        onClick={openStoriesTeamEditor}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 bg-white text-muted-foreground transition hover:border-primary/25 hover:text-foreground hover:shadow-sm"
+                        aria-label="Editar participações da equipe"
+                      >
+                        <PencilLine className="h-4 w-4" />
+                      </button>
+                      <span className="rounded-full border border-border/60 bg-white px-4 py-2 text-sm font-medium text-muted-foreground">
+                        {isCurrentRangeExactMonth ? `Escala semanal de ${storiesMonthLabel}` : "Escala semanal do período"}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="mt-4 grid gap-3 lg:grid-cols-2">
@@ -3132,7 +3209,7 @@ export function ReportsPage() {
         </div>
       ) : null}
 
-      {editingSection && sectionForm ? (
+      {editingSection?.scope === "row" && sectionForm ? (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-sm print:hidden">
           <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] border border-border/70 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.22)]">
             <div className="flex items-start justify-between gap-4">
@@ -3202,6 +3279,93 @@ export function ReportsPage() {
                   onClick={() => {
                     setEditingSection(null);
                     setSectionForm(null);
+                  }}
+                  className="rounded-full border border-border/60 bg-card px-4 py-2 text-sm font-medium text-muted-foreground transition hover:text-foreground"
+                >
+                  Cancelar
+                </button>
+                <ActionButton onClick={saveSectionForm}>Salvar alterações</ActionButton>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {editingSection?.scope === "storiesTeam" ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-sm print:hidden">
+          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[2rem] border border-border/70 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.22)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Perfil</p>
+                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Editar participações semanais</h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  Ajuste os nomes exibidos em cada semana da seção de membros da equipe no perfil.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingSection(null);
+                  setStoriesTeamForm([]);
+                }}
+                className="rounded-full border border-border/60 bg-card px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/25"
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-4">
+              {storiesTeamForm.map((item, index) => (
+                <div key={`${item.week}-${index}`} className="grid gap-4 rounded-[1.6rem] border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.995),rgba(252,244,246,0.98))] p-4 md:grid-cols-[180px_minmax(0,1fr)]">
+                  <label className="grid gap-2">
+                    <span className="text-sm font-medium text-foreground">Semana</span>
+                    <input
+                      value={item.week}
+                      onChange={(event) =>
+                        setStoriesTeamForm((previous) =>
+                          previous.map((entry, entryIndex) =>
+                            entryIndex === index ? { ...entry, week: event.target.value } : entry,
+                          ),
+                        )
+                      }
+                      className="rounded-2xl border border-border/60 bg-white px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+                      placeholder="Ex.: 1 semana"
+                    />
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-sm font-medium text-foreground">Participações</span>
+                    <textarea
+                      value={item.members}
+                      onChange={(event) =>
+                        setStoriesTeamForm((previous) =>
+                          previous.map((entry, entryIndex) =>
+                            entryIndex === index ? { ...entry, members: event.target.value } : entry,
+                          ),
+                        )
+                      }
+                      rows={3}
+                      className="rounded-2xl border border-border/60 bg-white px-4 py-3 text-sm leading-6 text-foreground outline-none transition focus:border-primary/30 focus:ring-4 focus:ring-primary/10"
+                      placeholder="Ex.: Kauan, Karol e Brayton"
+                    />
+                  </label>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-between gap-3">
+              <button
+                type="button"
+                onClick={restoreStoriesTeamDefaults}
+                className="rounded-full border border-border/60 bg-card px-4 py-2 text-sm font-medium text-muted-foreground transition hover:text-foreground"
+              >
+                Restaurar padrão
+              </button>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingSection(null);
+                    setStoriesTeamForm([]);
                   }}
                   className="rounded-full border border-border/60 bg-card px-4 py-2 text-sm font-medium text-muted-foreground transition hover:text-foreground"
                 >
