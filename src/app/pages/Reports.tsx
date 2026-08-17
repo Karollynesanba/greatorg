@@ -112,6 +112,13 @@ type ReportCardRow = {
   action: string;
   items: ReportCardItem[];
 };
+type StoriesSheetRow = {
+  dateKey: string;
+  stories: number;
+  photos: number;
+  videos: number;
+  cta: number;
+};
 type ReportOverview = {
   badge: string;
   title: string;
@@ -215,39 +222,6 @@ function stripLegacyReportExamples(rows: ReportCardRow[]) {
 const monthlyContentTarget = 120;
 const finalContentStatuses = new Set<PostStatus | "Concluído" | "Finalizado">(["Aprovado", "Publicado", "Concluído", "Finalizado"]);
 const storiesRowTitle = "Stories";
-const julyStoriesSheet = [
-  { date: "01/07", stories: 8, photos: 3, videos: 5 },
-  { date: "02/07", stories: 9, photos: 4, videos: 5 },
-  { date: "03/07", stories: 8, photos: 3, videos: 5 },
-  { date: "04/07", stories: 0, photos: 0, videos: 0 },
-  { date: "05/07", stories: 0, photos: 0, videos: 0 },
-  { date: "06/07", stories: 8, photos: 3, videos: 5 },
-  { date: "07/07", stories: 9, photos: 4, videos: 5 },
-  { date: "08/07", stories: 9, photos: 3, videos: 6 },
-  { date: "09/07", stories: 9, photos: 4, videos: 5 },
-  { date: "10/07", stories: 8, photos: 3, videos: 5 },
-  { date: "11/07", stories: 0, photos: 0, videos: 0 },
-  { date: "12/07", stories: 0, photos: 0, videos: 0 },
-  { date: "13/07", stories: 8, photos: 3, videos: 5 },
-  { date: "14/07", stories: 8, photos: 3, videos: 5 },
-  { date: "15/07", stories: 8, photos: 3, videos: 5 },
-  { date: "16/07", stories: 2, photos: 1, videos: 1 },
-  { date: "17/07", stories: 8, photos: 3, videos: 5 },
-  { date: "18/07", stories: 0, photos: 0, videos: 0 },
-  { date: "19/07", stories: 0, photos: 0, videos: 0 },
-  { date: "20/07", stories: 10, photos: 5, videos: 5 },
-  { date: "21/07", stories: 8, photos: 3, videos: 5 },
-  { date: "22/07", stories: 10, photos: 4, videos: 6 },
-  { date: "23/07", stories: 10, photos: 4, videos: 6 },
-  { date: "24/07", stories: 8, photos: 3, videos: 5 },
-  { date: "25/07", stories: 2, photos: 2, videos: 0 },
-  { date: "26/07", stories: 0, photos: 0, videos: 0 },
-  { date: "27/07", stories: 13, photos: 7, videos: 6 },
-  { date: "28/07", stories: 8, photos: 3, videos: 5 },
-  { date: "29/07", stories: 9, photos: 3, videos: 6 },
-  { date: "30/07", stories: 8, photos: 3, videos: 5 },
-  { date: "31/07", stories: 8, photos: 3, videos: 5 },
-] as const;
 const julyStoriesSheetTotals = [
   { label: "TOTAL", stories: 196, photos: 80, videos: 116 },
   { label: "", stories: 168, photos: 63, videos: 105 },
@@ -745,6 +719,29 @@ function groupPostsByDate(items: Array<Pick<Post, "date" | "reach" | "engagement
   });
 
   return buckets;
+}
+
+function sanitizeEditableMetric(value: number) {
+  return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+}
+
+function mergeStoriesSheetRows(template: StoriesSheetRow[], stored: StoriesSheetRow[]) {
+  const storedMap = new Map(stored.map((row) => [row.dateKey, row]));
+
+  return template.map((row) => {
+    const storedRow = storedMap.get(row.dateKey);
+    if (!storedRow) {
+      return row;
+    }
+
+    return {
+      dateKey: row.dateKey,
+      stories: sanitizeEditableMetric(storedRow.stories),
+      photos: sanitizeEditableMetric(storedRow.photos),
+      videos: sanitizeEditableMetric(storedRow.videos),
+      cta: sanitizeEditableMetric(storedRow.cta),
+    };
+  });
 }
 
 function readFileAsDataUrl(file: File) {
@@ -1977,39 +1974,70 @@ export function ReportsPage() {
     toast.success("Imagem exportada com sucesso.");
   };
   const isCurrentRangeExactMonth = isExactMonthRange(currentRange, monthKeyFromDate(currentRange.start));
-  const storiesMonthLabel = formatMonthYear(currentRange.start);
-  const storiesDateLabel = isJuly2026RangeActive
-    ? "Planilha mensal de julho de 2026 com a distribuicao diaria de Stories, fotos, videos e CTA."
-    : isCurrentRangeExactMonth
-    ? `Planilha mensal de ${storiesMonthLabel} com a distribuicao diaria de Stories, fotos, videos e CTA.`
-    : `Distribuicao diaria de Stories, fotos, videos e CTA entre ${formatDateKey(currentRange.start)} e ${formatDateKey(currentRange.end)}.`;
-  const storiesSheet = useMemo(() => {
-    if (isJuly2026RangeActive) {
-      return julyStoriesSheet.map((item) => ({ ...item, cta: 0 }));
-    }
+  const storiesReferenceDate = useMemo(
+    () => (period === "custom" && customPeriodMode === "month" ? new Date(customYear, customMonth, 1) : anchorDate),
+    [anchorDate, customMonth, customYear, customPeriodMode, period],
+  );
+  const storiesSheetRange = useMemo(
+    () => ({
+      start: startOfMonth(storiesReferenceDate),
+      end: endOfMonth(storiesReferenceDate),
+    }),
+    [storiesReferenceDate],
+  );
+  const storiesSheetReferenceMonth = useMemo(() => monthKeyFromDate(storiesSheetRange.start), [storiesSheetRange.start]);
+  const storiesMonthLabel = formatMonthYear(storiesSheetRange.start);
+  const storiesSheetFallback = useMemo<StoriesSheetRow[]>(
+    () =>
+      Array.from({ length: diffDays(storiesSheetRange.start, storiesSheetRange.end) + 1 }, (_, index) => {
+        const date = addDays(storiesSheetRange.start, index);
+        const dateKey = formatDateKey(date);
+        const dayStories = allStoryLogs.filter((story) => story.date === dateKey);
+        const photos = dayStories
+          .filter((story) => story.mediaType === "photo")
+          .reduce((sum, story) => sum + Math.max(story.quantity, 0), 0);
+        const videos = dayStories
+          .filter((story) => story.mediaType === "video")
+          .reduce((sum, story) => sum + Math.max(story.quantity, 0), 0);
 
-    const totalDays = diffDays(currentRange.start, currentRange.end) + 1;
+        return {
+          dateKey,
+          stories: dayStories.reduce((sum, story) => sum + Math.max(story.quantity, 0), 0),
+          photos,
+          videos,
+          cta: dayStories.reduce((sum, story) => sum + Math.max(story.cta ?? 0, 0), 0),
+        };
+      }),
+    [allStoryLogs, storiesSheetRange.end, storiesSheetRange.start],
+  );
+  const [storiesSheetDraft, setStoriesSheetDraft, storiesSheetHydrated] = useSupabaseReportState<StoriesSheetRow[]>({
+    reportKind: "stories_sheet",
+    referenceMonth: storiesSheetReferenceMonth,
+    externalKey: `great-organico-stories-sheet-${storiesSheetReferenceMonth}`,
+    title: `Planilha de Stories ${storiesMonthLabel}`,
+    fallback: storiesSheetFallback,
+    category: "stories",
+    periodStart: formatDateKey(storiesSheetRange.start),
+    periodEnd: formatDateKey(storiesSheetRange.end),
+  });
+  const storiesSheet = useMemo(
+    () => mergeStoriesSheetRows(storiesSheetFallback, storiesSheetDraft),
+    [storiesSheetDraft, storiesSheetFallback],
+  );
+  const handleStoriesSheetValueChange = (dateKey: string, field: keyof Omit<StoriesSheetRow, "dateKey">, rawValue: string) => {
+    const nextValue = sanitizeEditableMetric(Number(rawValue));
 
-    return Array.from({ length: totalDays }, (_, index) => {
-      const date = addDays(currentRange.start, index);
-      const dateKey = formatDateKey(date);
-      const dayStories = filteredStoryLogs.filter((story) => story.date === dateKey);
-      const photos = dayStories
-        .filter((story) => story.mediaType === "photo")
-        .reduce((sum, story) => sum + Math.max(story.quantity, 0), 0);
-      const videos = dayStories
-        .filter((story) => story.mediaType === "video")
-        .reduce((sum, story) => sum + Math.max(story.quantity, 0), 0);
-
-      return {
-        date: formatDayMonth(dateKey),
-        stories: photos + videos,
-        photos,
-        videos,
-        cta: dayStories.reduce((sum, story) => sum + Math.max(story.cta ?? 0, 0), 0),
-      };
-    });
-  }, [currentRange, filteredStoryLogs, isJuly2026RangeActive]);
+    setStoriesSheetDraft((currentRows) =>
+      mergeStoriesSheetRows(storiesSheetFallback, currentRows).map((row) =>
+        row.dateKey === dateKey
+          ? {
+              ...row,
+              [field]: nextValue,
+            }
+          : row,
+      ),
+    );
+  };
   const storiesSheetTotal = useMemo(
     () =>
       storiesSheet.reduce(
@@ -2024,11 +2052,7 @@ export function ReportsPage() {
     [storiesSheet],
   );
   const storiesGoalRow = useMemo(() => {
-    if (isJuly2026RangeActive) {
-      return { ...julyStoriesSheetTotals[1], cta: 0 };
-    }
-
-    if (!(responsibleFilter === "todos" && teamScope === "todos" && isCurrentRangeExactMonth) || !currentMonthlyStoriesSummary) {
+    if (!(responsibleFilter === "todos" && teamScope === "todos" && storiesSheetReferenceMonth === monthKeyFromDate(anchorDate)) || !currentMonthlyStoriesSummary) {
       return null;
     }
 
@@ -2038,7 +2062,7 @@ export function ReportsPage() {
       videos: currentMonthlyStoriesSummary.videoGoal,
       cta: currentMonthlyStoriesSummary.ctaGoal,
     };
-  }, [currentMonthlyStoriesSummary, isCurrentRangeExactMonth, isJuly2026RangeActive, responsibleFilter, teamScope]);
+  }, [anchorDate, currentMonthlyStoriesSummary, responsibleFilter, storiesSheetReferenceMonth, teamScope]);
   const computedStoriesTeamByWeek = useMemo<StoriesTeamWeek[]>(() => {
     if (isJuly2026RangeActive) {
       return julyStoriesTeamByWeek.map((item) => ({ ...item }));
@@ -2988,15 +3012,15 @@ export function ReportsPage() {
                   <div>
                     <h2 className="text-lg font-semibold tracking-tight text-foreground">Stories</h2>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {storiesDateLabel}
+                      Planilha mensal editável com a distribuicao diaria de Stories, fotos, videos e CTA.
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary">
-                      {isCurrentRangeExactMonth ? storiesMonthLabel : "Período atual"}
+                      {storiesMonthLabel}
                     </span>
                     <span className="rounded-full border border-border/60 bg-white px-4 py-2 text-sm font-medium text-muted-foreground">
-                      {`${diffDays(currentRange.start, currentRange.end) + 1} dias`}
+                      {`${storiesSheet.length} dias`}
                     </span>
                   </div>
                 </div>
@@ -3016,17 +3040,27 @@ export function ReportsPage() {
                       <tbody>
                         {storiesSheet.map((item, index) => (
                           <tr
-                            key={item.date}
+                            key={item.dateKey}
                             className={cn(
                               "transition hover:bg-primary/[0.03]",
                               index % 2 === 0 ? "bg-white" : "bg-slate-50/70",
                             )}
                           >
-                            <td className="border-t border-border/50 px-5 py-3 text-sm font-medium text-foreground">{item.date}</td>
-                            <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.stories}</td>
-                            <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.photos}</td>
-                            <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.videos}</td>
-                            <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.cta}</td>
+                            <td className="border-t border-border/50 px-5 py-3 text-sm font-medium text-foreground">{formatDayMonth(item.dateKey)}</td>
+                            {(["stories", "photos", "videos", "cta"] as const).map((field) => (
+                              <td key={field} className="border-t border-border/50 px-5 py-3">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={1}
+                                  value={item[field]}
+                                  disabled={!storiesSheetHydrated}
+                                  onChange={(event) => handleStoriesSheetValueChange(item.dateKey, field, event.target.value)}
+                                  className="h-10 w-24 rounded-xl border border-border/70 bg-white px-3 text-sm text-foreground shadow-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/15 disabled:cursor-wait disabled:bg-slate-50"
+                                  aria-label={`Editar ${field} de ${formatDayMonth(item.dateKey)}`}
+                                />
+                              </td>
+                            ))}
                           </tr>
                         ))}
                       </tbody>
