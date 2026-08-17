@@ -7,7 +7,7 @@ import { readLocalJson, readLocalText, subscribeLocalKey, writeLocalJson } from 
 import { getSupabaseDiagnostics, isSupabaseConfigured, supabase } from "./supabase";
 import { subscribeSharedChannel } from "./supabaseRealtime";
 
-type StoryGoalCategory = "total" | "video" | "photo";
+type StoryGoalCategory = "total" | "video" | "photo" | "cta";
 type StoryMetricKey = "views" | "reach";
 
 type StoryListRow<T> = {
@@ -76,6 +76,8 @@ export type StoriesMonthlySummary = {
   photoGoal: number;
   totalCurrent: number;
   totalGoal: number;
+  ctaCurrent: number;
+  ctaGoal: number;
 };
 
 type StoryPostPayload = Omit<StoryLog, "id"> & {
@@ -87,6 +89,7 @@ const defaultGoalValues: Record<StoryGoalCategory, number> = {
   total: 168,
   video: 105,
   photo: 63,
+  cta: 0,
 };
 
 const STORY_LOGS_LOCAL_CACHE_KEY = "great-organico:list-state:global:story-logs";
@@ -170,6 +173,7 @@ function buildDefaultStoryGoals(stories: StoryLog[], month: string): StoryGoalMe
   const photoCurrent = monthlyStories
     .filter((story) => story.mediaType === "photo")
     .reduce((sum, story) => sum + story.quantity, 0);
+  const ctaCurrent = monthlyStories.reduce((sum, story) => sum + Math.max(story.cta ?? 0, 0), 0);
 
   return {
     total: {
@@ -183,6 +187,10 @@ function buildDefaultStoryGoals(stories: StoryLog[], month: string): StoryGoalMe
     photo: {
       currentValue: photoCurrent,
       goalValue: defaultGoalValues.photo,
+    },
+    cta: {
+      currentValue: ctaCurrent,
+      goalValue: defaultGoalValues.cta,
     },
   };
 }
@@ -207,6 +215,10 @@ function buildLocalStoriesDashboard(userId: string, month: string): StoriesDashb
       photo: {
         currentValue: localRecord.goals?.photo?.currentValue ?? baseGoals.photo.currentValue,
         goalValue: localRecord.goals?.photo?.goalValue ?? baseGoals.photo.goalValue,
+      },
+      cta: {
+        currentValue: localRecord.goals?.cta?.currentValue ?? baseGoals.cta.currentValue,
+        goalValue: localRecord.goals?.cta?.goalValue ?? baseGoals.cta.goalValue,
       },
     },
     metrics: {
@@ -355,6 +367,7 @@ function toStoryRow(data: StoryPostPayload, sortOrder: number): StoryListRow<Sto
       date: data.date,
       time: data.time,
       quantity: data.quantity,
+      cta: data.cta ?? 0,
       mediaType: data.mediaType,
       status: data.status,
       madeById: data.madeById,
@@ -366,7 +379,10 @@ function toStoryRow(data: StoryPostPayload, sortOrder: number): StoryListRow<Sto
 
 function normalizeStories(rows: StoryListRow<StoryLog>[] | null | undefined) {
   return (rows ?? [])
-    .map((row) => row.data)
+    .map((row) => ({
+      ...row.data,
+      cta: Math.max(row.data.cta ?? 0, 0),
+    }))
     .sort((a, b) => `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`));
 }
 
@@ -521,6 +537,8 @@ export async function fetchStoriesMonthlySummary(userId: string | null, month: s
       photoGoal: defaultGoalValues.photo,
       totalCurrent: 0,
       totalGoal: defaultGoalValues.total,
+      ctaCurrent: 0,
+      ctaGoal: defaultGoalValues.cta,
     };
   }
 
@@ -533,10 +551,43 @@ export async function fetchStoriesMonthlySummary(userId: string | null, month: s
       photoGoal: dashboard.goals.photo.goalValue,
       totalCurrent: dashboard.goals.total.currentValue,
       totalGoal: dashboard.goals.total.goalValue,
+      ctaCurrent: dashboard.goals.cta.currentValue,
+      ctaGoal: dashboard.goals.cta.goalValue,
     };
   }
 
   const client = getClient();
+  const { data: goalRows, error: goalError } = await client
+    .from("story_goal_metrics")
+    .select("user_id, month_key, category, current_value, goal_value, updated_at")
+    .eq("user_id", userId)
+    .eq("month_key", month);
+
+  if (goalError) {
+    throw new Error(goalError.message);
+  }
+
+  const goals = (goalRows as StoryGoalMetricRow[] | null)?.reduce<StoryGoalMetricMap>(
+    (accumulator, row) => {
+      accumulator[row.category] = {
+        currentValue: Number(row.current_value) || 0,
+        goalValue: Number(row.goal_value) || defaultGoalValues[row.category],
+      };
+      return accumulator;
+    },
+    {
+      total: { currentValue: 0, goalValue: defaultGoalValues.total },
+      video: { currentValue: 0, goalValue: defaultGoalValues.video },
+      photo: { currentValue: 0, goalValue: defaultGoalValues.photo },
+      cta: { currentValue: 0, goalValue: defaultGoalValues.cta },
+    },
+  ) ?? {
+    total: { currentValue: 0, goalValue: defaultGoalValues.total },
+    video: { currentValue: 0, goalValue: defaultGoalValues.video },
+    photo: { currentValue: 0, goalValue: defaultGoalValues.photo },
+    cta: { currentValue: 0, goalValue: defaultGoalValues.cta },
+  };
+
   const { data: monthlyDataRow, error: monthlyDataError } = await client
     .from("stories_monthly_data")
     .select("user_id, reference_month, video_current, video_goal, photo_current, photo_goal, total_current, total_goal, updated_at, category")
@@ -559,37 +610,10 @@ export async function fetchStoriesMonthlySummary(userId: string | null, month: s
       photoGoal,
       totalCurrent: Number(row.total_current) || videoCurrent + photoCurrent,
       totalGoal: Number(row.total_goal) || videoGoal + photoGoal,
+      ctaCurrent: goals.cta.currentValue,
+      ctaGoal: goals.cta.goalValue,
     };
   }
-
-  const { data: goalRows, error: goalError } = await client
-    .from("story_goal_metrics")
-    .select("user_id, month_key, category, current_value, goal_value, updated_at")
-    .eq("user_id", userId)
-    .eq("month_key", month);
-
-  if (goalError) {
-    throw new Error(monthlyDataError?.message || goalError.message);
-  }
-
-  const goals = (goalRows as StoryGoalMetricRow[] | null)?.reduce<StoryGoalMetricMap>(
-    (accumulator, row) => {
-      accumulator[row.category] = {
-        currentValue: Number(row.current_value) || 0,
-        goalValue: Number(row.goal_value) || defaultGoalValues[row.category],
-      };
-      return accumulator;
-    },
-    {
-      total: { currentValue: 0, goalValue: defaultGoalValues.total },
-      video: { currentValue: 0, goalValue: defaultGoalValues.video },
-      photo: { currentValue: 0, goalValue: defaultGoalValues.photo },
-    },
-  ) ?? {
-    total: { currentValue: 0, goalValue: defaultGoalValues.total },
-    video: { currentValue: 0, goalValue: defaultGoalValues.video },
-    photo: { currentValue: 0, goalValue: defaultGoalValues.photo },
-  };
 
   const categoryCurrent = goals.video.currentValue + goals.photo.currentValue;
   const categoryGoal = goals.video.goalValue + goals.photo.goalValue;
@@ -601,6 +625,8 @@ export async function fetchStoriesMonthlySummary(userId: string | null, month: s
     photoGoal: goals.photo.goalValue,
     totalCurrent: goals.total.currentValue || categoryCurrent,
     totalGoal: goals.total.goalValue || categoryGoal || defaultGoalValues.total,
+    ctaCurrent: goals.cta.currentValue,
+    ctaGoal: goals.cta.goalValue,
   };
 }
 
@@ -610,7 +636,7 @@ export async function fetchStoriesDashboard(userId: string, month: string): Prom
   }
 
   const client = getClient();
-  const [{ data: monthlyDataRow, error: monthlyDataError }, { data: metricRows, error: metricError }, stories, calendar] = await Promise.all([
+  const [{ data: monthlyDataRow, error: monthlyDataError }, { data: metricRows, error: metricError }, { data: goalRows, error: goalError }, stories, calendar] = await Promise.all([
     client
       .from("stories_monthly_data")
       .select("user_id, reference_month, video_current, video_goal, photo_current, photo_goal, total_current, total_goal, updated_at, category")
@@ -623,13 +649,39 @@ export async function fetchStoriesDashboard(userId: string, month: string): Prom
       .select("user_id, month_key, metric, value, updated_at")
       .eq("user_id", userId)
       .eq("month_key", month),
+    client
+      .from("story_goal_metrics")
+      .select("user_id, month_key, category, current_value, goal_value, updated_at")
+      .eq("user_id", userId)
+      .eq("month_key", month),
     fetchStoryPosts(userId),
     fetchMonthlyCalendar(userId, month),
   ]);
 
-  if (metricError) {
-    throw new Error(metricError.message);
+  if (metricError || goalError) {
+    throw new Error(metricError?.message || goalError?.message || "Falha ao carregar métricas de stories.");
   }
+
+  const goalsFromMetrics = (goalRows as StoryGoalMetricRow[] | null)?.reduce<StoryGoalMetricMap>(
+    (accumulator, row) => {
+      accumulator[row.category] = {
+        currentValue: Number(row.current_value) || 0,
+        goalValue: Number(row.goal_value) || defaultGoalValues[row.category],
+      };
+      return accumulator;
+    },
+    {
+      total: { currentValue: 0, goalValue: defaultGoalValues.total },
+      video: { currentValue: 0, goalValue: defaultGoalValues.video },
+      photo: { currentValue: 0, goalValue: defaultGoalValues.photo },
+      cta: { currentValue: 0, goalValue: defaultGoalValues.cta },
+    },
+  ) ?? {
+    total: { currentValue: 0, goalValue: defaultGoalValues.total },
+    video: { currentValue: 0, goalValue: defaultGoalValues.video },
+    photo: { currentValue: 0, goalValue: defaultGoalValues.photo },
+    cta: { currentValue: 0, goalValue: defaultGoalValues.cta },
+  };
 
   let goals: StoryGoalMetricMap;
 
@@ -648,36 +700,10 @@ export async function fetchStoriesDashboard(userId: string, month: string): Prom
         currentValue: Number(row.photo_current) || 0,
         goalValue: Number(row.photo_goal) || defaultGoalValues.photo,
       },
+      cta: goalsFromMetrics.cta,
     };
   } else {
-    const { data: goalRows, error: goalError } = await client
-      .from("story_goal_metrics")
-      .select("user_id, month_key, category, current_value, goal_value, updated_at")
-      .eq("user_id", userId)
-      .eq("month_key", month);
-
-    if (goalError) {
-      throw new Error(goalError.message);
-    }
-
-    goals = (goalRows as StoryGoalMetricRow[] | null)?.reduce<StoryGoalMetricMap>(
-      (accumulator, row) => {
-        accumulator[row.category] = {
-          currentValue: Number(row.current_value) || 0,
-          goalValue: Number(row.goal_value) || defaultGoalValues[row.category],
-        };
-        return accumulator;
-      },
-      {
-        total: { currentValue: 0, goalValue: defaultGoalValues.total },
-        video: { currentValue: 0, goalValue: defaultGoalValues.video },
-        photo: { currentValue: 0, goalValue: defaultGoalValues.photo },
-      },
-    ) ?? {
-      total: { currentValue: 0, goalValue: defaultGoalValues.total },
-      video: { currentValue: 0, goalValue: defaultGoalValues.video },
-      photo: { currentValue: 0, goalValue: defaultGoalValues.photo },
-    };
+    goals = goalsFromMetrics;
   }
 
   const metrics = (metricRows as StoryMetricRow[] | null)?.reduce<Record<StoryMetricKey, number>>(
@@ -705,8 +731,10 @@ async function syncStoriesMonthlySummaryForMonth(userId: string, month: string) 
   const photoCurrent = dashboard.stories
     .filter((story) => story.mediaType === "photo")
     .reduce((sum, story) => sum + story.quantity, 0);
+  const ctaCurrent = dashboard.stories.reduce((sum, story) => sum + Math.max(story.cta ?? 0, 0), 0);
   const videoGoal = dashboard.goals.video.goalValue || defaultGoalValues.video;
   const photoGoal = dashboard.goals.photo.goalValue || defaultGoalValues.photo;
+  const ctaGoal = dashboard.goals.cta.goalValue || defaultGoalValues.cta;
 
   await updateStoriesMonthlyData(userId, month, {
     videoCurrent,
@@ -715,6 +743,8 @@ async function syncStoriesMonthlySummaryForMonth(userId: string, month: string) 
     photoGoal,
     totalCurrent: videoCurrent + photoCurrent,
     totalGoal: videoGoal + photoGoal,
+    ctaCurrent,
+    ctaGoal,
   });
 }
 
@@ -731,6 +761,7 @@ export async function updateStoriesMonthlyData(userId: string, month: string, su
         total: { currentValue: summary.totalCurrent, goalValue: summary.totalGoal },
         video: { currentValue: summary.videoCurrent, goalValue: summary.videoGoal },
         photo: { currentValue: summary.photoCurrent, goalValue: summary.photoGoal },
+        cta: { currentValue: summary.ctaCurrent, goalValue: summary.ctaGoal },
       },
       metrics: currentDashboard.metrics,
     });
@@ -753,7 +784,6 @@ export async function updateStoriesMonthlyData(userId: string, month: string, su
 
   try {
     await upsertStoriesMonthlyDataRow(client, payload);
-    return;
   } catch (error) {
     // Fall back to the older metrics table shape when the relational monthly table
     // is not available or does not yet have the expected unique constraint.
@@ -763,6 +793,7 @@ export async function updateStoriesMonthlyData(userId: string, month: string, su
     updateGoalMetric(userId, "video", summary.videoCurrent, summary.videoGoal, month),
     updateGoalMetric(userId, "photo", summary.photoCurrent, summary.photoGoal, month),
     updateGoalMetric(userId, "total", summary.totalCurrent, summary.totalGoal, month),
+    updateGoalMetric(userId, "cta", summary.ctaCurrent, summary.ctaGoal, month),
   ]);
 }
 
@@ -895,6 +926,7 @@ export async function createStoryPost(data: StoryPostPayload & { actorName: stri
       date: data.date,
       time: data.time,
       quantity: data.quantity,
+      cta: data.cta ?? 0,
       mediaType: data.mediaType,
       status: data.status,
       madeById: data.madeById,
@@ -930,6 +962,7 @@ export async function updateStoryPost(id: number, data: StoryPostPayload & { act
       date: data.date,
       time: data.time,
       quantity: data.quantity,
+      cta: data.cta ?? 0,
       mediaType: data.mediaType,
       status: data.status,
       madeById: data.madeById,

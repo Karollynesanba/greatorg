@@ -176,6 +176,7 @@ export type StoryLog = {
   date: string;
   time: string;
   quantity: number;
+  cta?: number;
   mediaType: "video" | "photo";
   status?: "Agendado" | "Publicado" | "Rascunho";
   madeById: number;

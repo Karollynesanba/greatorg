@@ -165,43 +165,6 @@ function stripLegacyReportExamples(rows: ReportCardRow[]) {
 const monthlyContentTarget = 120;
 const finalContentStatuses = new Set<PostStatus | "Concluído" | "Finalizado">(["Aprovado", "Publicado", "Concluído", "Finalizado"]);
 const storiesRowTitle = "Stories";
-const julyStoriesSheet = [
-  { date: "01/07", stories: 8, photos: 3, videos: 5 },
-  { date: "02/07", stories: 9, photos: 4, videos: 5 },
-  { date: "03/07", stories: 8, photos: 3, videos: 5 },
-  { date: "04/07", stories: 0, photos: 0, videos: 0 },
-  { date: "05/07", stories: 0, photos: 0, videos: 0 },
-  { date: "06/07", stories: 8, photos: 3, videos: 5 },
-  { date: "07/07", stories: 9, photos: 4, videos: 5 },
-  { date: "08/07", stories: 9, photos: 3, videos: 6 },
-  { date: "09/07", stories: 9, photos: 4, videos: 5 },
-  { date: "10/07", stories: 8, photos: 3, videos: 5 },
-  { date: "11/07", stories: 0, photos: 0, videos: 0 },
-  { date: "12/07", stories: 0, photos: 0, videos: 0 },
-  { date: "13/07", stories: 8, photos: 3, videos: 5 },
-  { date: "14/07", stories: 8, photos: 3, videos: 5 },
-  { date: "15/07", stories: 8, photos: 3, videos: 5 },
-  { date: "16/07", stories: 2, photos: 1, videos: 1 },
-  { date: "17/07", stories: 8, photos: 3, videos: 5 },
-  { date: "18/07", stories: 0, photos: 0, videos: 0 },
-  { date: "19/07", stories: 0, photos: 0, videos: 0 },
-  { date: "20/07", stories: 10, photos: 5, videos: 5 },
-  { date: "21/07", stories: 8, photos: 3, videos: 5 },
-  { date: "22/07", stories: 10, photos: 4, videos: 6 },
-  { date: "23/07", stories: 10, photos: 4, videos: 6 },
-  { date: "24/07", stories: 8, photos: 3, videos: 5 },
-  { date: "25/07", stories: 2, photos: 2, videos: 0 },
-  { date: "26/07", stories: 0, photos: 0, videos: 0 },
-  { date: "27/07", stories: 13, photos: 7, videos: 6 },
-  { date: "28/07", stories: 8, photos: 3, videos: 5 },
-  { date: "29/07", stories: 9, photos: 3, videos: 6 },
-  { date: "30/07", stories: 8, photos: 3, videos: 5 },
-  { date: "31/07", stories: 8, photos: 3, videos: 5 },
-] as const;
-const julyStoriesSheetTotals = [
-  { label: "TOTAL", stories: 196, photos: 80, videos: 116 },
-  { label: "", stories: 168, photos: 63, videos: 105 },
-] as const;
 const julyStoriesTeamByWeek = [
   { week: "1 semana", members: "Kauan, Karol e Brayton" },
   { week: "2 semana", members: "Kauan, Isaque, Hannah e Karol" },
@@ -212,9 +175,6 @@ const julySiteTotals = {
   views: 2_255_225,
   reach: 1_145_989,
 } as const;
-const julyStoriesTotal = julyStoriesSheetTotals[0].stories;
-const julyStoriesGoal = julyStoriesSheetTotals[1].stories;
-const julyStoriesMonthlyProgress = Math.round((julyStoriesTotal / Math.max(julyStoriesGoal, 1)) * 100);
 
 function isFinalContentStatus(status?: string) {
   return Boolean(status && finalContentStatuses.has(status as PostStatus | "Concluído" | "Finalizado"));
@@ -513,6 +473,13 @@ function parseDate(value: string) {
 
 function formatDateKey(date: Date) {
   return date.toISOString().slice(0, 10);
+}
+
+function formatDayMonth(value: string) {
+  const date = parseDate(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" }).format(date);
 }
 
 function startOfMonth(date: Date) {
@@ -1542,6 +1509,63 @@ export function ReportsPage() {
   };
 
   const periodDays = diffDays(currentRange.start, currentRange.end) + 1;
+  const storiesMonthLabel = useMemo(
+    () => new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(currentRange.start).replace(/^\w/, (value) => value.toUpperCase()),
+    [currentRange.start],
+  );
+  const isCurrentStoriesExactMonth =
+    responsibleFilter === "todos" &&
+    teamScope === "todos" &&
+    isExactMonthRange(currentRange, monthKeyFromDate(currentRange.start));
+  const storiesSheet = useMemo(
+    () =>
+      Array.from({ length: periodDays }, (_, index) => {
+        const date = addDays(currentRange.start, index);
+        const dateKey = formatDateKey(date);
+        const dayStories = filteredStoryLogs.filter((story) => story.date === dateKey);
+        const photos = dayStories
+          .filter((story) => story.mediaType === "photo")
+          .reduce((sum, story) => sum + Math.max(story.quantity, 0), 0);
+        const videos = dayStories
+          .filter((story) => story.mediaType === "video")
+          .reduce((sum, story) => sum + Math.max(story.quantity, 0), 0);
+        const stories = dayStories.reduce((sum, story) => sum + Math.max(story.quantity, 0), 0);
+        const cta = dayStories.reduce((sum, story) => sum + Math.max(story.cta ?? 0, 0), 0);
+
+        return {
+          date: formatDayMonth(dateKey),
+          stories,
+          photos,
+          videos,
+          cta,
+        };
+      }),
+    [currentRange.start, filteredStoryLogs, periodDays],
+  );
+  const storiesSheetTotals = useMemo(() => {
+    const totalRow = {
+      label: "TOTAL",
+      stories: storiesSheet.reduce((sum, item) => sum + item.stories, 0),
+      photos: storiesSheet.reduce((sum, item) => sum + item.photos, 0),
+      videos: storiesSheet.reduce((sum, item) => sum + item.videos, 0),
+      cta: storiesSheet.reduce((sum, item) => sum + item.cta, 0),
+    };
+
+    const rows = [totalRow];
+    if (isCurrentStoriesExactMonth && currentMonthlyStoriesSummary) {
+      rows.push({
+        label: "META",
+        stories: currentMonthlyStoriesSummary.totalGoal,
+        photos: currentMonthlyStoriesSummary.photoGoal,
+        videos: currentMonthlyStoriesSummary.videoGoal,
+        cta: currentMonthlyStoriesSummary.ctaGoal,
+      });
+    }
+
+    return rows;
+  }, [currentMonthlyStoriesSummary, isCurrentStoriesExactMonth, storiesSheet]);
+  const storiesGoal = currentMonthlyStoriesSummary?.totalGoal ?? 0;
+  const storiesMonthlyProgress = storiesGoal > 0 ? Math.round((currentSummary.storiesCount / Math.max(storiesGoal, 1)) * 100) : 0;
   const currentBuckets = groupPostsByDate(filteredPosts);
   const previousBuckets = groupPostsByDate(previousPosts);
   const comparisonSeries = Array.from({ length: periodDays }, (_, index) => {
@@ -1989,9 +2013,9 @@ export function ReportsPage() {
     health: healthScore,
     views: julySiteTotals.views,
     reach: julySiteTotals.reach,
-    stories: julyStoriesTotal,
+    stories: currentSummary.storiesCount,
     posts: currentSummary.postsCount,
-    monthlyProgress: julyStoriesMonthlyProgress,
+    monthlyProgress: storiesMonthlyProgress,
   };
   const heroSummaryCards = [
     {
@@ -2067,10 +2091,10 @@ export function ReportsPage() {
     { label: "Saúde total", value: `${healthScore}`, icon: Sparkles, tone: "#B91C1C" },
     { label: "Visualizações do mês", value: formatLongNumber(julySiteTotals.views), icon: BarChart3, tone: "#7C3AED" },
     { label: "Alcance total", value: formatLongNumber(julySiteTotals.reach), icon: Eye, tone: "#D10000" },
-    { label: "Stories do mês", value: formatLongNumber(julyStoriesTotal), icon: Share2, tone: "#EA580C" },
+    { label: "Stories do mês", value: formatLongNumber(currentSummary.storiesCount), icon: Share2, tone: "#EA580C" },
     {
       label: "Progresso mensal",
-      value: `${julyStoriesMonthlyProgress}%`,
+      value: `${storiesMonthlyProgress}%`,
       icon: CheckCircle2,
       tone: "#16A34A",
     },
@@ -2841,15 +2865,15 @@ export function ReportsPage() {
                   <div>
                     <h2 className="text-lg font-semibold tracking-tight text-foreground">Stories</h2>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Planilha mensal de julho com a distribuicao diaria de Stories, fotos e videos.
+                      Planilha do período com a distribuicao diária de Stories, fotos, vídeos e CTA.
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary">
-                      Julho
+                      {storiesMonthLabel}
                     </span>
                     <span className="rounded-full border border-border/60 bg-white px-4 py-2 text-sm font-medium text-muted-foreground">
-                      31 dias
+                      {storiesSheet.length} dias
                     </span>
                   </div>
                 </div>
@@ -2863,10 +2887,11 @@ export function ReportsPage() {
                           <th className="px-5 py-4 text-sm font-semibold text-foreground">Stories</th>
                           <th className="px-5 py-4 text-sm font-semibold text-foreground">Fotos</th>
                           <th className="px-5 py-4 text-sm font-semibold text-foreground">Videos</th>
+                          <th className="px-5 py-4 text-sm font-semibold text-foreground">CTA</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {julyStoriesSheet.map((item, index) => (
+                        {storiesSheet.map((item, index) => (
                           <tr
                             key={item.date}
                             className={cn(
@@ -2878,11 +2903,12 @@ export function ReportsPage() {
                             <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.stories}</td>
                             <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.photos}</td>
                             <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.videos}</td>
+                            <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.cta}</td>
                           </tr>
                         ))}
                       </tbody>
                       <tfoot>
-                        {julyStoriesSheetTotals.map((item, index) => (
+                        {storiesSheetTotals.map((item, index) => (
                           <tr key={`${item.label || "extra"}-${index}`} className={index === 0 ? "bg-primary/[0.08]" : "bg-primary/[0.03]"}>
                             <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold uppercase tracking-[0.14em] text-foreground">
                               {item.label || " "}
@@ -2890,6 +2916,7 @@ export function ReportsPage() {
                             <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{item.stories}</td>
                             <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{item.photos}</td>
                             <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{item.videos}</td>
+                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{item.cta}</td>
                           </tr>
                         ))}
                       </tfoot>
