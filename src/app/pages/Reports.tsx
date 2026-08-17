@@ -566,6 +566,13 @@ function formatDateKey(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
+function formatDayMonth(value: string) {
+  const date = parseDate(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" }).format(date);
+}
+
 function startOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
@@ -1957,13 +1964,13 @@ export function ReportsPage() {
   const isCurrentRangeExactMonth = isExactMonthRange(currentRange, monthKeyFromDate(currentRange.start));
   const storiesMonthLabel = formatMonthYear(currentRange.start);
   const storiesDateLabel = isJuly2026RangeActive
-    ? "Planilha mensal de julho de 2026 com a distribuicao diaria de Stories, fotos e videos."
+    ? "Planilha mensal de julho de 2026 com a distribuicao diaria de Stories, fotos, videos e CTA."
     : isCurrentRangeExactMonth
-    ? `Planilha mensal de ${storiesMonthLabel} com a distribuicao diaria de Stories, fotos e videos.`
-    : `Distribuicao diaria de Stories, fotos e videos entre ${formatDateKey(currentRange.start)} e ${formatDateKey(currentRange.end)}.`;
+    ? `Planilha mensal de ${storiesMonthLabel} com a distribuicao diaria de Stories, fotos, videos e CTA.`
+    : `Distribuicao diaria de Stories, fotos, videos e CTA entre ${formatDateKey(currentRange.start)} e ${formatDateKey(currentRange.end)}.`;
   const storiesSheet = useMemo(() => {
     if (isJuly2026RangeActive) {
-      return julyStoriesSheet;
+      return julyStoriesSheet.map((item) => ({ ...item, cta: 0 }));
     }
 
     const totalDays = diffDays(currentRange.start, currentRange.end) + 1;
@@ -1980,10 +1987,11 @@ export function ReportsPage() {
         .reduce((sum, story) => sum + Math.max(story.quantity, 0), 0);
 
       return {
-        date: new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" }).format(date),
+        date: formatDayMonth(dateKey),
         stories: photos + videos,
         photos,
         videos,
+        cta: dayStories.reduce((sum, story) => sum + Math.max(story.cta ?? 0, 0), 0),
       };
     });
   }, [currentRange, filteredStoryLogs, isJuly2026RangeActive]);
@@ -1994,14 +2002,15 @@ export function ReportsPage() {
           stories: totals.stories + item.stories,
           photos: totals.photos + item.photos,
           videos: totals.videos + item.videos,
+          cta: totals.cta + item.cta,
         }),
-        { stories: 0, photos: 0, videos: 0 },
+        { stories: 0, photos: 0, videos: 0, cta: 0 },
       ),
     [storiesSheet],
   );
   const storiesGoalRow = useMemo(() => {
     if (isJuly2026RangeActive) {
-      return julyStoriesSheetTotals[1];
+      return { ...julyStoriesSheetTotals[1], cta: 0 };
     }
 
     if (!(responsibleFilter === "todos" && teamScope === "todos" && isCurrentRangeExactMonth) || !currentMonthlyStoriesSummary) {
@@ -2012,6 +2021,7 @@ export function ReportsPage() {
       stories: currentMonthlyStoriesSummary.totalGoal,
       photos: currentMonthlyStoriesSummary.photoGoal,
       videos: currentMonthlyStoriesSummary.videoGoal,
+      cta: currentMonthlyStoriesSummary.ctaGoal,
     };
   }, [currentMonthlyStoriesSummary, isCurrentRangeExactMonth, isJuly2026RangeActive, responsibleFilter, teamScope]);
   const storiesTeamByWeek = useMemo(() => {
@@ -2933,6 +2943,7 @@ export function ReportsPage() {
                           <th className="px-5 py-4 text-sm font-semibold text-foreground">Stories</th>
                           <th className="px-5 py-4 text-sm font-semibold text-foreground">Fotos</th>
                           <th className="px-5 py-4 text-sm font-semibold text-foreground">Videos</th>
+                          <th className="px-5 py-4 text-sm font-semibold text-foreground">CTA</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2948,6 +2959,7 @@ export function ReportsPage() {
                             <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.stories}</td>
                             <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.photos}</td>
                             <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.videos}</td>
+                            <td className="border-t border-border/50 px-5 py-3 text-sm text-muted-foreground">{item.cta}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -2959,6 +2971,7 @@ export function ReportsPage() {
                           <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{storiesSheetTotal.stories}</td>
                           <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{storiesSheetTotal.photos}</td>
                           <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{storiesSheetTotal.videos}</td>
+                          <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{storiesSheetTotal.cta}</td>
                         </tr>
                         {storiesGoalRow ? (
                           <tr className="bg-primary/[0.03]">
@@ -2968,6 +2981,7 @@ export function ReportsPage() {
                             <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{storiesGoalRow.stories}</td>
                             <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{storiesGoalRow.photos}</td>
                             <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{storiesGoalRow.videos}</td>
+                            <td className="border-t border-border/60 px-5 py-4 text-sm font-semibold text-foreground">{storiesGoalRow.cta}</td>
                           </tr>
                         ) : null}
                       </tfoot>

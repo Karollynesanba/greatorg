@@ -32,6 +32,7 @@ type StoryFormState = {
   date: string;
   time: string;
   quantity: string;
+  cta: string;
   mediaType: StoryMediaType;
   status: StoryStatus;
   madeById: number;
@@ -42,6 +43,7 @@ type StoryFormState = {
 const defaultMonthlyGoalTotal = 168;
 const defaultMonthlyGoalVideo = 105;
 const defaultMonthlyGoalPhoto = 63;
+const defaultMonthlyGoalCta = 0;
 
 function parseMetricInput(value: string, fallback: number) {
   const parsedValue = Number(String(value).replace(/[^\d]/g, ""));
@@ -145,6 +147,7 @@ function emptyForm(teamMembers: Array<{ id: number }>): StoryFormState {
     date: todayKey(),
     time: "09:00",
     quantity: "",
+    cta: "",
     mediaType: "video",
     status: "Agendado",
     madeById: teamMembers[0]?.id ?? 1,
@@ -175,17 +178,22 @@ export function StoriesPage() {
   const [teamScope] = useTeamScope();
   const [monthlyCurrentVideo, setMonthlyCurrentVideo] = useState(0);
   const [monthlyCurrentPhoto, setMonthlyCurrentPhoto] = useState(0);
+  const [monthlyCurrentCta, setMonthlyCurrentCta] = useState(0);
   const [, setMonthlyGoalTotal] = useState(defaultMonthlyGoalTotal);
   const [monthlyGoalVideo, setMonthlyGoalVideo] = useState(defaultMonthlyGoalVideo);
   const [monthlyGoalPhoto, setMonthlyGoalPhoto] = useState(defaultMonthlyGoalPhoto);
+  const [monthlyGoalCta, setMonthlyGoalCta] = useState(defaultMonthlyGoalCta);
   const [isEditingMonthlyGoalTotal, setIsEditingMonthlyGoalTotal] = useState(false);
   const [isEditingMonthlyGoalVideo, setIsEditingMonthlyGoalVideo] = useState(false);
   const [isEditingMonthlyGoalPhoto, setIsEditingMonthlyGoalPhoto] = useState(false);
+  const [isEditingMonthlyGoalCta, setIsEditingMonthlyGoalCta] = useState(false);
   const [monthlyGoalTotalDraft, setMonthlyGoalTotalDraft] = useState(String(defaultMonthlyGoalTotal));
   const [monthlyCurrentVideoDraft, setMonthlyCurrentVideoDraft] = useState("0");
   const [monthlyGoalVideoDraft, setMonthlyGoalVideoDraft] = useState(String(defaultMonthlyGoalVideo));
   const [monthlyCurrentPhotoDraft, setMonthlyCurrentPhotoDraft] = useState("0");
   const [monthlyGoalPhotoDraft, setMonthlyGoalPhotoDraft] = useState(String(defaultMonthlyGoalPhoto));
+  const [monthlyCurrentCtaDraft, setMonthlyCurrentCtaDraft] = useState("0");
+  const [monthlyGoalCtaDraft, setMonthlyGoalCtaDraft] = useState(String(defaultMonthlyGoalCta));
   const [monthlySummaryHydrated, setMonthlySummaryHydrated] = useState(false);
   const currentMonthAnchor = useMemo(() => new Date(), []);
   const [periodMode, setPeriodMode] = useState<StoryPeriodMode>("current");
@@ -212,8 +220,9 @@ export function StoriesPage() {
       total: computedMonthlyGoalTotal,
       video: monthlyGoalVideo,
       photo: monthlyGoalPhoto,
+      cta: monthlyGoalCta,
     }),
-    [computedMonthlyGoalTotal, monthlyGoalPhoto, monthlyGoalVideo],
+    [computedMonthlyGoalTotal, monthlyGoalCta, monthlyGoalPhoto, monthlyGoalVideo],
   );
 
   const normalizedItems = items;
@@ -251,6 +260,10 @@ export function StoriesPage() {
   );
   const computedCurrentPhoto = useMemo(
     () => visibleItems.filter((item) => item.mediaType === "photo").reduce((sum, item) => sum + item.quantity, 0),
+    [visibleItems],
+  );
+  const computedCurrentCta = useMemo(
+    () => visibleItems.reduce((sum, item) => sum + Math.max(item.cta ?? 0, 0), 0),
     [visibleItems],
   );
 
@@ -295,9 +308,10 @@ export function StoriesPage() {
       total,
       video,
       photo,
+      cta: computedCurrentCta,
       remainingTotal: Math.max(effectiveMonthlyGoals.total - total, 0),
     };
-  }, [computedCurrentPhoto, computedCurrentVideo, effectiveMonthlyGoals.total]);
+  }, [computedCurrentCta, computedCurrentPhoto, computedCurrentVideo, effectiveMonthlyGoals.total]);
 
   useEffect(() => {
     if (!session?.user.id) {
@@ -349,12 +363,16 @@ export function StoriesPage() {
 
         setMonthlyCurrentVideo(nextVideoCurrent);
         setMonthlyCurrentPhoto(nextPhotoCurrent);
+        setMonthlyCurrentCta(computedCurrentCta);
         setMonthlyGoalVideo(nextVideoGoal);
         setMonthlyGoalPhoto(nextPhotoGoal);
+        setMonthlyGoalCta(dashboard.goals.cta.goalValue || defaultMonthlyGoalCta);
         setMonthlyCurrentVideoDraft(String(nextVideoCurrent));
         setMonthlyCurrentPhotoDraft(String(nextPhotoCurrent));
+        setMonthlyCurrentCtaDraft(String(computedCurrentCta));
         setMonthlyGoalVideoDraft(String(nextVideoGoal));
         setMonthlyGoalPhotoDraft(String(nextPhotoGoal));
+        setMonthlyGoalCtaDraft(String(dashboard.goals.cta.goalValue || defaultMonthlyGoalCta));
         setMonthlySummaryHydrated(true);
       } catch (error) {
         if (!cancelled) {
@@ -369,7 +387,7 @@ export function StoriesPage() {
     return () => {
       cancelled = true;
     };
-  }, [computedCurrentPhoto, computedCurrentVideo, dashboardReloadToken, goalMonthKey, session?.user.id]);
+  }, [computedCurrentCta, computedCurrentPhoto, computedCurrentVideo, dashboardReloadToken, goalMonthKey, session?.user.id]);
 
   useEffect(() => {
     if (!monthlySummaryHydrated && !isEditingMonthlyGoalVideo) {
@@ -384,6 +402,13 @@ export function StoriesPage() {
       setMonthlyCurrentPhotoDraft(String(computedCurrentPhoto));
     }
   }, [computedCurrentPhoto, isEditingMonthlyGoalPhoto, monthlySummaryHydrated]);
+
+  useEffect(() => {
+    if (!monthlySummaryHydrated && !isEditingMonthlyGoalCta) {
+      setMonthlyCurrentCta(computedCurrentCta);
+      setMonthlyCurrentCtaDraft(String(computedCurrentCta));
+    }
+  }, [computedCurrentCta, isEditingMonthlyGoalCta, monthlySummaryHydrated]);
 
   const handleStartEditingMonthlyGoalTotal = () => {
     setMonthlyGoalTotalDraft(String(monthlyGoalTotal));
@@ -506,6 +531,8 @@ export function StoriesPage() {
         photoGoal: monthlyGoalPhoto,
         totalCurrent: nextTotalCurrent,
         totalGoal: nextTotalGoal,
+        ctaCurrent: monthlyCurrentCta,
+        ctaGoal: monthlyGoalCta,
       });
 
       const dashboard = await fetchStoriesDashboard(session.user.id, goalMonthKey);
@@ -516,12 +543,16 @@ export function StoriesPage() {
 
       setMonthlyCurrentVideo(savedVideoCurrent);
       setMonthlyCurrentPhoto(savedPhotoCurrent);
+      setMonthlyCurrentCta(dashboard.goals.cta.currentValue || monthlyCurrentCta);
       setMonthlyGoalVideo(savedVideoGoal);
       setMonthlyGoalPhoto(savedPhotoGoal);
+      setMonthlyGoalCta(dashboard.goals.cta.goalValue || monthlyGoalCta);
       setMonthlyCurrentVideoDraft(String(savedVideoCurrent));
       setMonthlyCurrentPhotoDraft(String(savedPhotoCurrent));
+      setMonthlyCurrentCtaDraft(String(dashboard.goals.cta.currentValue || monthlyCurrentCta));
       setMonthlyGoalVideoDraft(String(savedVideoGoal));
       setMonthlyGoalPhotoDraft(String(savedPhotoGoal));
+      setMonthlyGoalCtaDraft(String(dashboard.goals.cta.goalValue || monthlyGoalCta));
       setIsEditingMonthlyGoalVideo(false);
       toast.success("Video atualizado.");
     } catch (error) {
@@ -561,6 +592,8 @@ export function StoriesPage() {
         photoGoal: nextGoalValue,
         totalCurrent: nextTotalCurrent,
         totalGoal: nextTotalGoal,
+        ctaCurrent: monthlyCurrentCta,
+        ctaGoal: monthlyGoalCta,
       });
 
       const dashboard = await fetchStoriesDashboard(session.user.id, goalMonthKey);
@@ -571,12 +604,16 @@ export function StoriesPage() {
 
       setMonthlyCurrentVideo(savedVideoCurrent);
       setMonthlyCurrentPhoto(savedPhotoCurrent);
+      setMonthlyCurrentCta(dashboard.goals.cta.currentValue || monthlyCurrentCta);
       setMonthlyGoalVideo(savedVideoGoal);
       setMonthlyGoalPhoto(savedPhotoGoal);
+      setMonthlyGoalCta(dashboard.goals.cta.goalValue || monthlyGoalCta);
       setMonthlyCurrentVideoDraft(String(savedVideoCurrent));
       setMonthlyCurrentPhotoDraft(String(savedPhotoCurrent));
+      setMonthlyCurrentCtaDraft(String(dashboard.goals.cta.currentValue || monthlyCurrentCta));
       setMonthlyGoalVideoDraft(String(savedVideoGoal));
       setMonthlyGoalPhotoDraft(String(savedPhotoGoal));
+      setMonthlyGoalCtaDraft(String(dashboard.goals.cta.goalValue || monthlyGoalCta));
       setIsEditingMonthlyGoalPhoto(false);
       toast.success("Foto atualizada.");
     } catch (error) {
@@ -589,6 +626,55 @@ export function StoriesPage() {
     setMonthlyCurrentPhotoDraft(String(monthlyCurrentPhoto));
     setMonthlyGoalPhotoDraft(String(monthlyGoalPhoto));
     setIsEditingMonthlyGoalPhoto(false);
+  };
+
+  const handleStartEditingCtaCard = () => {
+    setMonthlyCurrentCtaDraft(String(monthlyCurrentCta));
+    setMonthlyGoalCtaDraft(String(monthlyGoalCta));
+    setIsEditingMonthlyGoalCta(true);
+  };
+
+  const handleCommitCtaCard = async () => {
+    if (!session?.user.id) {
+      toast.error("Sessão inválida para salvar os dados de CTA.");
+      return;
+    }
+
+    const nextCurrentValue = parseMetricInput(monthlyCurrentCtaDraft, monthlyCurrentCta);
+    const nextGoalValue = parseMetricInput(monthlyGoalCtaDraft, monthlyGoalCta || defaultMonthlyGoalCta);
+
+    try {
+      await updateStoriesMonthlyData(session.user.id, goalMonthKey, {
+        videoCurrent: monthlyCurrentVideo,
+        videoGoal: monthlyGoalVideo,
+        photoCurrent: monthlyCurrentPhoto,
+        photoGoal: monthlyGoalPhoto,
+        totalCurrent: monthlyCurrentVideo + monthlyCurrentPhoto,
+        totalGoal: monthlyGoalVideo + monthlyGoalPhoto,
+        ctaCurrent: nextCurrentValue,
+        ctaGoal: nextGoalValue,
+      });
+
+      const dashboard = await fetchStoriesDashboard(session.user.id, goalMonthKey);
+      const savedCtaCurrent = Math.max(dashboard.goals.cta.currentValue || 0, nextCurrentValue);
+      const savedCtaGoal = dashboard.goals.cta.goalValue || nextGoalValue;
+
+      setMonthlyCurrentCta(savedCtaCurrent);
+      setMonthlyGoalCta(savedCtaGoal);
+      setMonthlyCurrentCtaDraft(String(savedCtaCurrent));
+      setMonthlyGoalCtaDraft(String(savedCtaGoal));
+      setIsEditingMonthlyGoalCta(false);
+      toast.success("CTA atualizado.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Falha ao salvar os dados de CTA.";
+      toast.error(message);
+    }
+  };
+
+  const handleCancelCtaCardEdit = () => {
+    setMonthlyCurrentCtaDraft(String(monthlyCurrentCta));
+    setMonthlyGoalCtaDraft(String(monthlyGoalCta));
+    setIsEditingMonthlyGoalCta(false);
   };
 
   void isEditingMonthlyGoalTotal;
@@ -639,6 +725,7 @@ export function StoriesPage() {
       date: story.date,
       time: story.time,
       quantity: String(story.quantity),
+      cta: String(story.cta ?? 0),
       mediaType: story.mediaType,
       status: getStoryStatus(story),
       madeById: story.madeById,
@@ -655,8 +742,9 @@ export function StoriesPage() {
     }
 
     const quantity = Number(form.quantity);
+    const cta = Number(form.cta || "0");
 
-    if (!form.date || !form.time || !Number.isFinite(quantity) || quantity <= 0) {
+    if (!form.date || !form.time || !Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(cta) || cta < 0) {
       toast.error("Preencha data, hora e quantidade.");
       return;
     }
@@ -674,6 +762,7 @@ export function StoriesPage() {
       date: form.date,
       time: form.time,
       quantity,
+      cta,
       mediaType: form.mediaType,
       status: form.status,
       madeById: madeBy.id,
@@ -761,7 +850,7 @@ export function StoriesPage() {
       <PageHeader
         eyebrow="Conteúdo"
         title="Stories"
-        description={`Meta mensal: ${effectiveMonthlyGoals.total} stories, sendo ${effectiveMonthlyGoals.video} em vídeo. Registre o que foi feito por dia.`}
+        description={`Meta mensal: ${effectiveMonthlyGoals.total} stories, sendo ${effectiveMonthlyGoals.video} em vídeo. Registre o que foi feito por dia e acompanhe os CTA.`}
         actions={
           <ActionButton onClick={openCreateModal} dataCy="stories-create-open">
             <Plus className="h-4 w-4" />
@@ -882,7 +971,7 @@ export function StoriesPage() {
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-6">
-          <div className="grid gap-4 xl:grid-cols-3">
+          <div className="grid gap-4 xl:grid-cols-4">
             {memberContributions.map((entry) => (
               <GlassPanel
                 key={entry.member.id}
@@ -914,15 +1003,15 @@ export function StoriesPage() {
                     {stats.total} / {effectiveMonthlyGoals.total}
                   </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={handleStartEditingMonthlyGoalTotal}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-white/90 text-muted-foreground transition hover:border-primary/25 hover:bg-primary/5 hover:text-primary"
+                  aria-label="Editar meta total"
+                >
+                  <PencilLine className="h-4 w-4" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={handleStartEditingMonthlyGoalTotal}
-                className="mt-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-white/90 text-muted-foreground transition hover:border-primary/25 hover:bg-primary/5 hover:text-primary"
-                aria-label="Editar meta total"
-              >
-                <PencilLine className="h-4 w-4" />
-              </button>
               {isEditingMonthlyGoalTotal ? (
                 <div className="mt-4 grid gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
                   <label className="grid gap-1">
@@ -1089,6 +1178,74 @@ export function StoriesPage() {
               ) : null}
               <ProgressBar value={stats.photo} max={effectiveMonthlyGoals.photo} />
             </GlassPanel>
+            <GlassPanel className="overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,250,252,0.96))] p-5 shadow-[0_16px_36px_rgba(15,23,42,0.05)]">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">CTA</p>
+                  <p className="mt-3 text-[clamp(1.65rem,2.4vw,2.15rem)] font-semibold tracking-tight text-foreground">
+                    {stats.cta} / {effectiveMonthlyGoals.cta}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleStartEditingCtaCard}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-white/90 text-muted-foreground transition hover:border-primary/25 hover:bg-primary/5 hover:text-primary"
+                  aria-label="Editar meta de CTA"
+                >
+                  <PencilLine className="h-4 w-4" />
+                </button>
+              </div>
+              {isEditingMonthlyGoalCta ? (
+                <div className="mt-4 grid gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
+                  <label className="grid gap-1">
+                    <span className="text-sm font-semibold text-primary">Atual</span>
+                    <input
+                      autoFocus
+                      value={monthlyCurrentCtaDraft}
+                      onChange={(event) => setMonthlyCurrentCtaDraft(event.target.value)}
+                      onBlur={handleCommitCtaCard}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          handleCommitCtaCard();
+                        }
+
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          handleCancelCtaCardEdit();
+                        }
+                      }}
+                      inputMode="numeric"
+                      className="w-full rounded-2xl border border-primary/15 bg-white/90 px-3 py-2 text-lg font-semibold tracking-tight text-foreground outline-none placeholder:text-muted-foreground"
+                      placeholder="0"
+                    />
+                  </label>
+                  <label className="grid gap-1">
+                    <span className="text-sm font-semibold text-primary">Meta</span>
+                    <input
+                      value={monthlyGoalCtaDraft}
+                      onChange={(event) => setMonthlyGoalCtaDraft(event.target.value)}
+                      onBlur={handleCommitCtaCard}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          handleCommitCtaCard();
+                        }
+
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          handleCancelCtaCardEdit();
+                        }
+                      }}
+                      inputMode="numeric"
+                      className="w-full rounded-2xl border border-primary/15 bg-white/90 px-3 py-2 text-lg font-semibold tracking-tight text-foreground outline-none placeholder:text-muted-foreground"
+                      placeholder={String(defaultMonthlyGoalCta)}
+                    />
+                  </label>
+                </div>
+              ) : null}
+              <ProgressBar value={stats.cta} max={Math.max(effectiveMonthlyGoals.cta, 1)} />
+            </GlassPanel>
           </div>
 
           <GlassPanel className="overflow-hidden border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,250,252,0.97))] p-4 shadow-[0_18px_42px_rgba(15,23,42,0.05)] sm:p-5">
@@ -1130,6 +1287,9 @@ export function StoriesPage() {
                           </span>
                           <span className="rounded-full border border-primary/10 bg-primary/5 px-4 py-2 text-sm font-semibold text-primary">
                             {item.quantity} {item.quantity === 1 ? "story" : "stories"}
+                          </span>
+                          <span className="rounded-full border border-amber-200/80 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700">
+                            CTA: {item.cta ?? 0}
                           </span>
                         </div>
                         <p className="text-sm text-muted-foreground">{item.notes || "Sem observação"}</p>
@@ -1202,6 +1362,12 @@ export function StoriesPage() {
                 {stats.photo} / {effectiveMonthlyGoals.photo}
               </strong>
             </div>
+            <div className="flex items-center justify-between gap-3 border-t border-border/50 pt-3">
+              <span className="text-sm text-muted-foreground">CTA</span>
+              <strong className="text-base font-semibold text-foreground">
+                {stats.cta} / {effectiveMonthlyGoals.cta}
+              </strong>
+            </div>
           </div>
 
           <div className="rounded-[1.6rem] border border-primary/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(247,250,255,0.96))] px-5 py-4 shadow-[0_12px_30px_rgba(59,130,246,0.05)]">
@@ -1265,6 +1431,18 @@ export function StoriesPage() {
                       value={form.quantity}
                       onChange={(event) => setForm((previous) => ({ ...previous, quantity: event.target.value }))}
                       data-cy="stories-quantity"
+                      className="rounded-full border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+                    />
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span className="text-sm font-medium text-foreground">CTA</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={form.cta}
+                      onChange={(event) => setForm((previous) => ({ ...previous, cta: event.target.value }))}
+                      data-cy="stories-cta"
                       className="rounded-full border border-border/70 bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                     />
                   </label>
@@ -1374,6 +1552,10 @@ export function StoriesPage() {
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-sm text-muted-foreground">Quantidade</span>
                       <span className="text-sm font-medium text-foreground">{form.quantity || "0"}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm text-muted-foreground">CTA</span>
+                      <span className="text-sm font-medium text-foreground">{form.cta || "0"}</span>
                     </div>
                   </div>
                 </div>
