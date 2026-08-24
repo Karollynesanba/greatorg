@@ -17,6 +17,8 @@ type SharedStateRow<T> = {
   value: T;
 };
 
+type ReportStateStorageScope = "user" | "global";
+
 function snapshotOf<T>(value: T) {
   return JSON.stringify(value);
 }
@@ -41,6 +43,27 @@ async function loadSharedStateFallback<T>(key: string) {
   }
 
   return (data as SharedStateRow<T> | null)?.value ?? null;
+}
+
+async function saveSharedStateValue<T>(key: string, value: T) {
+  if (!supabase) {
+    return;
+  }
+
+  const { error } = await supabase.from("shared_state").upsert(
+    {
+      key,
+      value,
+      updated_at: new Date().toISOString(),
+    },
+    {
+      onConflict: "key",
+    },
+  );
+
+  if (error) {
+    throw error;
+  }
 }
 
 async function loadReportValue<T>(params: {
@@ -143,6 +166,8 @@ export function useSupabaseReportState<T>(options: {
   periodStart?: string | null;
   periodEnd?: string | null;
   legacySharedStateKey?: string;
+  sharedStateKey?: string;
+  storageScope?: ReportStateStorageScope;
 }) {
   const { session, ready: authReady } = useAuthSession();
   const [value, setValue] = useState<T>(options.fallback);
@@ -150,8 +175,20 @@ export function useSupabaseReportState<T>(options: {
   const lastRemoteSnapshotRef = useRef<string | null>(null);
   const hydratedRef = useRef(false);
   const currentUserId = session?.user.id ?? null;
+  const storageScope = options.storageScope ?? "user";
+  const sharedStateKey = options.sharedStateKey ?? options.legacySharedStateKey ?? options.externalKey;
 
   const loadRemote = useCallback(async () => {
+    if (storageScope === "global") {
+      const sharedValue = await loadSharedStateFallback<T>(sharedStateKey);
+      if (sharedValue !== null) {
+        return sharedValue;
+      }
+
+      await saveSharedStateValue(sharedStateKey, options.fallback);
+      return options.fallback;
+    }
+
     if (!currentUserId) {
       return options.fallback;
     }
@@ -195,14 +232,27 @@ export function useSupabaseReportState<T>(options: {
     });
 
     return options.fallback;
-  }, [currentUserId, options.category, options.externalKey, options.fallback, options.legacySharedStateKey, options.periodEnd, options.periodStart, options.referenceMonth, options.reportKind, options.title]);
+  }, [currentUserId, options.category, options.externalKey, options.fallback, options.legacySharedStateKey, options.periodEnd, options.periodStart, options.referenceMonth, options.reportKind, options.title, sharedStateKey, storageScope]);
 
   useEffect(() => {
     if (!authReady) {
       return;
     }
 
-    if (!isSupabaseConfigured() || !supabase || !session || isDemoSession(session) || !currentUserId) {
+    // A period switch must never briefly render the previous month's report.
+    // Reset the in-memory value before the next database read completes.
+    hydratedRef.current = false;
+    lastRemoteSnapshotRef.current = null;
+    setHydrated(false);
+    setValue(options.fallback);
+
+    if (
+      !isSupabaseConfigured() ||
+      !supabase ||
+      !session ||
+      isDemoSession(session) ||
+      (storageScope === "user" && !currentUserId)
+    ) {
       hydratedRef.current = true;
       lastRemoteSnapshotRef.current = snapshotOf(options.fallback);
       setValue(options.fallback);
@@ -243,8 +293,30 @@ export function useSupabaseReportState<T>(options: {
     void sync();
 
     const unsubscribe = subscribeSharedChannel(
-      `great-organico:reports:${options.reportKind}:${options.externalKey}`,
+      storageScope === "global"
+        ? `great-organico:shared-state:${sharedStateKey}`
+        : `great-organico:reports:${options.reportKind}:${options.externalKey}`,
       (channel, dispatch) => {
+        if (storageScope === "global") {
+          channel.on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table: "shared_state",
+            },
+            (payload) => {
+              const nextRow = payload.new as { key?: string } | null;
+              if (nextRow?.key !== sharedStateKey) {
+                return;
+              }
+
+              dispatch();
+            },
+          );
+          return;
+        }
+
         channel.on(
           "postgres_changes",
           {
@@ -275,7 +347,7 @@ export function useSupabaseReportState<T>(options: {
       cancelled = true;
       unsubscribe();
     };
-  }, [authReady, currentUserId, loadRemote, options.externalKey, options.fallback, options.reportKind, session]);
+  }, [authReady, currentUserId, loadRemote, options.externalKey, options.fallback, options.reportKind, session, sharedStateKey, storageScope]);
 
   useEffect(() => {
     if (
@@ -285,7 +357,7 @@ export function useSupabaseReportState<T>(options: {
       !supabase ||
       !session ||
       isDemoSession(session) ||
-      !currentUserId
+      (storageScope === "user" && !currentUserId)
     ) {
       return;
     }
@@ -295,17 +367,19 @@ export function useSupabaseReportState<T>(options: {
       return;
     }
 
-    void saveReportValue({
-      userId: currentUserId,
-      reportKind: options.reportKind,
-      referenceMonth: options.referenceMonth,
-      externalKey: options.externalKey,
-      title: options.title,
-      value,
-      category: options.category,
-      periodStart: options.periodStart,
-      periodEnd: options.periodEnd,
-    })
+    void (storageScope === "global"
+      ? saveSharedStateValue(sharedStateKey, value)
+      : saveReportValue({
+          userId: currentUserId as string,
+          reportKind: options.reportKind,
+          referenceMonth: options.referenceMonth,
+          externalKey: options.externalKey,
+          title: options.title,
+          value,
+          category: options.category,
+          periodStart: options.periodStart,
+          periodEnd: options.periodEnd,
+        }))
       .then(() => {
         lastRemoteSnapshotRef.current = snapshot;
       })
@@ -316,7 +390,7 @@ export function useSupabaseReportState<T>(options: {
           error,
         });
       });
-  }, [authReady, currentUserId, options.category, options.externalKey, options.periodEnd, options.periodStart, options.referenceMonth, options.reportKind, options.title, session, value]);
+  }, [authReady, currentUserId, options.category, options.externalKey, options.periodEnd, options.periodStart, options.referenceMonth, options.reportKind, options.title, session, sharedStateKey, storageScope, value]);
 
   return [value, setValue, hydrated] as const;
 }

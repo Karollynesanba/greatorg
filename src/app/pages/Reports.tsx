@@ -119,6 +119,12 @@ type StoriesSheetRow = {
   videos: number;
   cta: number;
 };
+type ExecutiveHeroMetricOverrides = {
+  views: number | null;
+  reach: number | null;
+  stories: number | null;
+  monthlyProgress: number | null;
+};
 type ReportOverview = {
   badge: string;
   title: string;
@@ -133,6 +139,98 @@ type ReportSectionEditor = {
   scope: "overview" | "row" | "storiesTeam";
   rowIndex?: number;
 } | null;
+
+type ExecutiveHeroMetricsForm = {
+  views: string;
+  reach: string;
+  stories: string;
+  monthlyProgress: string;
+};
+
+type ReportsPdfDocumentProps = {
+  periodLabel: string;
+  periodStart: string;
+  periodEnd: string;
+  overview: ReportOverview;
+  reportRows: ReportCardRow[];
+  storiesMonthLabel: string;
+  storiesSheet: StoriesSheetRow[];
+  storiesSheetTotal: Omit<StoriesSheetRow, "dateKey">;
+  summary: { views: number; reach: number; stories: number; monthlyProgress: number };
+};
+
+function ReportsPdfDocument({
+  periodLabel,
+  periodStart,
+  periodEnd,
+  overview,
+  reportRows,
+  storiesMonthLabel,
+  storiesSheet,
+  storiesSheetTotal,
+  summary,
+}: ReportsPdfDocumentProps) {
+  return (
+    <article className="reports-pdf-document hidden print:block">
+      <header className="reports-pdf-header">
+        <div>
+          <p>Great Organico</p>
+          <h1>{overview.title}</h1>
+          <p>{overview.description}</p>
+        </div>
+        <div className="reports-pdf-period">
+          <strong>{periodLabel}</strong>
+          <span>{periodStart} ate {periodEnd}</span>
+        </div>
+      </header>
+
+      <section className="reports-pdf-summary">
+        <div><span>Visualizacoes do mes</span><strong>{formatLongNumber(summary.views)}</strong></div>
+        <div><span>Alcance total</span><strong>{formatLongNumber(summary.reach)}</strong></div>
+        <div><span>Stories do mes</span><strong>{formatLongNumber(summary.stories)}</strong></div>
+        <div><span>Progresso mensal</span><strong>{summary.monthlyProgress}%</strong></div>
+      </section>
+
+      {reportRows.map((row) => (
+        <section key={`pdf-${row.title}`} className="reports-pdf-section">
+          <h2>{row.title}</h2>
+          <p>{row.description}</p>
+          {row.items.length > 0 ? (
+            <div className="reports-pdf-card-grid">
+              {row.items.map((item, itemIndex) => (
+                <article key={`pdf-${row.title}-${item.title}-${itemIndex}`} className="reports-pdf-card">
+                  {item.image ? <img src={item.image} alt={item.title} /> : null}
+                  <div>
+                    <span>{item.badge ?? "Destaque"}</span>
+                    <strong>{item.metric}</strong>
+                  </div>
+                  <h3>{item.title}</h3>
+                  <p>{item.caption ?? "Conteúdo pronto para publicação"}</p>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="reports-pdf-empty">Nenhum item salvo para este card no periodo.</p>
+          )}
+        </section>
+      ))}
+
+      <section className="reports-pdf-section reports-pdf-stories">
+        <h2>Stories</h2>
+        <p>Planilha mensal de {storiesMonthLabel}.</p>
+        <table>
+          <thead><tr><th>Data</th><th>Stories</th><th>Fotos</th><th>Videos</th><th>CTA</th></tr></thead>
+          <tbody>
+            {storiesSheet.map((item) => (
+              <tr key={`pdf-${item.dateKey}`}><td>{formatDayMonth(item.dateKey)}</td><td>{item.stories}</td><td>{item.photos}</td><td>{item.videos}</td><td>{item.cta}</td></tr>
+            ))}
+          </tbody>
+          <tfoot><tr><th>TOTAL</th><th>{storiesSheetTotal.stories}</th><th>{storiesSheetTotal.photos}</th><th>{storiesSheetTotal.videos}</th><th>{storiesSheetTotal.cta}</th></tr></tfoot>
+        </table>
+      </section>
+    </article>
+  );
+}
 
 function toFiniteNumber(value: unknown, fallback = 0) {
   if (typeof value === "number") {
@@ -1158,6 +1256,10 @@ export function ReportsPage() {
     [],
   );
   const storiesTeamByWeekFallback = useMemo<StoriesTeamWeek[]>(() => [], []);
+  const executiveHeroMetricOverridesFallback = useMemo<ExecutiveHeroMetricOverrides>(
+    () => ({ views: null, reach: null, stories: null, monthlyProgress: null }),
+    [],
+  );
   const [period, setPeriod] = useState<ReportPeriod>("30");
   const [customPeriodMode, setCustomPeriodMode] = useState<CustomPeriodMode>("month");
   const [customMonth, setCustomMonth] = useState(anchorDate.getMonth());
@@ -1165,6 +1267,8 @@ export function ReportsPage() {
   const [customStartDate, setCustomStartDate] = useState(formatDateKey(addDays(anchorDate, -29)));
   const [customEndDate, setCustomEndDate] = useState(formatDateKey(anchorDate));
   const [customPastMonths, setCustomPastMonths] = useState(3);
+  const [storiesSheetMonth, setStoriesSheetMonth] = useState(anchorDate.getMonth());
+  const [storiesSheetYear, setStoriesSheetYear] = useState(anchorDate.getFullYear());
   const [typeFilter, setTypeFilter] = useState<ContentType | "todos">("todos");
   const [responsibleFilter, setResponsibleFilter] = useState<number | "todos">("todos");
   const currentRange = useMemo(() => {
@@ -1203,7 +1307,6 @@ export function ReportsPage() {
     title: "Arquivo mensal",
     fallback: monthlyArchiveFallback,
     category: "archive",
-    legacySharedStateKey: "great-organico-monthly-archive",
   });
   const [teamScope] = useTeamScope();
   const { snapshotState: [monthlyPerformance], historyState: [monthlyPerformanceHistory] } = useMonthlyPerformanceState();
@@ -1219,7 +1322,6 @@ export function ReportsPage() {
     externalKey: "great-organico-reports-history",
     title: "Histórico de relatórios",
     fallback: savedReportsFallback,
-    legacySharedStateKey: "great-organico-reports-history",
   });
   const [selectedMetric, setSelectedMetric] = useState<MetricKey>("reach");
   const [overviewDraft, setOverviewDraft, overviewHydrated] = useSupabaseReportState<ReportOverview>({
@@ -1229,10 +1331,16 @@ export function ReportsPage() {
     title: "Resumo executivo",
     fallback: reportsOverviewFallback,
     category: "overview",
-    legacySharedStateKey: "great-organico-reports-overview",
   });
   const [overviewForm, setOverviewForm] = useState(overviewDraft);
   const [isOverviewModalOpen, setIsOverviewModalOpen] = useState(false);
+  const [isExecutiveMetricsModalOpen, setIsExecutiveMetricsModalOpen] = useState(false);
+  const [executiveMetricsForm, setExecutiveMetricsForm] = useState<ExecutiveHeroMetricsForm>({
+    views: "",
+    reach: "",
+    stories: "",
+    monthlyProgress: "",
+  });
   const [editingSection, setEditingSection] = useState<ReportSectionEditor>(null);
   const [sectionForm, setSectionForm] = useState<{ title: string; description: string; action: string } | null>(null);
   const [storiesTeamForm, setStoriesTeamForm] = useState<StoriesTeamWeek[]>([]);
@@ -1254,7 +1362,6 @@ export function ReportsPage() {
     title: "Layout do relatório",
     fallback: reportRowsFallback,
     category: "rows",
-    legacySharedStateKey: "great-organico-reports-rows",
   });
   const [storiesTeamByWeekDraft, setStoriesTeamByWeekDraft, storiesTeamByWeekHydrated] = useSupabaseReportState<StoriesTeamWeek[]>({
     reportKind: "stories_team",
@@ -1263,9 +1370,23 @@ export function ReportsPage() {
     title: "Escala semanal de participacoes",
     fallback: storiesTeamByWeekFallback,
     category: "profile",
-    legacySharedStateKey: "great-organico-reports-stories-team",
   });
-  const reportSharedReady = savedReportsHydrated && overviewHydrated && reportRowsHydrated && storiesTeamByWeekHydrated;
+  const [executiveHeroMetricOverrides, setExecutiveHeroMetricOverrides, executiveHeroMetricOverridesHydrated] = useSupabaseReportState<ExecutiveHeroMetricOverrides>({
+    reportKind: "executive_hero_metrics",
+    referenceMonth: reportReferenceMonth,
+    externalKey: `great-organico-reports-executive-hero-metrics-${reportReferenceMonth}`,
+    title: "Indicadores executivos do relatório",
+    fallback: executiveHeroMetricOverridesFallback,
+    category: "reports",
+    sharedStateKey: `great-organico-reports-executive-hero-metrics-${reportReferenceMonth}`,
+    storageScope: "global",
+  });
+  const reportSharedReady =
+    savedReportsHydrated &&
+    overviewHydrated &&
+    reportRowsHydrated &&
+    storiesTeamByWeekHydrated &&
+    executiveHeroMetricOverridesHydrated;
 
   useEffect(() => {
     if (!reportSharedReady) {
@@ -1369,8 +1490,15 @@ export function ReportsPage() {
     };
   }, [currentRange, previousRange, responsibleFilter, session?.user.id, teamScope]);
   const historicalMonthKeys = useMemo(
-    () => Array.from(new Set([...getMonthKeysBetween(previousRange.start, previousRange.end), ...getMonthKeysBetween(currentRange.start, currentRange.end)])),
-    [currentRange, previousRange],
+    () =>
+      Array.from(
+        new Set([
+          ...getMonthKeysBetween(previousRange.start, previousRange.end),
+          ...getMonthKeysBetween(currentRange.start, currentRange.end),
+          `${storiesSheetYear}-${String(storiesSheetMonth + 1).padStart(2, "0")}`,
+        ]),
+      ),
+    [currentRange, previousRange, storiesSheetMonth, storiesSheetYear],
   );
   const [historicalMonthlyData] = useHistoricalMonthlyData(historicalMonthKeys);
   const allPosts = useMemo(() => [...historicalMonthlyData.posts, ...monthlyArchive.posts, ...posts], [historicalMonthlyData.posts, monthlyArchive.posts, posts]);
@@ -1974,10 +2102,7 @@ export function ReportsPage() {
     toast.success("Imagem exportada com sucesso.");
   };
   const isCurrentRangeExactMonth = isExactMonthRange(currentRange, monthKeyFromDate(currentRange.start));
-  const storiesReferenceDate = useMemo(
-    () => (period === "custom" && customPeriodMode === "month" ? new Date(customYear, customMonth, 1) : anchorDate),
-    [anchorDate, customMonth, customYear, customPeriodMode, period],
-  );
+  const storiesReferenceDate = useMemo(() => new Date(storiesSheetYear, storiesSheetMonth, 1), [storiesSheetMonth, storiesSheetYear]);
   const storiesSheetRange = useMemo(
     () => ({
       start: startOfMonth(storiesReferenceDate),
@@ -2019,6 +2144,8 @@ export function ReportsPage() {
     category: "stories",
     periodStart: formatDateKey(storiesSheetRange.start),
     periodEnd: formatDateKey(storiesSheetRange.end),
+    sharedStateKey: `great-organico-stories-sheet-${storiesSheetReferenceMonth}`,
+    storageScope: "global",
   });
   const storiesSheet = useMemo(
     () => mergeStoriesSheetRows(storiesSheetFallback, storiesSheetDraft),
@@ -2052,7 +2179,15 @@ export function ReportsPage() {
     [storiesSheet],
   );
   const storiesGoalRow = useMemo(() => {
-    if (!(responsibleFilter === "todos" && teamScope === "todos" && storiesSheetReferenceMonth === monthKeyFromDate(anchorDate)) || !currentMonthlyStoriesSummary) {
+    if (
+      !(
+        responsibleFilter === "todos" &&
+        teamScope === "todos" &&
+        isCurrentRangeExactMonth &&
+        storiesSheetReferenceMonth === reportReferenceMonth
+      ) ||
+      !currentMonthlyStoriesSummary
+    ) {
       return null;
     }
 
@@ -2062,7 +2197,7 @@ export function ReportsPage() {
       videos: currentMonthlyStoriesSummary.videoGoal,
       cta: currentMonthlyStoriesSummary.ctaGoal,
     };
-  }, [anchorDate, currentMonthlyStoriesSummary, responsibleFilter, storiesSheetReferenceMonth, teamScope]);
+  }, [currentMonthlyStoriesSummary, isCurrentRangeExactMonth, reportReferenceMonth, responsibleFilter, storiesSheetReferenceMonth, teamScope]);
   const computedStoriesTeamByWeek = useMemo<StoriesTeamWeek[]>(() => {
     if (isJuly2026RangeActive) {
       return julyStoriesTeamByWeek.map((item) => ({ ...item }));
@@ -2158,13 +2293,20 @@ export function ReportsPage() {
       ),
     ),
   );
+  const effectiveCurrentSummary = {
+    ...currentSummary,
+    views: executiveHeroMetricOverrides.views ?? currentSummary.views,
+    reach: executiveHeroMetricOverrides.reach ?? currentSummary.reach,
+    storiesCount: executiveHeroMetricOverrides.stories ?? currentSummary.storiesCount,
+    monthlyProgress: executiveHeroMetricOverrides.monthlyProgress ?? currentSummary.monthlyProgress,
+  };
   const displaySummary = {
     health: healthScore,
-    views: currentSummary.views,
-    reach: currentSummary.reach,
-    stories: currentSummary.storiesCount,
-    posts: currentSummary.postsCount,
-    monthlyProgress: currentSummary.monthlyProgress,
+    views: effectiveCurrentSummary.views,
+    reach: effectiveCurrentSummary.reach,
+    stories: effectiveCurrentSummary.storiesCount,
+    posts: effectiveCurrentSummary.postsCount,
+    monthlyProgress: effectiveCurrentSummary.monthlyProgress,
   };
   const heroSummaryCards = [
     {
@@ -2236,14 +2378,39 @@ export function ReportsPage() {
     heroSummaryCards[3],
     heroSummaryCards[4],
   ].filter(Boolean);
+  const openExecutiveMetricsEditor = () => {
+    setExecutiveMetricsForm({
+      views: String(displaySummary.views),
+      reach: String(displaySummary.reach),
+      stories: String(displaySummary.stories),
+      monthlyProgress: String(displaySummary.monthlyProgress),
+    });
+    setIsExecutiveMetricsModalOpen(true);
+  };
+  const saveExecutiveMetrics = () => {
+    const parseMetric = (value: string) => {
+      const normalized = value.trim().replace(",", ".");
+      const parsed = Number(normalized);
+      return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0;
+    };
+
+    setExecutiveHeroMetricOverrides({
+      views: parseMetric(executiveMetricsForm.views),
+      reach: parseMetric(executiveMetricsForm.reach),
+      stories: parseMetric(executiveMetricsForm.stories),
+      monthlyProgress: Math.min(100, parseMetric(executiveMetricsForm.monthlyProgress)),
+    });
+    setIsExecutiveMetricsModalOpen(false);
+    toast.success("Indicadores atualizados.");
+  };
   const bottomSummary = [
     { label: "Saúde total", value: `${healthScore}`, icon: Sparkles, tone: "#B91C1C" },
-    { label: "Visualizações do mês", value: formatLongNumber(currentSummary.views), icon: BarChart3, tone: "#7C3AED" },
-    { label: "Alcance total", value: formatLongNumber(currentSummary.reach), icon: Eye, tone: "#D10000" },
-    { label: "Stories do mês", value: formatLongNumber(currentSummary.storiesCount), icon: Share2, tone: "#EA580C" },
+    { label: "Visualizações do mês", value: formatLongNumber(effectiveCurrentSummary.views), icon: BarChart3, tone: "#7C3AED" },
+    { label: "Alcance total", value: formatLongNumber(effectiveCurrentSummary.reach), icon: Eye, tone: "#D10000" },
+    { label: "Stories do mês", value: formatLongNumber(effectiveCurrentSummary.storiesCount), icon: Share2, tone: "#EA580C" },
     {
       label: "Progresso mensal",
-      value: `${currentSummary.monthlyProgress}%`,
+      value: `${effectiveCurrentSummary.monthlyProgress}%`,
       icon: CheckCircle2,
       tone: "#16A34A",
     },
@@ -2568,66 +2735,19 @@ export function ReportsPage() {
   return (
     <PageTransition fluid className="w-full max-w-none min-w-0 px-0 py-0 sm:px-0 lg:px-0">
       <div className="w-full min-w-0 space-y-6 print-report-shell">
-        <section className="hidden rounded-[2rem] border border-[#ead7d7] bg-white px-8 py-10 shadow-none print:block">
-          <div className="space-y-6">
-            <div className="flex items-start justify-between gap-6 border-b border-[#ead7d7] pb-6">
-              <div className="space-y-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#8b5e63]">Great Organico</p>
-                <h1 className="text-4xl font-semibold tracking-tight text-[#2b1c1f]">Relatorio executivo</h1>
-                <p className="max-w-2xl text-sm leading-7 text-[#6b5560]">
-                  PDF completo gerado a partir da aba de relatorios, com os mesmos indicadores, cards e destaques exibidos na tela.
-                </p>
-              </div>
-              <div className="rounded-[1.5rem] bg-[#fff5f5] px-5 py-4 text-right">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9a6a71]">Gerado em</p>
-                <p className="mt-2 text-sm font-medium text-[#2b1c1f]">
-                  {new Intl.DateTimeFormat("pt-BR", {
-                    day: "2-digit",
-                    month: "2-digit",
-                    year: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  }).format(new Date())}
-                </p>
-              </div>
-            </div>
+        <ReportsPdfDocument
+          periodLabel={describeReportPeriod({ period, customMode: customPeriodMode, customMonth, customYear, customStart: customStartDate, customEnd: customEndDate, customPastMonths, currentRange })}
+          periodStart={formatDateKey(currentRange.start)}
+          periodEnd={formatDateKey(currentRange.end)}
+          overview={overviewDraft}
+          reportRows={reportRows}
+          storiesMonthLabel={storiesMonthLabel}
+          storiesSheet={storiesSheet}
+          storiesSheetTotal={storiesSheetTotal}
+          summary={{ views: effectiveCurrentSummary.views, reach: effectiveCurrentSummary.reach, stories: effectiveCurrentSummary.storiesCount, monthlyProgress: effectiveCurrentSummary.monthlyProgress }}
+        />
 
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="rounded-[1.4rem] border border-[#f0dede] bg-[#fff8f8] px-5 py-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9a6a71]">Periodo</p>
-                <p className="mt-2 text-base font-semibold text-[#2b1c1f]">
-                  {describeReportPeriod({
-                    period,
-                    customMode: customPeriodMode,
-                    customMonth,
-                    customYear,
-                    customStart: customStartDate,
-                    customEnd: customEndDate,
-                    customPastMonths,
-                    currentRange,
-                  })}
-                </p>
-                <p className="mt-1 text-sm text-[#6b5560]">
-                  {formatDateKey(currentRange.start)} ate {formatDateKey(currentRange.end)}
-                </p>
-              </div>
-              <div className="rounded-[1.4rem] border border-[#f0dede] bg-[#fff8f8] px-5 py-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9a6a71]">Tipo filtrado</p>
-                <p className="mt-2 text-base font-semibold text-[#2b1c1f]">
-                  {contentTypeOptions.find((item) => item.value === typeFilter)?.label ?? "Todos os tipos"}
-                </p>
-              </div>
-              <div className="rounded-[1.4rem] border border-[#f0dede] bg-[#fff8f8] px-5 py-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9a6a71]">Responsavel</p>
-                <p className="mt-2 text-base font-semibold text-[#2b1c1f]">
-                  {responsibleFilter === "todos"
-                    ? "Todos os responsaveis"
-                    : teamMembers.find((member) => member.id === responsibleFilter)?.name ?? "Responsavel"}
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
+        <div className="reports-screen-content space-y-6">
 
         <section className="rounded-[2.4rem] border border-border/70 bg-white/96 p-6 shadow-[0_20px_55px_rgba(15,23,42,0.07)] backdrop-blur-xl">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
@@ -2879,6 +2999,17 @@ export function ReportsPage() {
               </div>
 
               <div className="grid min-w-0 grid-cols-1 gap-5 min-[900px]:grid-cols-2 min-[900px]:auto-rows-[minmax(190px,auto)] min-[1400px]:grid-cols-[repeat(2,minmax(240px,1fr))]">
+                <div className="col-span-full flex justify-end print:hidden">
+                  <button
+                    type="button"
+                    onClick={openExecutiveMetricsEditor}
+                    className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-white px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/25 hover:shadow-md"
+                    aria-label="Editar indicadores executivos"
+                  >
+                    <PencilLine className="h-4 w-4" />
+                    Editar indicadores
+                  </button>
+                </div>
                 {executiveHeroCards.map((item) => {
                   const Icon = item.icon;
                   const isPositive = !item.delta.startsWith("-");
@@ -3016,6 +3147,23 @@ export function ReportsPage() {
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
+                    <div className="grid min-w-[270px] grid-cols-2 gap-2 print:hidden">
+                      <RoundedDropdown
+                        label="Mês da planilha"
+                        value={storiesSheetMonth}
+                        options={monthOptions}
+                        onChange={(value) => setStoriesSheetMonth(Number(value))}
+                        placeholder="Mês"
+                        usePortal
+                      />
+                      <RoundedDropdown
+                        label="Ano da planilha"
+                        value={storiesSheetYear}
+                        options={yearOptions}
+                        onChange={(value) => setStoriesSheetYear(Number(value))}
+                        placeholder="Ano"
+                      />
+                    </div>
                     <span className="rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary">
                       {storiesMonthLabel}
                     </span>
@@ -3162,6 +3310,86 @@ export function ReportsPage() {
           </div>
         </section>
       </div>
+
+      </div>
+
+      {isExecutiveMetricsModalOpen ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-sm print:hidden">
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] border border-border/70 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.22)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Indicadores</p>
+                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Editar cards executivos</h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  Ajuste visualizações, alcance, stories do mês e progresso mensal sem alterar os outros cards.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsExecutiveMetricsModalOpen(false)}
+                className="rounded-full border border-border/60 bg-card px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:border-primary/25"
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-foreground">Visualizações do mês</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={executiveMetricsForm.views}
+                  onChange={(event) => setExecutiveMetricsForm((previous) => ({ ...previous, views: event.target.value }))}
+                  className="rounded-2xl border border-border/60 bg-white px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary/30"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-foreground">Alcance total</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={executiveMetricsForm.reach}
+                  onChange={(event) => setExecutiveMetricsForm((previous) => ({ ...previous, reach: event.target.value }))}
+                  className="rounded-2xl border border-border/60 bg-white px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary/30"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-foreground">Stories do mês</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={executiveMetricsForm.stories}
+                  onChange={(event) => setExecutiveMetricsForm((previous) => ({ ...previous, stories: event.target.value }))}
+                  className="rounded-2xl border border-border/60 bg-white px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary/30"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-foreground">Progresso mensal (%)</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={executiveMetricsForm.monthlyProgress}
+                  onChange={(event) => setExecutiveMetricsForm((previous) => ({ ...previous, monthlyProgress: event.target.value }))}
+                  className="rounded-2xl border border-border/60 bg-white px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary/30"
+                />
+              </label>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsExecutiveMetricsModalOpen(false)}
+                className="rounded-full border border-border/60 bg-card px-4 py-2 text-sm font-medium text-muted-foreground transition hover:text-foreground"
+              >
+                Cancelar
+              </button>
+              <ActionButton onClick={saveExecutiveMetrics}>Salvar alterações</ActionButton>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {isOverviewModalOpen ? (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-sm print:hidden">
