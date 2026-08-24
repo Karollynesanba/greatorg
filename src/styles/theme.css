@@ -218,9 +218,9 @@ html:not(.dark) [class*="bg-zinc-800"] {
 
   .reports-pdf-card-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-    margin-top: 12px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
   }
 
   .reports-pdf-card {
@@ -234,14 +234,14 @@ html:not(.dark) [class*="bg-zinc-800"] {
   .reports-pdf-card img {
     display: block;
     width: 100%;
-    height: 135px;
+    height: 88px;
     object-fit: cover;
   }
 
   .reports-pdf-card div,
   .reports-pdf-card h3,
   .reports-pdf-card p {
-    margin: 8px 10px;
+    margin: 6px 8px;
   }
 
   .reports-pdf-card div {
@@ -252,12 +252,15 @@ html:not(.dark) [class*="bg-zinc-800"] {
   }
 
   .reports-pdf-card h3 {
-    font-size: 11pt;
+    font-size: 9pt;
+    line-height: 1.2;
   }
 
   .reports-pdf-card p,
   .reports-pdf-empty {
     color: #655d61;
+    font-size: 8pt;
+    line-height: 1.3;
   }
 
   .reports-pdf-stories table {

@@ -1959,7 +1959,26 @@ export function ReportsPage() {
     toast.success("Relatório salvo no histórico.");
   };
 
-  const handleExportPdf = () => window.print();
+  const handleExportPdf = async () => {
+    const imageUrls = Array.from(new Set(reportRows.flatMap((row) => row.items.map((item) => item.image).filter(Boolean))));
+    const preloadImages = Promise.all(
+      imageUrls.map(
+        (src) =>
+          new Promise<void>((resolve) => {
+            const image = new Image();
+            image.onload = () => resolve();
+            image.onerror = () => resolve();
+            image.src = src;
+          }),
+      ),
+    );
+    const timeout = new Promise<void>((resolve) => window.setTimeout(resolve, 8_000));
+
+    await Promise.race([preloadImages, timeout]);
+    await document.fonts?.ready;
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    window.print();
+  };
 
   const handleExportImage = async () => {
     const canvas = document.createElement("canvas");
