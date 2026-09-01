@@ -787,6 +787,12 @@ export async function updateStoriesMonthlyData(userId: string, month: string, su
   } catch (error) {
     // Fall back to the older metrics table shape when the relational monthly table
     // is not available or does not yet have the expected unique constraint.
+    console.warn("[StoriesSync] Monthly stories summary fallback activated.", {
+      errorMessage: error instanceof Error ? error.message : String(error),
+      ...getSupabaseDiagnostics(),
+      userId,
+      month,
+    });
   }
 
   await Promise.all([

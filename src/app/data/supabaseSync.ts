@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isDemoSession, useAuthSession } from "../auth";
 import { readLocalJson, writeLocalJson } from "./localStore";
-import { isSupabaseConfigured, supabase } from "./supabase";
+import { getSupabaseDiagnostics, isSupabaseConfigured, supabase } from "./supabase";
 import { subscribeSharedChannel } from "./supabaseRealtime";
 
 type RowEnvelope<T> = {
@@ -65,7 +65,12 @@ async function fetchRemoteRows<T extends { id: number }>(
       hasRows: true,
     };
   } catch (error) {
-    console.error(`Failed to load ${table} from Supabase`, error);
+    console.error(`Failed to load ${table} from Supabase`, {
+      errorMessage: getErrorMessage(error),
+      table,
+      currentUserId,
+      ...getSupabaseDiagnostics(),
+    });
     return { items: [] as T[], hasRows: false };
   }
 }
@@ -233,7 +238,12 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
           return;
         }
 
-        console.error(`Unexpected failure loading ${options.table}`, error);
+        console.error(`Unexpected failure loading ${options.table}`, {
+          errorMessage: getErrorMessage(error),
+          table: options.table,
+          currentUserId,
+          ...getSupabaseDiagnostics(),
+        });
         commitValue(lastPersistedValueRef.current.length > 0 ? lastPersistedValueRef.current : options.fallback);
       }
     };
@@ -291,7 +301,12 @@ export function useSupabaseSyncedListState<T extends { id: number }>(options: {
       })
       .catch((error) => {
         // Keep the optimistic local state so the UI stays responsive.
-        console.error(`Failed to sync ${options.table} to Supabase`, error);
+        console.error(`Failed to sync ${options.table} to Supabase`, {
+          errorMessage: getErrorMessage(error),
+          table: options.table,
+          currentUserId,
+          ...getSupabaseDiagnostics(),
+        });
       });
   }, [currentUserId, options.table, session, userScoped, value]);
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isDemoSession, useAuthSession } from "../auth";
-import { isSupabaseConfigured, supabase } from "./supabase";
+import { getSupabaseDiagnostics, isSupabaseConfigured, supabase } from "./supabase";
 import { subscribeSharedChannel } from "./supabaseRealtime";
 
 type ReportRow<T> = {
@@ -18,6 +18,10 @@ type SharedStateRow<T> = {
 };
 
 type ReportStateStorageScope = "user" | "global";
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
 
 function snapshotOf<T>(value: T) {
   return JSON.stringify(value);
@@ -47,6 +51,10 @@ async function loadSharedStateFallback<T>(key: string) {
 
 async function saveSharedStateValue<T>(key: string, value: T) {
   if (!supabase) {
+    console.error("[ReportsSync] Shared report save skipped: Supabase is not configured.", {
+      key,
+      ...getSupabaseDiagnostics(),
+    });
     return;
   }
 
@@ -128,6 +136,12 @@ async function saveReportValue<T>(params: {
   periodEnd?: string | null;
 }) {
   if (!supabase) {
+    console.error("[ReportsSync] Report save skipped: Supabase is not configured.", {
+      reportKind: params.reportKind,
+      referenceMonth: params.referenceMonth,
+      externalKey: params.externalKey,
+      ...getSupabaseDiagnostics(),
+    });
     return;
   }
 
@@ -387,7 +401,8 @@ export function useSupabaseReportState<T>(options: {
         console.error("Failed to save report state to reports", {
           reportKind: options.reportKind,
           externalKey: options.externalKey,
-          error,
+          errorMessage: getErrorMessage(error),
+          ...getSupabaseDiagnostics(),
         });
       });
   }, [authReady, currentUserId, options.category, options.externalKey, options.periodEnd, options.periodStart, options.referenceMonth, options.reportKind, options.title, session, sharedStateKey, storageScope, value]);
