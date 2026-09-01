@@ -657,6 +657,22 @@ function endOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0);
 }
 
+function completeStoriesTeamWeeks(items: StoriesTeamWeek[]) {
+  const itemsByWeek = new Map<number, StoriesTeamWeek>();
+
+  items.forEach((item) => {
+    const weekIndex = Number(item.week.match(/^\s*(\d+)/)?.[1]);
+    if (weekIndex >= 1 && weekIndex <= 4 && !itemsByWeek.has(weekIndex)) {
+      itemsByWeek.set(weekIndex, { ...item });
+    }
+  });
+
+  return Array.from({ length: 4 }, (_, index) => {
+    const weekIndex = index + 1;
+    return itemsByWeek.get(weekIndex) ?? { week: `${weekIndex} semana`, members: "" };
+  });
+}
+
 function addMonths(date: Date, amount: number) {
   return new Date(date.getFullYear(), date.getMonth() + amount, 1);
 }
@@ -2251,12 +2267,10 @@ export function ReportsPage() {
       }));
   }, [filteredStoryLogs, isJuly2026RangeActive, teamMembers]);
   const storiesTeamByWeek = useMemo<StoriesTeamWeek[]>(() => {
-    if (storiesTeamByWeekDraft.length === 0) {
-      return computedStoriesTeamByWeek;
-    }
+    const source = storiesTeamByWeekDraft.length > 0 ? storiesTeamByWeekDraft : computedStoriesTeamByWeek;
 
-    return storiesTeamByWeekDraft;
-  }, [computedStoriesTeamByWeek, storiesTeamByWeekDraft]);
+    return isCurrentRangeExactMonth ? completeStoriesTeamWeeks(source) : source;
+  }, [computedStoriesTeamByWeek, isCurrentRangeExactMonth, storiesTeamByWeekDraft]);
 
   const selectedMetricDetails = {
     reach: {
@@ -2608,7 +2622,7 @@ export function ReportsPage() {
 
     setEditingSection({ scope: "storiesTeam" });
     setSectionForm(null);
-    setStoriesTeamForm(source.map((item) => ({ ...item })));
+    setStoriesTeamForm(completeStoriesTeamWeeks(source));
   };
   const saveSectionForm = () => {
     if (!reportSharedReady) {
@@ -2705,8 +2719,9 @@ export function ReportsPage() {
       ? computedStoriesTeamByWeek
       : [{ week: "1 semana", members: "" }];
 
-    setStoriesTeamByWeekDraft(fallback.map((item) => ({ ...item })));
-    setStoriesTeamForm(fallback.map((item) => ({ ...item })));
+    const completedFallback = completeStoriesTeamWeeks(fallback);
+    setStoriesTeamByWeekDraft(completedFallback);
+    setStoriesTeamForm(completedFallback);
     toast.success("Escala semanal restaurada.");
   };
   void [
@@ -3634,6 +3649,18 @@ export function ReportsPage() {
             </div>
 
             <div className="mt-6 flex flex-wrap justify-between gap-3">
+              <button
+                type="button"
+                onClick={() =>
+                  setStoriesTeamForm((previous) => [
+                    ...previous,
+                    { week: `${previous.length + 1} semana`, members: "" },
+                  ])
+                }
+                className="rounded-full border border-primary/25 bg-primary/[0.04] px-4 py-2 text-sm font-medium text-primary transition hover:bg-primary/[0.08]"
+              >
+                Adicionar semana
+              </button>
               <button
                 type="button"
                 onClick={restoreStoriesTeamDefaults}
