@@ -320,8 +320,8 @@ export function useSupabaseReportState<T>(options: {
               table: "report_global_state",
             },
             (payload) => {
-              const nextRow = payload.new as { key?: string } | null;
-              if (nextRow?.key !== sharedStateKey) {
+              const changedRow = (payload.eventType === "DELETE" ? payload.old : payload.new) as { key?: string } | null;
+              if (changedRow?.key !== sharedStateKey) {
                 return;
               }
 

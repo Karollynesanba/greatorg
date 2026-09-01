@@ -10,6 +10,7 @@ alter table public.report_global_state enable row level security;
 drop policy if exists "report_global_state_select_authenticated" on public.report_global_state;
 drop policy if exists "report_global_state_insert_authenticated" on public.report_global_state;
 drop policy if exists "report_global_state_update_authenticated" on public.report_global_state;
+drop policy if exists "report_global_state_delete_authenticated" on public.report_global_state;
 
 create policy "report_global_state_select_authenticated"
 on public.report_global_state
@@ -30,7 +31,28 @@ to authenticated
 using (auth.role() = 'authenticated')
 with check (auth.role() = 'authenticated');
 
-grant select, insert, update on public.report_global_state to authenticated;
+create policy "report_global_state_delete_authenticated"
+on public.report_global_state
+for delete
+to authenticated
+using (auth.role() = 'authenticated');
+
+grant select, insert, update, delete on public.report_global_state to authenticated;
+
+-- Enable cross-device notifications for inserts, updates, and deletes.
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'report_global_state'
+  ) then
+    alter publication supabase_realtime add table public.report_global_state;
+  end if;
+end;
+$$;
 
 -- Migrate the newest existing user-scoped report values without overwriting
 -- a value that may already have been created in the shared table.
