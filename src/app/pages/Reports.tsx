@@ -279,44 +279,6 @@ function normalizeSavedReportHistory(reports: SavedReport[]) {
   }));
 }
 
-const legacyReportExamplesBySection: Record<string, Set<string>> = {
-  "Capas em destaque": new Set([
-    "Dra. Alessandra",
-    "Dra. Raquel Castro",
-    "Dra. Camila Prado",
-    "Dr. Felipe Souza",
-    "Dr. Mauro Lima",
-  ]),
-  "20 depoimentos": new Set([
-    "Larissa M.",
-    "Equipe Great",
-    "Depoimento 03",
-    "Depoimento 04",
-    "Depoimento 05",
-    "Depoimento 06",
-  ]),
-  "10 entregas de material": new Set([
-    "Material 01",
-    "Material 02",
-    "Material 03",
-    "Material 04",
-    "Material 05",
-    "Material 06",
-  ]),
-};
-
-function stripLegacyReportExamples(rows: ReportCardRow[]) {
-  return rows.map((row) => {
-    const legacyTitles = legacyReportExamplesBySection[row.title];
-    if (!legacyTitles || row.items.length === 0) {
-      return row;
-    }
-
-    const items = row.items.filter((item) => !legacyTitles.has(item.title));
-    return items.length === row.items.length ? row : { ...row, items };
-  });
-}
-
 const monthlyContentTarget = 120;
 const finalContentStatuses = new Set<PostStatus | "Concluído" | "Finalizado">(["Aprovado", "Publicado", "Concluído", "Finalizado"]);
 const storiesRowTitle = "Stories";
@@ -1403,20 +1365,6 @@ export function ReportsPage() {
     reportRowsHydrated &&
     storiesTeamByWeekHydrated &&
     executiveHeroMetricOverridesHydrated;
-
-  useEffect(() => {
-    if (!reportSharedReady) {
-      return;
-    }
-
-    const sanitizedRows = stripLegacyReportExamples(reportRows);
-    if (JSON.stringify(sanitizedRows) === JSON.stringify(reportRows)) {
-      return;
-    }
-
-    setReportRows(sanitizedRows);
-    toast.success("Exemplos antigos dos cards foram removidos.");
-  }, [reportRows, reportSharedReady, setReportRows]);
 
   const heroSurfaceClass = isDark
     ? "overflow-hidden bg-[linear-gradient(135deg,rgba(131,58,180,0.96),rgba(180,97,214,0.9),rgba(225,48,108,0.82))] text-white"
