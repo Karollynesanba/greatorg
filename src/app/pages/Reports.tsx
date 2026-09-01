@@ -1300,6 +1300,8 @@ export function ReportsPage() {
     externalKey: "great-organico-reports-history",
     title: "Histórico de relatórios",
     fallback: savedReportsFallback,
+    storageScope: "global",
+    sharedStateKey: "great-organico-reports-history",
   });
   const [selectedMetric, setSelectedMetric] = useState<MetricKey>("reach");
   const [overviewDraft, setOverviewDraft, overviewHydrated] = useSupabaseReportState<ReportOverview>({
@@ -1309,6 +1311,8 @@ export function ReportsPage() {
     title: "Resumo executivo",
     fallback: reportsOverviewFallback,
     category: "overview",
+    storageScope: "global",
+    sharedStateKey: `great-organico-reports-overview-${reportReferenceMonth}`,
   });
   const [overviewForm, setOverviewForm] = useState(overviewDraft);
   const [isOverviewModalOpen, setIsOverviewModalOpen] = useState(false);
@@ -1340,6 +1344,8 @@ export function ReportsPage() {
     title: "Layout do relatório",
     fallback: reportRowsFallback,
     category: "rows",
+    storageScope: "global",
+    sharedStateKey: `great-organico-reports-rows-${reportReferenceMonth}`,
   });
   const [storiesTeamByWeekDraft, setStoriesTeamByWeekDraft, storiesTeamByWeekHydrated] = useSupabaseReportState<StoriesTeamWeek[]>({
     reportKind: "stories_team",
@@ -1348,6 +1354,8 @@ export function ReportsPage() {
     title: "Escala semanal de participacoes",
     fallback: storiesTeamByWeekFallback,
     category: "profile",
+    storageScope: "global",
+    sharedStateKey: `great-organico-reports-stories-team-${reportReferenceMonth}`,
   });
   const [executiveHeroMetricOverrides, setExecutiveHeroMetricOverrides, executiveHeroMetricOverridesHydrated] = useSupabaseReportState<ExecutiveHeroMetricOverrides>({
     reportKind: "executive_hero_metrics",

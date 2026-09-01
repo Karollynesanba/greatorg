@@ -33,7 +33,7 @@ async function loadSharedStateFallback<T>(key: string) {
   }
 
   const { data, error } = await supabase
-    .from("shared_state")
+    .from("report_global_state")
     .select("value")
     .eq("key", key)
     .maybeSingle();
@@ -50,7 +50,7 @@ async function saveSharedStateValue<T>(key: string, value: T) {
     return;
   }
 
-  const { error } = await supabase.from("shared_state").upsert(
+  const { error } = await supabase.from("report_global_state").upsert(
     {
       key,
       value,
@@ -303,7 +303,7 @@ export function useSupabaseReportState<T>(options: {
             {
               event: "*",
               schema: "public",
-              table: "shared_state",
+              table: "report_global_state",
             },
             (payload) => {
               const nextRow = payload.new as { key?: string } | null;
