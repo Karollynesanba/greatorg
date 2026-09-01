@@ -153,12 +153,14 @@ export function ActionButton({
   variant = "primary",
   onClick,
   dataCy,
+  disabled = false,
 }: {
   children: ReactNode;
   className?: string;
   variant?: "primary" | "secondary" | "ghost";
   onClick?: () => void;
   dataCy?: string;
+  disabled?: boolean;
 }) {
   const { isDark } = useThemeMode();
   const variants = {
@@ -179,6 +181,7 @@ export function ActionButton({
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       data-cy={dataCy}
       className={cn(
         "inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium transition duration-200",

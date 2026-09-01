@@ -53,6 +53,7 @@ import { useSupabaseSyncedListState } from "../data/supabaseSync";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import { getMonthKeysBetween, useHistoricalMonthlyData } from "../data/monthlySnapshots";
 import { useSupabasePreference } from "../data/userPreferences";
+import { uploadReportCardImage } from "../data/reportImages";
 import {
   ActionButton,
   GlassPanel,
@@ -820,15 +821,6 @@ function mergeStoriesSheetRows(template: StoriesSheetRow[], stored: StoriesSheet
   });
 }
 
-function readFileAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ""));
-    reader.onerror = () => reject(reader.error ?? new Error("Não foi possível ler o arquivo."));
-    reader.readAsDataURL(file);
-  });
-}
-
 function ReportsHeroIllustration() {
   return (
     <div className="relative mx-auto flex aspect-[1.06] w-full max-w-[360px] items-center justify-center">
@@ -1337,6 +1329,7 @@ export function ReportsPage() {
     badge: string;
     caption: string;
   } | null>(null);
+  const [isUploadingCardImage, setIsUploadingCardImage] = useState(false);
   const [reportRows, setReportRows, reportRowsHydrated] = useSupabaseReportState<ReportCardRow[]>({
     reportKind: "layout",
     referenceMonth: reportReferenceMonth,
@@ -2457,6 +2450,11 @@ export function ReportsPage() {
     });
   };
   const saveCardDraft = () => {
+    if (isUploadingCardImage) {
+      toast.info("Aguarde o envio da imagem terminar.");
+      return;
+    }
+
     if (!reportSharedReady) {
       toast.error("Aguarde carregar o relatório compartilhado antes de salvar.");
       return;
@@ -3729,8 +3727,15 @@ export function ReportsPage() {
                           return;
                         }
 
+                        if (!session?.user.id) {
+                          toast.error("Entre em uma conta do Supabase para enviar imagens.");
+                          event.target.value = "";
+                          return;
+                        }
+
+                        setIsUploadingCardImage(true);
                         try {
-                          const nextImage = await readFileAsDataUrl(file);
+                          const nextImage = await uploadReportCardImage(file, session.user.id);
                           setCardDraft((previous) =>
                             previous
                               ? {
@@ -3740,8 +3745,11 @@ export function ReportsPage() {
                                 }
                               : previous,
                           );
-                        } catch {
-                          toast.error("Não foi possível ler o arquivo selecionado.");
+                        } catch (error) {
+                          toast.error(error instanceof Error ? error.message : "Não foi possível enviar a imagem.");
+                        } finally {
+                          setIsUploadingCardImage(false);
+                          event.target.value = "";
                         }
                       }}
                       className="block w-full text-sm text-muted-foreground file:mr-4 file:rounded-full file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-semibold file:text-primary-foreground file:shadow-sm hover:file:bg-primary/95"
@@ -3780,7 +3788,9 @@ export function ReportsPage() {
               >
                 Cancelar
               </button>
-              <ActionButton dataCy="reports-card-save" onClick={saveCardDraft}>{cardDraft.itemIndex === null ? "Adicionar card" : "Salvar card"}</ActionButton>
+              <ActionButton dataCy="reports-card-save" onClick={saveCardDraft} disabled={isUploadingCardImage}>
+                {isUploadingCardImage ? "Enviando imagem..." : cardDraft.itemIndex === null ? "Adicionar card" : "Salvar card"}
+              </ActionButton>
             </div>
           </div>
         </div>

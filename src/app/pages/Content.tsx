@@ -15,6 +15,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+import { isDemoSession, useAuthSession } from "../auth";
 import {
   calendarEvents,
   getGoalResponsibleIds,
@@ -30,6 +31,7 @@ import { usePosts } from "../data/posts";
 import { getCurrentMonthKey, useMonthlyPerformanceSnapshot } from "../data/monthlyPerformance";
 import { useTeamProfiles } from "../data/profiles";
 import { useSupabaseSyncedListState } from "../data/supabaseSync";
+import { uploadReportCardImage } from "../data/reportImages";
 import { matchesTeamScope, useTeamScope } from "../data/teamScope";
 import {
   ActionButton,
@@ -161,15 +163,6 @@ function defaultThumbnail(type: ContentType) {
 
 function isImageDataUrl(value: string) {
   return value.startsWith("data:image/");
-}
-
-function readFileAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ""));
-    reader.onerror = () => reject(reader.error ?? new Error("Falha ao ler o arquivo."));
-    reader.readAsDataURL(file);
-  });
 }
 
 function buildPostFromDraft(draft: ContentDraft, existing?: Post): Post {
@@ -429,6 +422,7 @@ function ContentEditorModal({
   onClose,
   onSave,
   teamMembers,
+  userId,
 }: {
   mode: ContentEditorMode;
   draft: ContentDraft;
@@ -436,6 +430,7 @@ function ContentEditorModal({
   onClose: () => void;
   onSave: () => void;
   teamMembers: Array<{ id: number; name: string; role: string }>;
+  userId: string | null;
 }) {
   const title = mode === "create" ? "Adicionar card" : "Ajustar card";
   const subtitle = "Edite os dados do conteúdo e salve para atualizar a plataforma inteira.";
@@ -468,11 +463,17 @@ function ContentEditorModal({
       return;
     }
 
+    if (!userId) {
+      toast.error("Entre em uma conta do Supabase para enviar imagens.");
+      event.target.value = "";
+      return;
+    }
+
     try {
-      const dataUrl = await readFileAsDataUrl(file);
-      onChange({ ...draft, thumbnail: dataUrl, thumbnailName: file.name });
-    } catch {
-      toast.error("Não foi possível carregar a imagem.");
+      const publicUrl = await uploadReportCardImage(file, userId);
+      onChange({ ...draft, thumbnail: publicUrl, thumbnailName: file.name });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível enviar a imagem.");
     } finally {
       event.target.value = "";
     }
@@ -699,6 +700,7 @@ function ContentEditorModal({
 }
 
 export function ContentPage() {
+  const { session } = useAuthSession();
   const [teamMembers] = useTeamProfiles();
   const [posts, setPosts] = usePosts();
   const [monthlyPerformance, setMonthlyPerformance] = useMonthlyPerformanceSnapshot();
@@ -1517,6 +1519,7 @@ export function ContentPage() {
           }}
           onSave={handleSaveEditor}
           teamMembers={teamMembers}
+          userId={session && !isDemoSession(session) ? session.user.id : null}
         />
       ) : null}
 
