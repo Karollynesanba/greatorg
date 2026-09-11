@@ -393,7 +393,7 @@ export function MyProfilePage() {
           onClick={() => setIsEditOpen(false)}
         >
           <div
-            className={`w-full max-w-2xl ${surfaceMutedClass} p-6`}
+            className={`max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto overscroll-contain ${surfaceMutedClass} p-4 sm:p-6`}
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">

@@ -111,7 +111,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
   return (
     <div className="min-h-screen overflow-hidden bg-[#fbf7f6] text-[#141414] [color-scheme:light]">
       <div className="grid min-h-screen lg:grid-cols-[1.02fr_0.98fr]">
-        <section className="relative overflow-hidden bg-[#fcf9f8] px-8 py-8 xl:px-12">
+        <section className="relative overflow-hidden bg-[#fcf9f8] px-4 py-6 sm:px-8 sm:py-8 xl:px-12">
           <div className="absolute inset-0">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_22%,rgba(229,9,20,0.03),transparent_28%),radial-gradient(circle_at_72%_24%,rgba(229,9,20,0.02),transparent_22%)]" />
           </div>
@@ -125,7 +125,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
               </div>
             </div>
 
-            <div className="flex flex-1 flex-col justify-center pb-10 pt-14">
+            <div className="hidden flex-1 flex-col justify-center pb-10 pt-14 lg:flex">
               <div className="max-w-2xl">
                 <h1 className="mt-5 max-w-xl text-[3.8rem] font-semibold leading-[0.94] tracking-tight text-[#141414] xl:text-[4.1rem]">
                   Gestao estrategica
@@ -147,7 +147,7 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
           </div>
         </section>
 
-        <section className="relative overflow-hidden bg-gradient-to-br from-[#e50914] via-[#cf0812] to-[#b00000] px-8 py-10 text-white xl:px-12">
+        <section className="relative overflow-hidden bg-gradient-to-br from-[#e50914] via-[#cf0812] to-[#b00000] px-4 py-6 text-white sm:px-8 sm:py-10 xl:px-12">
           <div className="absolute inset-0">
             <div className="absolute left-[-13rem] top-[-8rem] h-[42rem] w-[42rem] rounded-full bg-white/10 blur-3xl" />
             <div className="absolute left-[-18rem] top-[3.8rem] h-[44rem] w-[44rem] rounded-full border border-white/12" />
@@ -163,11 +163,11 @@ export function LoginPage({ onLogin }: { onLogin?: () => void }) {
 
           <div className="relative flex h-full flex-col justify-between">
             <div className="flex flex-1 items-center justify-center">
-              <div className="relative">
+              <div className="relative w-full max-w-[560px]">
                 <div className="absolute -left-[12rem] top-[4rem] h-[38rem] w-[38rem] rounded-full border border-white/12" />
                 <form
                   onSubmit={handleSubmit}
-                  className="relative w-full max-w-[560px] rounded-t-[2.3rem] rounded-b-[1.15rem] bg-white px-12 py-12 text-[#141414] shadow-[0_42px_100px_rgba(0,0,0,0.26)]"
+                  className="relative w-full max-w-[560px] rounded-t-[2.3rem] rounded-b-[1.15rem] bg-white px-5 py-6 text-[#141414] sm:px-12 sm:py-12 shadow-[0_42px_100px_rgba(0,0,0,0.26)]"
                 >
                   <h2 className="text-[2rem] font-semibold tracking-tight text-[#141414]">Entrar na plataforma</h2>
                   <p className="mt-2 text-[1rem] text-[#7a7f87]">Entre com seu email e senha do Supabase novo.</p>

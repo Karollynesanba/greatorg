@@ -3,11 +3,8 @@ import { NavLink, useLocation } from "react-router-dom";
 import {
   Calendar,
   Camera,
-  CheckCircle2,
   FileText,
-  History,
   LayoutDashboard,
-  Lightbulb,
   LogOut,
   PanelLeft,
   Settings,
@@ -21,11 +18,7 @@ const navigation = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/meta-insights", label: "Meta Insights", icon: Target },
   { to: "/calendar", label: "Calendário", icon: Calendar },
-  { to: "/goals", label: "Metas", icon: CheckCircle2 },
   { to: "/content", label: "Conteúdo", icon: Camera },
-  { to: "/stories", label: "Stories", icon: Camera },
-  { to: "/ideas", label: "Ideias", icon: Lightbulb },
-  { to: "/history", label: "Histórico", icon: History },
   { to: "/reports", label: "Relatórios", icon: FileText },
 ];
 
@@ -42,6 +35,9 @@ export function Sidebar({ onLogout }: { onLogout?: () => void }) {
     <>
       <button
         type="button"
+        aria-label="Abrir menu de navegação"
+        aria-expanded={open}
+        aria-controls="site-sidebar"
         onClick={() => setOpen(true)}
         className={cn(
           "fixed left-4 top-4 z-40 inline-flex h-11 w-11 items-center justify-center rounded-2xl backdrop-blur-xl print:hidden xl:hidden",
@@ -57,16 +53,18 @@ export function Sidebar({ onLogout }: { onLogout?: () => void }) {
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="fixed inset-0 z-30 bg-black/45 backdrop-blur-sm print:hidden xl:hidden"
+          className="fixed inset-0 z-50 bg-black/45 backdrop-blur-sm print:hidden xl:hidden"
           aria-label="Fechar menu"
         />
       ) : null}
 
       <aside
+        id="site-sidebar"
+        aria-label="Navegação principal"
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-[300px] -translate-x-full flex-col px-5 py-6 transition-transform duration-300 print:hidden xl:left-0 xl:top-0 xl:bottom-0 xl:flex xl:w-[286px] xl:translate-x-0 xl:rounded-none",
+          "fixed inset-y-0 left-0 z-[60] flex w-[300px] max-w-[calc(100vw-3rem)] -translate-x-full flex-col overflow-y-auto overscroll-contain px-5 py-6 transition-transform duration-300 print:hidden xl:left-0 xl:top-0 xl:bottom-0 xl:flex xl:w-[286px] xl:translate-x-0 xl:rounded-none",
           "border-r-0 bg-[linear-gradient(180deg,#E30613_0%,#C40010_100%)] shadow-[18px_0_42px_rgba(227,6,19,0.18)] backdrop-blur-0",
-          open ? "translate-x-0" : "-translate-x-full",
+          open ? "visible translate-x-0" : "invisible -translate-x-full xl:visible",
         )}
       >
         <div className="mb-10 flex items-center px-1 pt-1">
@@ -89,6 +87,7 @@ export function Sidebar({ onLogout }: { onLogout?: () => void }) {
         <div className="mb-6 flex items-center justify-end xl:hidden">
           <button
             type="button"
+            aria-label="Fechar menu de navegação"
             onClick={() => setOpen(false)}
             className={cn(
               "inline-flex h-10 w-10 items-center justify-center rounded-2xl",
@@ -99,11 +98,12 @@ export function Sidebar({ onLogout }: { onLogout?: () => void }) {
           </button>
         </div>
 
-        <nav className="flex-1 space-y-2.5">
+        <nav className="flex-1 space-y-2.5" aria-label="Páginas do site">
           {navigation.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
+              onClick={() => setOpen(false)}
               data-cy={`nav-${to.slice(1)}`}
             className={({ isActive }) =>
               cn(
@@ -124,6 +124,7 @@ export function Sidebar({ onLogout }: { onLogout?: () => void }) {
           <div className="space-y-3">
             <NavLink
               to="/settings"
+              onClick={() => setOpen(false)}
               data-cy="nav-settings"
               className={({ isActive }) =>
                 cn(

@@ -7,10 +7,7 @@ import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
 import { CalendarPage } from "./pages/Calendar";
 import { DashboardPage } from "./pages/Dashboard";
-import { GoalsPage } from "./pages/Goals";
-import { HistoryPage } from "./pages/History";
 import { ContentPage } from "./pages/Content";
-import { IdeasPage } from "./pages/Ideas";
 import { MetaInsightsPage } from "./pages/MetaInsights";
 import { MyProfilePage } from "./pages/MyProfile";
 import { LoginPage } from "./pages/Login";
@@ -18,7 +15,6 @@ import { PostDetailPage } from "./pages/PostDetail";
 import { ReportsPage } from "./pages/Reports";
 import { ReportPreviewPage } from "./pages/ReportPreview";
 import { SettingsPage } from "./pages/Settings";
-import { StoriesPage } from "./pages/Stories";
 import { signOut, useAuthSession } from "./auth";
 import { getBrazilMonthKey } from "./data/brazilDate";
 import { createStorageKey } from "./data/sharedState";
@@ -60,7 +56,7 @@ export default function App() {
   return (
     <ThemeModeProvider>
       <DndProvider backend={HTML5Backend}>
-        <BrowserRouter>
+        <BrowserRouter unstable_useTransitions={false}>
           {authenticated ? (
             <AppShell
               onLogout={async () => {
@@ -128,11 +124,8 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
               <Route path="/meta-insights" element={<MetaInsightsPage />} />
               <Route path="/calendar" element={<CalendarPage />} />
               <Route path="/post/:id" element={<PostDetailPage />} />
-              <Route path="/goals" element={<GoalsPage />} />
               <Route path="/content" element={<ContentPage />} />
-              <Route path="/stories" element={<StoriesPage />} />
-              <Route path="/ideas" element={<IdeasPage />} />
-              <Route path="/history" element={<HistoryPage />} />
+              {/* Goals, Stories, Ideas e History ficam em rascunho nos arquivos de pages, sem rotas publicadas. */}
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/reports/preview" element={<ReportPreviewPage />} />
               <Route path="/settings" element={<SettingsPage />} />

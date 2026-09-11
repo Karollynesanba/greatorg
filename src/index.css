@@ -71,3 +71,44 @@
     display: none;
   }
 }
+
+/* Touch layouts; keep desktop and printed reports unchanged. */
+@media screen and (max-width: 1023px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+  select,
+  textarea {
+    min-width: 0;
+    max-width: 100%;
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  button,
+  a[aria-label],
+  [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .grid-cols-7 > button {
+    min-width: 0;
+  }
+
+  main {
+    overflow-wrap: anywhere;
+  }
+
+  main section {
+    min-width: 0;
+  }
+
+  img,
+  video {
+    max-width: 100%;
+  }
+
+  .overflow-x-auto {
+    max-width: 100%;
+    overscroll-behavior-x: contain;
+  }
+}

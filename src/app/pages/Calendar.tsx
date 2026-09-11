@@ -1924,7 +1924,7 @@ export function CalendarPage() {
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-            <div className="space-y-5">
+            <div className="min-w-0 space-y-5">
               <GlassPanel className={cn(gridPanelClass, "overflow-hidden border border-border/60 p-5 shadow-[0_20px_48px_rgba(15,23,42,0.08)]")}>
                 <div className="mb-4 flex items-start justify-between gap-4">
                   <div>
@@ -1936,8 +1936,8 @@ export function CalendarPage() {
                   </div>
                 </div>
                 {view === "Semana" ? (
-                  <div className="overflow-hidden">
-                    <div className={calendarShellClass}>
+                  <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Agenda semanal, deslize para ver os outros dias">
+                    <div className={cn(calendarShellClass, "min-w-[840px]")}>
                       <div className={calendarHeaderClass}>
                         <div className="px-3 py-4" />
                         {weekDates.map((date, index) => {
@@ -2026,7 +2026,8 @@ export function CalendarPage() {
                 ) : null}
 
                 {view === "Mês" ? (
-                  <div className="p-4">
+                  <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Agenda mensal, deslize para ver os outros dias">
+                  <div className="min-w-[840px] p-4">
                     <div className="mb-4 grid grid-cols-7 gap-3 px-1 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                       {daysOfWeek.map((day) => (
                         <div key={day}>{day}</div>
@@ -2084,6 +2085,7 @@ export function CalendarPage() {
                         );
                       })}
                     </div>
+                  </div>
                   </div>
                 ) : null}
               </GlassPanel>

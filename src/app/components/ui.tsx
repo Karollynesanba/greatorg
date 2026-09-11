@@ -26,7 +26,7 @@ import { useThemeMode } from "../theme";
 export const cn = (...values: Array<string | false | null | undefined>) => clsx(values);
 
 export const pageContainerClass =
-  "mx-auto flex w-full max-w-[1600px] flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8";
+  "mx-auto flex w-full min-w-0 max-w-[1600px] flex-col gap-6 px-0 py-4 sm:px-6 sm:py-6 lg:px-8";
 
 export const getProgressTone = (progress: number) => {
   if (progress >= 100) {
@@ -122,7 +122,7 @@ export function PageHeader({
           {description ? <p className="max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">{description}</p> : null}
         </div>
       </div>
-      {actions ? <div className="flex items-center gap-3">{actions}</div> : null}
+      {actions ? <div className="flex min-w-0 flex-wrap items-center gap-3">{actions}</div> : null}
     </motion.header>
   );
 }
@@ -137,7 +137,7 @@ export function SectionTitle({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4">
+    <div className="flex flex-wrap items-center justify-between gap-4">
       <div>
         <h2 className="text-lg font-semibold tracking-tight text-foreground">{title}</h2>
         {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
@@ -184,7 +184,7 @@ export function ActionButton({
       disabled={disabled}
       data-cy={dataCy}
       className={cn(
-        "inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium transition duration-200",
+        "inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium transition duration-200",
         variants[variant],
         className,
       )}
@@ -864,7 +864,7 @@ export function ConfirmDialog({
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-md rounded-[2rem] border border-border/60 bg-card p-6 shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:border-white/8 dark:bg-card/96 dark:shadow-[0_30px_80px_rgba(0,0,0,0.35)]"
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto overscroll-contain rounded-[2rem] border border-border/60 bg-card p-6 shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:border-white/8 dark:bg-card/96 dark:shadow-[0_30px_80px_rgba(0,0,0,0.35)]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start gap-4">

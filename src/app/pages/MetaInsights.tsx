@@ -150,7 +150,7 @@ function LoadingState() {
         ))}
       </div>
 
-      <GlassPanel className="h-[420px] p-6">
+      <GlassPanel className="min-w-0 p-4 sm:p-6">
         <div className="animate-pulse space-y-4">
           <div className="h-5 w-48 rounded-full bg-muted" />
           <div className="h-[320px] rounded-[2rem] bg-muted/60" />
@@ -527,7 +527,7 @@ export function MetaInsightsPage() {
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
-            <GlassPanel className={isDark ? "h-[420px] p-6" : "h-[420px] p-6 bg-white/96 border border-border/60 shadow-[0_18px_48px_rgba(15,23,42,0.06)]"} dataCy="meta-chart-shell">
+            <GlassPanel className={isDark ? "min-w-0 p-4 sm:p-6" : "min-w-0 p-4 sm:p-6 bg-white/96 border border-border/60 shadow-[0_18px_48px_rgba(15,23,42,0.06)]"} dataCy="meta-chart-shell">
               <SectionTitle
                 title="Evolução do período"
                 description="Acompanhamento agregado de alcance, views e visitas ao perfil no período."

@@ -2901,7 +2901,7 @@ export function ReportsPage() {
           </div>
         </section>
 
-        <section ref={reportFiltersRef} className="rounded-[24px] border border-[rgba(255,180,200,.35)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(255,245,248,0.9))] p-7 shadow-[0_12px_40px_rgba(255,120,160,.08)] print:hidden">
+        <section ref={reportFiltersRef} className="rounded-[24px] border border-[rgba(255,180,200,.35)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(255,245,248,0.9))] p-4 sm:p-7 shadow-[0_12px_40px_rgba(255,120,160,.08)] print:hidden">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Filtros</p>
@@ -2937,7 +2937,7 @@ export function ReportsPage() {
         <section>
           <div className="w-full min-w-0 max-w-none overflow-hidden rounded-[24px] border border-[rgba(255,180,200,.35)] bg-[radial-gradient(circle_at_top_left,rgba(255,216,229,0.48),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(255,236,241,0.55),transparent_22%),linear-gradient(180deg,#FFFDFD,rgba(255,248,250,0.98))] p-5 shadow-[0_12px_40px_rgba(255,120,160,.08)] sm:p-6 min-[1400px]:p-7">
             <div className="grid w-full min-w-0 max-w-none gap-6 min-[1400px]:grid-cols-[minmax(0,1.6fr)_minmax(360px,1fr)] min-[1400px]:items-stretch min-[1400px]:gap-6 min-[1600px]:gap-8">
-              <div className="relative min-w-0 overflow-hidden rounded-[24px] border border-[rgba(255,180,200,.35)] bg-[linear-gradient(135deg,rgba(255,255,255,0.72),rgba(255,236,241,0.48))] p-8 shadow-[0_12px_40px_rgba(255,120,160,.08)] backdrop-blur-[14px] sm:p-9">
+              <div className="relative min-w-0 overflow-hidden rounded-[24px] border border-[rgba(255,180,200,.35)] bg-[linear-gradient(135deg,rgba(255,255,255,0.72),rgba(255,236,241,0.48))] p-8 shadow-[0_12px_40px_rgba(255,120,160,.08)] backdrop-blur-[14px] max-sm:p-4 sm:p-9">
                 <div className="absolute inset-x-10 bottom-2 h-28 rounded-full bg-primary/8 blur-3xl" />
                 <div className="absolute -left-8 top-10 h-32 w-32 rounded-full bg-[rgba(255,126,168,0.10)] blur-3xl" />
                 <div className="absolute right-12 top-8 h-20 w-20 rounded-full bg-[rgba(255,126,168,0.08)] blur-2xl" />
@@ -2959,7 +2959,7 @@ export function ReportsPage() {
                     </div>
 
                     <div className="space-y-5">
-                      <h2 className="max-w-[600px] text-[clamp(3rem,4.6vw,3.6rem)] font-bold leading-[0.95] tracking-tight text-[#1F2937]">
+                      <h2 className="max-w-[600px] text-[clamp(2rem,7vw,3rem)] sm:text-[clamp(3rem,4.6vw,3.6rem)] font-bold leading-[0.95] tracking-tight text-[#1F2937]">
                         {overviewDraft.title}
                       </h2>
                       <div className="h-1.5 w-20 rounded-full bg-[linear-gradient(90deg,rgba(255,131,167,0.88),rgba(255,164,190,0.5))]" />
@@ -3135,7 +3135,7 @@ export function ReportsPage() {
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className="grid min-w-[270px] grid-cols-2 gap-2 print:hidden">
+                    <div className="grid w-full min-w-0 grid-cols-1 sm:w-auto sm:min-w-[270px] sm:grid-cols-2 gap-2 print:hidden">
                       <RoundedDropdown
                         label="Mês da planilha"
                         value={storiesSheetMonth}
@@ -3303,7 +3303,7 @@ export function ReportsPage() {
 
       {isExecutiveMetricsModalOpen ? (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-sm print:hidden">
-          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] border border-border/70 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.22)]">
+          <div className="max-h-[calc(100dvh-3rem)] w-full max-w-2xl overflow-y-auto rounded-[2rem] border border-border/70 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.22)]">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Indicadores</p>
@@ -3381,7 +3381,7 @@ export function ReportsPage() {
 
       {isOverviewModalOpen ? (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-sm print:hidden">
-          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] border border-border/70 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.22)]">
+          <div className="max-h-[calc(100dvh-3rem)] w-full max-w-2xl overflow-y-auto rounded-[2rem] border border-border/70 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.22)]">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Visão geral</p>
@@ -3461,7 +3461,7 @@ export function ReportsPage() {
 
       {editingSection?.scope === "row" && sectionForm ? (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-sm print:hidden">
-          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] border border-border/70 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.22)]">
+          <div className="max-h-[calc(100dvh-3rem)] w-full max-w-2xl overflow-y-auto rounded-[2rem] border border-border/70 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.22)]">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Seção</p>
@@ -3543,7 +3543,7 @@ export function ReportsPage() {
 
       {editingSection?.scope === "storiesTeam" ? (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-sm print:hidden">
-          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[2rem] border border-border/70 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.22)]">
+          <div className="max-h-[calc(100dvh-3rem)] w-full max-w-3xl overflow-y-auto rounded-[2rem] border border-border/70 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.22)]">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Perfil</p>
@@ -3642,7 +3642,7 @@ export function ReportsPage() {
 
       {cardDraft ? (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-sm print:hidden">
-          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[2rem] border border-border/70 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.22)]">
+          <div className="max-h-[calc(100dvh-3rem)] w-full max-w-3xl overflow-y-auto rounded-[2rem] border border-border/70 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.22)]">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">

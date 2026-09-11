@@ -890,7 +890,7 @@ export function DashboardPage() {
                       <Link
                         key={post.id}
                         to={`/post/${post.id}`}
-                        className="grid grid-cols-[34px_minmax(0,1fr)_78px_82px] items-center gap-3 rounded-2xl border border-border/60 bg-white/78 px-3 py-3 transition hover:-translate-y-0.5 hover:border-[rgb(243,209,209)] hover:shadow-[0_12px_24px_rgba(227,6,19,0.08)] dark:border-white/8 dark:bg-white/5"
+                        className="grid grid-cols-[34px_minmax(0,1fr)] sm:grid-cols-[34px_minmax(0,1fr)_78px_82px] items-center gap-3 rounded-2xl border border-border/60 bg-white/78 px-3 py-3 transition hover:-translate-y-0.5 hover:border-[rgb(243,209,209)] hover:shadow-[0_12px_24px_rgba(227,6,19,0.08)] dark:border-white/8 dark:bg-white/5"
                       >
                         <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[linear-gradient(135deg,rgba(255,234,234,1),rgba(255,245,245,1),rgba(243,209,209,0.9))] text-xs font-semibold text-primary">
                           {index + 1}
@@ -936,7 +936,7 @@ export function DashboardPage() {
                       <Link
                         key={post.id}
                         to={`/post/${post.id}`}
-                        className="grid grid-cols-[minmax(0,1fr)_78px_82px] items-center gap-3 rounded-2xl border border-[rgb(243,209,209)] bg-[linear-gradient(135deg,rgba(255,245,245,0.96),rgba(255,234,234,0.92))] px-3 py-3 transition hover:-translate-y-0.5 hover:shadow-[0_12px_24px_rgba(227,6,19,0.08)] dark:border-[#6b3136] dark:bg-[linear-gradient(180deg,rgba(29,23,25,0.98),rgba(22,18,19,0.98))]"
+                        className="grid grid-cols-2 sm:grid-cols-[minmax(0,1fr)_78px_82px] items-center gap-3 rounded-2xl border border-[rgb(243,209,209)] bg-[linear-gradient(135deg,rgba(255,245,245,0.96),rgba(255,234,234,0.92))] px-3 py-3 transition hover:-translate-y-0.5 hover:shadow-[0_12px_24px_rgba(227,6,19,0.08)] dark:border-[#6b3136] dark:bg-[linear-gradient(180deg,rgba(29,23,25,0.98),rgba(22,18,19,0.98))]"
                       >
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold text-foreground">{post.title}</p>
