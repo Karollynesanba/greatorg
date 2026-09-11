@@ -658,11 +658,11 @@ function ReportPageFrame({
   return (
     <section
       className={cn(
-        "break-after-page mx-auto w-full max-w-[840px] rounded-[2.25rem] border border-[#e8e1d7] bg-[#fffdf8] p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)] dark:border-white/8 dark:bg-[#0f1115] dark:shadow-[0_20px_60px_rgba(0,0,0,0.28)] print-report-page print:break-after-page print:max-w-none print:border-0 print:bg-white print:p-0 print:shadow-none",
+        "break-after-page mx-auto w-full max-w-[840px] rounded-[2.25rem] border border-[#e8e1d7] bg-[#fffdf8] p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)] dark:border-white/8 dark:bg-[#0f1115] dark:shadow-[0_20px_60px_rgba(0,0,0,0.28)] report-mobile-page print-report-page print:break-after-page print:max-w-none print:border-0 print:bg-white print:p-0 print:shadow-none",
         className,
       )}
     >
-      <div className="mb-6 flex items-start justify-between gap-4 border-b border-black/5 pb-5 dark:border-white/8">
+      <div className="report-preview-heading mb-6 flex items-start justify-between gap-4 border-b border-black/5 pb-5 dark:border-white/8">
         <div>
           <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Relatório</p>
           <h2 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">{title}</h2>
@@ -1384,7 +1384,7 @@ export function ReportPreviewPage() {
 
         <div className="space-y-6">
           <GlassPanel className="overflow-hidden p-0 print:hidden">
-            <div className="flex items-center justify-between gap-3 border-b border-border/60 p-4">
+            <div className="report-preview-heading flex items-center justify-between gap-3 border-b border-border/60 p-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Pré-visualização</p>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -1394,7 +1394,7 @@ export function ReportPreviewPage() {
                   {pageLabels[reportState.selectedPage]}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <ActionButton variant="secondary" onClick={resetPreviewState}>
                   Resetar
                 </ActionButton>
@@ -1404,7 +1404,7 @@ export function ReportPreviewPage() {
                 </ActionButton>
               </div>
             </div>
-            <div className="print-report-scroll max-h-[calc(100vh-260px)] overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(209,0,0,0.05),transparent_34%),linear-gradient(180deg,rgba(244,240,235,0.9),rgba(248,250,252,0.85))] px-4 py-8 dark:bg-black print:max-h-none print:bg-none print:px-0 print:py-0">
+            <div className="report-mobile-preview print-report-scroll max-h-[calc(100vh-260px)] overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(209,0,0,0.05),transparent_34%),linear-gradient(180deg,rgba(244,240,235,0.9),rgba(248,250,252,0.85))] px-4 py-8 dark:bg-black print:max-h-none print:bg-none print:px-0 print:py-0">
               <div className="space-y-10 print:space-y-0">
                 <ReportPageFrame
                   title="Capa"

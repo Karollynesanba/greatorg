@@ -464,11 +464,14 @@ function RoundedDropdown<T extends string | number>({
       const viewportPadding = 12;
       const width = Math.min(rect.width, window.innerWidth - viewportPadding * 2);
       const left = Math.min(Math.max(rect.left, viewportPadding), window.innerWidth - width - viewportPadding);
-      const availableBelow = window.innerHeight - rect.bottom - viewportPadding - 4;
-      const maxHeight = Math.max(Math.min(320, availableBelow), 120);
+      const availableBelow = Math.max(0, window.innerHeight - rect.bottom - viewportPadding - 4);
+      const availableAbove = Math.max(0, rect.top - viewportPadding - 4);
+      const openAbove = availableBelow < 240 && availableAbove > availableBelow;
+      const menuHeight = Math.min(338, openAbove ? availableAbove : availableBelow);
+      const maxHeight = Math.max(0, menuHeight - 18);
 
       setPortalPosition({
-        top: rect.bottom + 4,
+        top: openAbove ? rect.top - 4 - menuHeight : rect.bottom + 4,
         left,
         width,
         maxHeight,
@@ -488,6 +491,8 @@ function RoundedDropdown<T extends string | number>({
   const dropdownMenu = (
     <div
       ref={popoverRef}
+      role="group"
+      aria-label={`Opções de ${label}`}
       className="overflow-hidden rounded-[1.75rem] border border-border/70 p-2 shadow-[0_24px_60px_rgba(15,23,42,0.14)] dark:border-white/8 dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]"
       style={{
         backgroundColor: menuColor,
@@ -555,6 +560,8 @@ function RoundedDropdown<T extends string | number>({
     <div ref={rootRef} className="relative z-[80]">
       <button
         type="button"
+        aria-label={label}
+        aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
         className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 px-5 py-3 text-left text-sm text-foreground transition hover:border-primary/25 hover:shadow-sm dark:border-white/8 dark:text-foreground"
         style={{
@@ -1009,6 +1016,16 @@ function DateRangePicker({
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const [mobilePopover, setMobilePopover] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 1023px)");
+    const update = () => setMobilePopover(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
   const { isDark } = useThemeMode();
   const [cursor, setCursor] = useState(
     () => (startValue ? parseDate(startValue) : null) || (endValue ? parseDate(endValue) : null) || new Date(),
@@ -1023,7 +1040,7 @@ function DateRangePicker({
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node) && !popoverRef.current?.contains(event.target as Node)) {
         setOpen(false);
       }
     };
@@ -1050,40 +1067,12 @@ function DateRangePicker({
       ? new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).format(resolvedStart)
       : "Selecionar intervalo";
 
-  return (
-    <div ref={rootRef} className="relative">
-      <button
-        type="button"
-        data-cy={dataCy}
-        onClick={() => setOpen((current) => !current)}
-        className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 px-5 py-3 text-left text-sm text-foreground transition hover:border-primary/25 hover:shadow-sm dark:border-white/8"
-        style={{ backgroundColor: surfaceColor }}
-      >
-        <span className="flex items-center gap-3">
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <CalendarRange className="h-4 w-4" />
-          </span>
-          <span>
-            <span className="block text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{label}</span>
-            <span className="block font-medium text-foreground">{displayLabel}</span>
-          </span>
-        </span>
-        <span
-          className={cn(
-            "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border/60 text-muted-foreground transition dark:border-white/8 dark:bg-[#1f2631] dark:text-slate-200",
-            open && "rotate-180",
-          )}
-          style={{ backgroundColor: isDark ? "rgb(var(--sidebar) / 1)" : "#ffffff" }}
-        >
-          <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <path d="M5 7.5L10 12.5L15 7.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </span>
-      </button>
-
-      {open ? (
-        <div
-          className="absolute left-0 top-full z-[90] mt-2 w-[340px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-[1.75rem] border border-border/70 shadow-[0_24px_60px_rgba(15,23,42,0.14)] dark:border-white/8 dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]"
+  const popover = (
+<div
+          ref={popoverRef}
+          className="report-date-popover absolute left-0 top-full z-[90] mt-2 w-[340px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-[1.75rem] border border-border/70 shadow-[0_24px_60px_rgba(15,23,42,0.14)] dark:border-white/8 dark:shadow-[0_24px_60px_rgba(0,0,0,0.28)]"
+          role="group"
+          aria-label="Selecionar intervalo de datas"
           style={{ backgroundColor: popoverColor }}
         >
           <div className="flex items-center justify-between border-b border-border/60 px-4 py-4">
@@ -1180,7 +1169,40 @@ function DateRangePicker({
             </div>
           </div>
         </div>
-      ) : null}
+  );
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        data-cy={dataCy}
+        onClick={() => setOpen((current) => !current)}
+        className="flex w-full items-center justify-between gap-3 rounded-full border border-border/70 px-5 py-3 text-left text-sm text-foreground transition hover:border-primary/25 hover:shadow-sm dark:border-white/8"
+        style={{ backgroundColor: surfaceColor }}
+      >
+        <span className="flex items-center gap-3">
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <CalendarRange className="h-4 w-4" />
+          </span>
+          <span>
+            <span className="block text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{label}</span>
+            <span className="block font-medium text-foreground">{displayLabel}</span>
+          </span>
+        </span>
+        <span
+          className={cn(
+            "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border/60 text-muted-foreground transition dark:border-white/8 dark:bg-[#1f2631] dark:text-slate-200",
+            open && "rotate-180",
+          )}
+          style={{ backgroundColor: isDark ? "rgb(var(--sidebar) / 1)" : "#ffffff" }}
+        >
+          <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M5 7.5L10 12.5L15 7.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+      </button>
+
+      {open ? (mobilePopover ? createPortal(popover, document.body) : popover) : null}
     </div>
   );
 }
@@ -2735,7 +2757,7 @@ export function ReportsPage() {
           summary={{ views: effectiveCurrentSummary.views, reach: effectiveCurrentSummary.reach, stories: effectiveCurrentSummary.storiesCount, monthlyProgress: effectiveCurrentSummary.monthlyProgress }}
         />
 
-        <div className="reports-screen-content space-y-6">
+        <div className="reports-screen-content report-mobile-layout space-y-6">
 
         <section className="rounded-[2.4rem] border border-border/70 bg-white/96 p-6 shadow-[0_20px_55px_rgba(15,23,42,0.07)] backdrop-blur-xl">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
@@ -3041,12 +3063,12 @@ export function ReportsPage() {
         <div className="space-y-6">
               {genericReportRows.map((row, rowIndex) => (
                 <section key={row.title} data-cy={`reports-row-${rowIndex}`} className="rounded-[2.4rem] border border-border/70 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.05)] print-avoid-break">
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="report-section-heading flex items-center justify-between gap-4">
                     <div>
                       <h2 className="text-lg font-semibold tracking-tight text-foreground">{row.title}</h2>
                       <p className="mt-1 text-sm text-muted-foreground">{row.description}</p>
                     </div>
-                    <div className="flex items-center gap-2 print:hidden">
+                    <div className="report-section-actions flex items-center gap-2 print:hidden">
                       <button
                         type="button"
                         onClick={() => openRowSectionEditor(rowIndex)}
@@ -3070,11 +3092,11 @@ export function ReportsPage() {
                     </div>
                   </div>
 
-              <div className="mt-5 flex gap-4 overflow-x-auto pb-1 print:grid print:grid-cols-2 print:gap-4 print:overflow-visible print:pb-0">
+              <div className="report-content-cards mt-5 flex gap-4 overflow-x-auto pb-1 print:grid print:grid-cols-2 print:gap-4 print:overflow-visible print:pb-0">
                 {row.items.map((item, itemIndex) => (
                   <article
                     key={`${row.title}-${item.title}`}
-                    className="group relative h-[170px] min-w-[250px] overflow-hidden rounded-[1.8rem] border border-border/60 bg-slate-100 shadow-[0_14px_34px_rgba(15,23,42,0.08)] print:h-[220px] print:min-w-0 print:break-inside-avoid"
+                    className="report-content-card group relative h-[170px] min-w-[250px] overflow-hidden rounded-[1.8rem] border border-border/60 bg-slate-100 shadow-[0_14px_34px_rgba(15,23,42,0.08)] print:h-[220px] print:min-w-0 print:break-inside-avoid"
                   >
                     <div
                       className="absolute inset-0 bg-cover bg-center transition duration-500 group-hover:scale-105"
@@ -3088,7 +3110,7 @@ export function ReportsPage() {
                         background: `linear-gradient(135deg, ${item.accent}33 0%, transparent 45%, rgba(255,255,255,0.04) 100%)`,
                       }}
                     />
-                    <div className="absolute left-4 right-4 top-4 flex items-center justify-between">
+                    <div className="report-card-metadata absolute left-4 right-4 top-4 flex items-center justify-between">
                       <span className="rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/90 backdrop-blur">
                         {item.badge ?? "Destaque"}
                       </span>
@@ -3096,11 +3118,11 @@ export function ReportsPage() {
                         {item.metric}
                       </span>
                     </div>
-                    <div className="absolute inset-x-0 bottom-0 p-4 text-white">
+                    <div className="report-card-copy absolute inset-x-0 bottom-0 p-4 text-white">
                       <p className="text-sm font-semibold leading-5">{item.title}</p>
                       <p className="mt-1 text-xs text-white/75">{item.caption ?? "Conteúdo pronto para publicação"}</p>
                     </div>
-                    <div className="absolute right-3 top-3 flex gap-2 print:hidden">
+                    <div className="report-card-actions absolute right-3 top-3 flex gap-2 print:hidden">
                       <button
                         type="button"
                         onClick={() => openEditReportCard(rowIndex, itemIndex)}
@@ -3162,7 +3184,7 @@ export function ReportsPage() {
                 </div>
 
                 <div className="mt-5 overflow-hidden rounded-[1.9rem] border border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.995),rgba(248,250,252,0.98))] shadow-[0_18px_42px_rgba(15,23,42,0.05)]">
-                  <div className="overflow-x-auto">
+                  <div className="report-stories-scroll overflow-x-auto" role="region" aria-label="Tabela mensal de Stories, deslize para ver todas as colunas" tabIndex={0}>
                     <table className="min-w-full border-separate border-spacing-0">
                       <thead>
                         <tr className="bg-primary/[0.06] text-left">
@@ -3231,7 +3253,7 @@ export function ReportsPage() {
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Perfil</p>
                       <h3 className="mt-1 text-lg font-semibold tracking-tight text-foreground">Membros da equipe no perfil</h3>
                     </div>
-                    <div className="flex items-center gap-2 print:hidden">
+                    <div className="report-section-actions flex items-center gap-2 print:hidden">
                       <button
                         type="button"
                         onClick={openStoriesTeamEditor}
