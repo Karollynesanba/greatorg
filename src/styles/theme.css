@@ -129,6 +129,30 @@ html:not(.dark) [class*="bg-zinc-800"] {
     font-size: 10pt;
   }
 
+  body:has(> .reports-pdf-document) > :not(.reports-pdf-document) {
+    display: none !important;
+  }
+
+  body:has(> .reports-pdf-document),
+  html:has(.reports-pdf-document) {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .reports-pdf-document h2 {
+    break-after: avoid;
+  }
+
+  .reports-pdf-team-week {
+    break-inside: avoid;
+    margin-top: 12px;
+    overflow-wrap: anywhere;
+  }
+
+  .reports-pdf-team-week p {
+    white-space: pre-wrap;
+  }
+
   .reports-pdf-header {
     display: flex;
     justify-content: space-between;
@@ -267,6 +291,19 @@ html:not(.dark) [class*="bg-zinc-800"] {
     width: 100%;
     margin-top: 12px;
     border-collapse: collapse;
+  }
+
+  .reports-pdf-stories thead {
+    display: table-header-group;
+  }
+
+  .reports-pdf-stories tfoot {
+    display: table-row-group;
+  }
+
+  .reports-pdf-stories tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   .reports-pdf-stories th,

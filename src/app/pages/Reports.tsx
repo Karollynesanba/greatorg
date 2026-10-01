@@ -157,6 +157,8 @@ type ReportsPdfDocumentProps = {
   storiesMonthLabel: string;
   storiesSheet: StoriesSheetRow[];
   storiesSheetTotal: Omit<StoriesSheetRow, "dateKey">;
+  storiesGoalRow: Omit<StoriesSheetRow, "dateKey"> | null;
+  storiesTeamByWeek: StoriesTeamWeek[];
   summary: { views: number; reach: number; stories: number; monthlyProgress: number };
 };
 
@@ -169,9 +171,12 @@ function ReportsPdfDocument({
   storiesMonthLabel,
   storiesSheet,
   storiesSheetTotal,
+  storiesGoalRow,
+  storiesTeamByWeek,
   summary,
 }: ReportsPdfDocumentProps) {
-  return (
+  // Print outside the application's scrolling and animated layout so every page can flow.
+  return createPortal(
     <article className="reports-pdf-document hidden print:block">
       <header className="reports-pdf-header">
         <div>
@@ -226,10 +231,23 @@ function ReportsPdfDocument({
               <tr key={`pdf-${item.dateKey}`}><td>{formatDayMonth(item.dateKey)}</td><td>{item.stories}</td><td>{item.photos}</td><td>{item.videos}</td><td>{item.cta}</td></tr>
             ))}
           </tbody>
-          <tfoot><tr><th>TOTAL</th><th>{storiesSheetTotal.stories}</th><th>{storiesSheetTotal.photos}</th><th>{storiesSheetTotal.videos}</th><th>{storiesSheetTotal.cta}</th></tr></tfoot>
+          <tfoot>
+            <tr><th>TOTAL</th><th>{storiesSheetTotal.stories}</th><th>{storiesSheetTotal.photos}</th><th>{storiesSheetTotal.videos}</th><th>{storiesSheetTotal.cta}</th></tr>
+            {storiesGoalRow ? <tr><th>META</th><td>{storiesGoalRow.stories}</td><td>{storiesGoalRow.photos}</td><td>{storiesGoalRow.videos}</td><td>{storiesGoalRow.cta}</td></tr> : null}
+          </tfoot>
         </table>
       </section>
-    </article>
+      <section className="reports-pdf-section reports-pdf-team">
+        <h2>Membros da equipe no perfil</h2>
+        {storiesTeamByWeek.length > 0 ? storiesTeamByWeek.map((item, index) => (
+          <div key={`${item.week}-${index}`} className="reports-pdf-team-week">
+            <h3>{item.week}</h3>
+            <p>{item.members}</p>
+          </div>
+        )) : <p>Nenhum membro com Stories registrado neste período.</p>}
+      </section>
+    </article>,
+    document.body,
   );
 }
 
@@ -2754,6 +2772,8 @@ export function ReportsPage() {
           storiesMonthLabel={storiesMonthLabel}
           storiesSheet={storiesSheet}
           storiesSheetTotal={storiesSheetTotal}
+          storiesGoalRow={storiesGoalRow}
+          storiesTeamByWeek={storiesTeamByWeek}
           summary={{ views: effectiveCurrentSummary.views, reach: effectiveCurrentSummary.reach, stories: effectiveCurrentSummary.storiesCount, monthlyProgress: effectiveCurrentSummary.monthlyProgress }}
         />
 
@@ -3268,7 +3288,7 @@ export function ReportsPage() {
                     </div>
                   </div>
 
-                  <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                  <div data-cy="reports-stories-team" className="mt-4 grid gap-3 lg:grid-cols-2">
                     {storiesTeamByWeek.length > 0 ? storiesTeamByWeek.map((item) => (
                       <div key={item.week} className="rounded-[1.4rem] border border-border/60 bg-white px-4 py-4 shadow-[0_10px_22px_rgba(15,23,42,0.04)]">
                         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{item.week}</p>
